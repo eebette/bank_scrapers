@@ -224,3 +224,47 @@ Enter 2FA Code: {user_enters_2fa_code}
 | Cost Basis                |
 | Total Average Cost Basis  |
 | Type                      |
+
+## RoundPoint
+
+[RoundPoint Mortgage](https://www.roundpointmortgage.com/)
+
+### About
+
+This is a Selenium driver that logs in using provided credentials, navigates 2FA, navigates to the detail account info
+from the landing page for a mortgage serviced by Roundpoint Mortgage.
+
+> ✔️ Driver supports handling of 2FA
+
+### Example Usage
+
+```python
+from scrapers.roundpoint.driver import get_accounts_info
+tables = get_accounts_info(username="{username}", password="{password}")
+for t in tables:
+    print(t.to_string())
+```
+```console
+>>> # Example 2FA workflow
+>>> # TBD
+```
+```
+    Balance
+0  #####.##
+  Monthly Payment Amount Actual Due Date Next Draft Date
+0                 ###.##   **** ##, ####   **** ##, ####
+```
+
+### Return Schema
+
+#### Balance Info
+| Column Name |
+|-------------|
+| Balance     |
+
+#### Payment Info
+| Column Name            |
+|------------------------|
+| Monthly Payment Amount |
+| Actual Due Date        |
+| Next Draft Date        |
