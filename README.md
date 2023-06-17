@@ -268,3 +268,36 @@ for t in tables:
 | Monthly Payment Amount |
 | Actual Due Date        |
 | Next Draft Date        |
+
+## SMBC Prestia
+
+[Sumitomo Mitsui Banking Corporation](https://www.smbctb.co.jp)
+
+### About
+
+This is a Selenium driver that logs in using provided credentials, navigates to the detail account info and scrapes
+account info for a member account of SMBC Prestia.
+
+> ❗️Driver does NOT currently support MFA
+
+### Example Usage
+
+```python
+from scrapers.smbc_prestia.driver import get_accounts_info
+tables = get_accounts_info(username="{username}", password="{password}")
+for t in tables:
+    print(t.to_string())
+```
+```
+   Account Number  Available Amount
+0         #######           #######
+1        ########                 #
+```
+
+### Return Schema
+
+#### Balance Info
+| Column Name      |
+|------------------|
+| Account Number   |
+| Available Amount |
