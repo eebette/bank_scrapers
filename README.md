@@ -72,7 +72,7 @@ for t in tables:
 This is a Selenium driver that logs in using provided credentials, navigates 2FA, navigates to the detail account info 
 from the landing page, and reads the account info from the page.
 
-> ✅ Driver supports handling of 2FA
+> ✔️ Driver supports handling of 2FA
 
 ### Example Usage
 
@@ -153,3 +153,74 @@ Provides int-ified values for each of the columns.
 | Column Name      |
 |------------------|
 | Program details  |
+
+## Fidelity NetBenefits
+
+[Fidelity NetBenefits](https://nb.fidelity.com/)
+
+> ❗️This driver is designed to work on the webpage for Fidelity NetBenefits, which is Fidelity's net interface for
+> 401(k) holders and stock plan participants for various companies. It is not designed to work for general brokerage 
+> account holders, though I suspect it would work with minimal effort
+
+> ️✔️ This driver will pull holdings info for all Fidelity accounts for the account holder, including general brokerage
+> accounts
+
+### About
+
+This is a Selenium driver that logs in using provided credentials, navigates 2FA, navigates to the detail account info
+from the landing page for Fidelity NetBenefits. 
+
+Instead of scraping the user's account info from the page, this driver will navigate to the user's positions summary and
+ download the accounts info provided by Fidelity using a folder of the user's choice
+
+> ✔️ Driver supports handling of 2FA
+
+### Example Usage
+
+```python
+from scrapers.fidelity_netbenefits.driver import get_accounts_info
+tables = get_accounts_info(username="{username}", password="{password}", tmp_dir="~/tmp")
+for t in tables:
+    print(t.to_string())
+```
+> ❗️**NOTE** `tmp_dir` MUST be empty for this function to work
+```console
+>>> # Example 2FA workflow
+>>> tables = get_accounts_info(username="{username}", password="{password}")
+0: Use *...*@*****.***
+1: Use *...*@**.**
+2: Use *...*@******.***
+Please select one: {user_choose_2fa_option}
+Enter 2FA Code: {user_enters_2fa_code}
+```
+```
+  Account Number        Account Name     Symbol           Description  Quantity Last Price Last Price Change Current Value Today's Gain/Loss Dollar Today's Gain/Loss Percent Total Gain/Loss Dollar Total Gain/Loss Percent Percent Of Account Cost Basis Total Average Cost Basis  Type
+#      *########    ********** - ***    *******                  ****    ##.###      $#.##             $#.##        $##.##                    $#.##                     #.##%                    ***                     ***              #.##%              ***                ***  ****
+#      *########    ********** - ***       ****        ******.*** ***   ###.###    $###.##            -$#.##     $#####.##                 -$###.##                    -#.##%              -$####.##                 -##.##%             ##.##%        $#####.##            $###.##  ****
+#          #####  ****** ###(*) ****        ***    **** ** *** ******  ####.###     $##.##            -$#.##     $#####.##                 -$###.##                    -#.##%              +$####.##                 +##.##%             ##.##%        $#####.##             $##.##   ***
+#          #####  ****** ###(*) ****  #####*###  ******** ****** ####   ###.###    $###.##            -$#.##     $#####.##                  -$##.##                    -#.##%               +$###.##                  +#.##%             ##.##%        $#####.##            $###.##   ***
+#          #####  ****** ###(*) ****       ****      ******.*** *****    ##.###    $###.##            -$#.##     $#####.##                 -$###.##                    -#.##%              -$####.##                 -##.##%              #.##%        $#####.##            $###.##   ***
+#          #####  ****** ###(*) ****      *****  **** **** *** *** **  ####.###     $##.##            -$#.##     $#####.##                       --                        --              +$####.##                 +##.##%             ##.##%        $#####.##             $##.##   ***
+```
+
+### Return Schema
+
+#### Balance Info
+| Column Name               |
+|---------------------------|
+| Account Number            |
+| Account Name              |
+| Symbol                    |
+| Description               |
+| Quantity                  |
+| Last Price                |
+| Last Price Change         |
+| Current Value             |
+| Today's Gain/Loss Dollar  |
+| Today's Gain/Loss Percent |
+| Total Gain/Loss Dollar    |
+| Total Gain/Loss Percent   |
+| Percent Of Account        |
+| Cost Basis                |
+| Total Average Cost Basis  |
+| Type                      |
