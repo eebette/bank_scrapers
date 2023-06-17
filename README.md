@@ -29,6 +29,7 @@ drivers utilize `Selenium` to impersonate the user using the provided credential
 This is a Selenium driver that logs in using provided credentials and reads account info from the landing page.
 
 > ❗️Driver does NOT currently support MFA
+> 
 ### Example Usage
 
 ```python
@@ -363,3 +364,57 @@ Enter 2FA Code: {user_enters_2fa_code}
 | Total Minimum Due                 |
 | Payment Due Date                  |
 | Last Login                        |
+
+## Vanguard
+
+[The Vanguard Group](https://investor.vanguard.com/)
+
+> ️✔️ This driver will pull holdings info for all Vanguard accounts for the account holder, including general brokerage
+> accounts
+
+### About
+
+This is a Selenium driver that logs in using provided credentials, navigates 2FA, navigates to the detail account info
+in the Downloads Center from the landing page.
+
+Instead of scraping the user's account info from the page, this driver will navigate to the user's positions summary and
+download the accounts info provided by Vanguard using a folder of the user's choice
+
+> ➖️ Driver has limited support for 2FA (only supports mobile app touch authentication)
+
+### Example Usage
+
+```python
+from scrapers.vanguard.driver import get_accounts_info
+tables = get_accounts_info(username="{username}", password="{password}", tmp_dir="~/temp/")
+for t in tables:
+    print(t.to_string())
+```
+> ❗️**NOTE** `tmp_dir` MUST be empty for this function to work
+```console
+>>> # Example 2FA workflow
+>>> tables = get_accounts_info(username="{username}", password="{password}")
+Waiting for 2FA...
+```
+```
+    Account Number    Investment Name             Symbol    Shares   Share Price  Total Value
+#         ########    ***** **** ***  *** ** *    ***       ##.###   ##.####      ####.##
+#         ########    ******** ***                ****      ##.###   ##.####      ####.##
+#         ########    **** ********* *** ** *     ****      #.###    ###.####     ###.##
+#         ########    ******** **** ** * ***      ***       #.###    ##.####      ##.##
+#         ########    ********* ****              ****      #.###    ###.####     ###.##
+```
+
+### Return Schema
+
+Provides int-ified values for each of the columns.
+
+#### Balance Info
+| Column Name      |
+|------------------|
+| Account Number   |
+| Investment Name  |
+| Symbol           |
+| Shares           |
+| Share Price      |
+| Total Value      |
