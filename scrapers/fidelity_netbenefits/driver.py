@@ -26,7 +26,6 @@ shutil.rmtree(tmp_dir)
 import os
 import sys
 from time import sleep
-from typing import Dict
 
 # Non-Standard Imports
 import pandas as pd
@@ -58,25 +57,15 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 
-def enable_downloads(chrome_options: Options, downloads_dir: str) -> Options:
+def enable_downloads(driver: Chrome, downloads_dir: str) -> None:
     """
     Creates a tmp directory and sets chrome experimental options to enable downloads there
-    :param chrome_options: The Options object for which to enable downloads
+    :param driver: The Chrome object for which to enable downloads
     :param downloads_dir: The directory to use to handle downloaded files
     :return: The same chrome options with downloads enabled to tmp dir
     """
-    experimental_options: Tuple[str, Dict] = (
-        "prefs",
-        {
-            "download.default_directory": downloads_dir,
-            "download.prompt_for_download": False,
-            "download.directory_upgrade": True,
-            "safebrowsing.enabled": True,
-        },
-    )
-    return_chrome_options: Options = chrome_options
-    return_chrome_options.add_experimental_option(*experimental_options)
-    return return_chrome_options
+    params = {"behavior": "allow", "downloadPath": downloads_dir}
+    driver.execute_cdp_cmd("Page.setDownloadBehavior", params)
 
 
 def get_chrome_options(arguments: List[str]) -> Options:
@@ -127,6 +116,7 @@ def handle_multi_factor_authentication(driver: Chrome, wait: WebDriverWait) -> N
     l_index: int = int(input("Please select one: "))
 
     # Click based on user input
+    # wait.until(EC.element_to_be_clickable(labels[l_index]))
     labels[l_index].click()
 
     # Click submit once it becomes clickable
@@ -219,13 +209,13 @@ def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.Dat
     :return: A list of pandas dataframes of accounts info tables
     """
     # Get Driver config
-    chrome_options: Options = get_chrome_options(CHROME_OPTIONS)
-    chrome_options: Options = enable_downloads(chrome_options, downloads_dir=tmp_dir)
+    options: Options = get_chrome_options(CHROME_OPTIONS)
 
     # Instantiating the Driver
-    driver: Chrome = Chrome(chrome_options=chrome_options)
+    driver: Chrome = Chrome(options=options)
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
+    enable_downloads(driver, downloads_dir=tmp_dir)
     # Navigate to the logon page and submit credentials
     logon(driver, wait, HOMEPAGE, username, password)
 
