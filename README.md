@@ -271,7 +271,7 @@ for t in tables:
 
 ## SMBC Prestia
 
-[Sumitomo Mitsui Banking Corporation](https://www.smbctb.co.jp)
+[Sumitomo Mitsui Banking Corporation PRESTIA](https://www.smbctb.co.jp)
 
 ### About
 
@@ -301,3 +301,65 @@ for t in tables:
 |------------------|
 | Account Number   |
 | Available Amount |
+
+## UHFCU
+
+[University of Hawaii Federal Credit Union](https://www.uhfcu.com//)
+
+### About
+
+This is a Selenium driver that logs in using provided credentials, navigates 2FA, navigates to the detail account info
+from the landing page for UHFCU account. It will also navigate to the credit card management system used by UHFCU and 
+pull info for each credit card on the dashboard
+
+> ✔️ Driver supports handling of 2FA
+
+> 🚦 This driver acts slightly differently than the others: it will create 1 table in the return list per account in the
+> user's dashboard. Said differently, **this driver does not produce a static amount of tables**
+
+### Example Usage
+
+```python
+from scrapers.uhfcu.driver import get_accounts_info
+tables = get_accounts_info(username="{username}", password="{password}")
+for t in tables:
+    print(t.to_string())
+```
+```console
+>>> # Example 2FA workflow
+>>> tables = get_accounts_info(username="{username}", password="{password}")
+0: #********#@#####.###
+1: ###-***-**##
+Please select one: {user_choose_2fa_option}
+Enter 2FA Code: {user_enters_2fa_code}
+```
+```
+  Account Type               Account Desc Available Current Balance
+#      *******  **** ***** - *** ##-*####    $##.##          $##.##
+  Account Type               Account Desc  Available Current Balance
+#     ********  **** ***** - *** ##-*####  $#,###.##       $#,###.##
+  Current Balance Pending Balance Statement Balance Available Credit Last Payment as of *** ##, #### Total Minimum Due Payment Due Date                Last Login
+#           $#.##           $#.##             $#.##       $##,###.##                          $##.##             $#.##     *** ##, ####  *** ##, ####, #:##:## **
+```
+
+### Return Schema
+
+#### Shared Accounts Info
+| Column Name               |
+|---------------------------|
+| Account Type              |
+| Account Desc              |
+| Available                 |
+| Current Balance           |
+
+#### Loan Accounts Info
+| Column Name                       |
+|-----------------------------------|
+| Current Balance                   |
+| Pending Balance                   |
+| Statement Balance                 |
+| Available Credit                  |
+| Last Payment as of *MMM DD, YYYY* |
+| Total Minimum Due                 |
+| Payment Due Date                  |
+| Last Login                        |
