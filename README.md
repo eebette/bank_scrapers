@@ -1,15 +1,21 @@
-# Table of Contents
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Introduction](#introduction)
 - [Drivers](#drivers)
   - [BECU](#becu)
-    - [About](#about)
-    - [Example Usage](#example-usage)
-    - [Return Schema](#return-schema)
   - [Chase](#chase)
-    - [About](#about-1)
-    - [Example Usage](#example-usage-1)
-    - [Return Schema](#return-schema-1)
+  - [Fidelity NetBenefits](#fidelity-netbenefits)
+  - [RoundPoint](#roundpoint)
+  - [SMBC Prestia](#smbc-prestia)
+  - [UHFCU](#uhfcu)
+  - [Vanguard](#vanguard)
+  - [Zillow](#zillow)
+- [API Wrappers](#api-wrappers)
+  - [Kraken](#kraken)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 
 # Introduction
 
@@ -418,3 +424,73 @@ Provides int-ified values for each of the columns.
 | Shares           |
 | Share Price      |
 | Total Value      |
+
+## Zillow
+
+[Zillow](https://www.zillow.com/)
+
+### About
+
+This is a Selenium driver that finds a property's Zestimate from a user-provided url suffix (the part after 
+`https://www.zillow.com/homedetails/`).
+
+### Example Usage
+
+```python
+from scrapers.zillow.driver import get_accounts_info
+tables = get_accounts_info(suffix="{house_num}-{street_name}-{street_type}-{city}-{state_code}-{5_digit_zip}/########_zpid")
+for t in tables:
+    print(t.to_string())
+```
+```
+  zestimate
+0  $###,###
+```
+
+### Return Schema
+
+#### Balance Info
+| Column Name |
+|-------------|
+| zestimate   |
+
+# API Wrappers
+
+## Kraken
+
+[Kraken](https://www.kraken.com/)
+
+### About
+
+This is an API wrapper for pulling Kraken account holdings based on Kraken's 
+[documentation](https://docs.kraken.com/rest).
+
+The main purpose of this wrapper is to provide an even simpler interface for pulling account holdings and to align the 
+data provided by Kraken with the rest of the financial data pulled by this package. 
+
+### Example Usage
+
+```python
+from api.kraken.driver import get_accounts_info
+tables = get_accounts_info(
+  api_key="*****************/**************************************",
+  api_sec="********+*************************+****+********//******************/**************+**==",
+)
+for t in tables:
+    print(t.to_string())
+```
+```
+  symbol      quantity
+0   ****  #.##########
+1   ****     #.#######
+2   ****        #.####
+3   ****  #.##########
+```
+
+### Return Schema
+
+#### Balance Info
+| Column Name |
+|-------------|
+| sybmol      |
+| quantity    |
