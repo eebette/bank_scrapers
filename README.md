@@ -81,6 +81,9 @@ from the landing page, and reads the account info from the page.
 
 > ✔️ Driver supports handling of 2FA
 
+> ❗️This driver is designed to crawl and pull data for Chase credit card services **only**. Chase shared bank accounts
+> are currently not in the scope of this project
+
 ### Example Usage
 
 ```python
