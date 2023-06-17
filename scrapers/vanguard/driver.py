@@ -78,15 +78,12 @@ def get_chrome_options(arguments: List[str]) -> ChromeOptions:
     return chrome_options
 
 
-def handle_multi_factor_authentication(
-    driver: Chrome, wait: WebDriverWait, password: str
-) -> None:
+def handle_multi_factor_authentication(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Navigates the MFA workflow for this website
     Note that this function only covers Email Me options for now.
     :param driver: The Chrome driver/browser used for this function
     :param wait: The wait object associated with the driver function above
-    :param password: User's password to enter along with OPT
     """
     # Select the mobile app 2FA option
     app_verification_btn = wait_and_find_click_element(
@@ -134,6 +131,7 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> Non
     Navigate the website and click download button for the accounts data
     :param driver: The Chrome browser application
     :param wait: WebDriverWait object for the driver
+    :param tmp_dir: An empty directory to use for processing the downloaded file
     """
     # Go to Downloads Center
     driver.get(
@@ -194,6 +192,7 @@ def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.Dat
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
+    :param tmp_dir: An empty directory to use for processing the downloaded file
     :return: A list of pandas dataframes of accounts info tables
     """
     # Get Driver config
@@ -219,6 +218,7 @@ def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.Dat
     try:
         wait.until(
             lambda driver: "https://dashboard.web.vanguard.com/" in driver.current_url
+            or "https://challenges.web.vanguard.com/" in driver.current_url
             or is_2fa_redirect()
         )
     except TimeoutException as e:
@@ -228,11 +228,12 @@ def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.Dat
 
     # Handle 2FA if prompted, or quit if Chase catches us
     if is_2fa_redirect():
-        handle_multi_factor_authentication(driver, wait, password)
+        handle_multi_factor_authentication(driver, wait)
 
     # Wait for landing page after handling 2FA
     wait.until(
         lambda driver: "https://dashboard.web.vanguard.com/" in driver.current_url
+        or "https://challenges.web.vanguard.com/" in driver.current_url
     )
 
     # Navigate the site and download the accounts data
