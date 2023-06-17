@@ -26,6 +26,9 @@ drivers utilize `Selenium` to impersonate the user using the provided credential
 
 # Drivers
 
+These are all written in Python using the Selenium driver and, for the most part, try to simulate the real user
+experience/workflow as seen in the eyes of the website provider. 
+
 ## BECU
 
 [Boeing Enterprises Credit Union](https://www.becu.org/)
@@ -458,6 +461,9 @@ for t in tables:
 | zestimate   |
 
 # API Wrappers
+
+These are wrappers written around API endpoints provided by providers and are generally purposed around making these
+processes of getting accounts info cohesive across this library. 
 
 ## Kraken
 
