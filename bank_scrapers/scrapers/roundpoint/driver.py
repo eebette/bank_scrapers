@@ -25,7 +25,7 @@ from bank_scrapers.scrapers.common.functions import *
 HOMEPAGE: str = "https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/login"
 
 # Timeout
-TIMEOUT: int = 15
+TIMEOUT: int = 30
 
 # Chrome config
 CHROME_OPTIONS: List[str] = [
