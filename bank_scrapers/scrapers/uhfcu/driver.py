@@ -28,7 +28,7 @@ from datetime import datetime
 HOMEPAGE: str = "https://online.uhfcu.com/sign-in?user=&SubmitNext=Sign%20On"
 
 # Timeout
-TIMEOUT: int = 60
+TIMEOUT: int = 5
 
 # Chrome config
 CHROME_OPTIONS: List[str] = [
@@ -246,10 +246,10 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
     except TimeoutException as e:
         print(driver.current_url)
         driver.save_screenshot(
-            f"{Path.home}/{datetime.today().strftime('%Y%m%d%H%mm%ss')}"
+            f"{Path.home()}/{datetime.today().strftime('%Y%M%d%H%m%s')}.png"
         )
         print(
-            f"Screenshot saved to {Path.home}/{datetime.today().strftime('%Y%m%d%H%mm%ss')}"
+            f"Screenshot saved to {Path.home()}/bank_scrapers_err_{datetime.today().strftime('%Y%M%d%H%m%s')}.png"
         )
         sys.exit(1)
 
