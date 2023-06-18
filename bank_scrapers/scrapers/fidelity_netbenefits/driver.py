@@ -23,7 +23,6 @@ shutil.rmtree(tmp_dir)
 """
 
 # Standard Library Imports
-import sys
 from time import sleep
 
 # Non-Standard Imports
@@ -225,9 +224,7 @@ def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.Dat
             or str("Extra security step required") in driver.page_source
         )
     except TimeoutException as e:
-        print(driver.current_url)
-        print(driver.page_source)
-        sys.exit(1)
+        leave_on_timeout(driver)
 
     # If 2FA...
     def is_2fa_redirect():

@@ -23,7 +23,7 @@ shutil.rmtree(tmp_dir)
 """
 
 # Standard Library Imports
-import sys
+
 # Non-Standard Imports
 from time import sleep
 
@@ -219,9 +219,7 @@ def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.Dat
             or is_2fa_redirect()
         )
     except TimeoutException as e:
-        print(driver.current_url)
-        print(driver.page_source)
-        sys.exit(1)
+        leave_on_timeout(driver)
 
     # Handle 2FA if prompted, or quit if Chase catches us
     if is_2fa_redirect():

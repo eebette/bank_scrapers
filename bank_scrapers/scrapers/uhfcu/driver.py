@@ -10,7 +10,6 @@ for t in tables:
 """
 
 # Standard Library Imports
-import sys
 from time import sleep
 from typing import Dict
 
@@ -21,8 +20,6 @@ from selenium.webdriver.common.by import By
 
 # Local Imports
 from bank_scrapers.scrapers.common.functions import *
-from datetime import datetime
-
 
 # Logon page
 HOMEPAGE: str = "https://online.uhfcu.com/sign-in?user=&SubmitNext=Sign%20On"
@@ -244,14 +241,7 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
             or is_2fa_redirect()
         )
     except TimeoutException as e:
-        print(driver.current_url)
-        driver.save_screenshot(
-            f"{Path.home()}/{datetime.today().strftime('%Y%M%d%H%m%s')}.png"
-        )
-        print(
-            f"Screenshot saved to {Path.home()}/bank_scrapers_err_{datetime.today().strftime('%Y%M%d%H%m%s')}.png"
-        )
-        sys.exit(1)
+        leave_on_timeout(driver)
 
     # Handle 2FA if prompted, or quit if Chase catches us
     if is_2fa_redirect():

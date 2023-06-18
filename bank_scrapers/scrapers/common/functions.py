@@ -3,8 +3,10 @@ Handy functions to be used by any driver
 """
 from __future__ import annotations
 
+import sys
 import os
 import shutil
+from datetime import datetime
 from pathlib import Path
 
 # Standard Imports
@@ -115,3 +117,14 @@ def check_exists(
     except NoSuchElementException:
         return False
     return True
+
+
+def leave_on_timeout(driver):
+    print(driver.current_url)
+    driver.save_screenshot(
+        f"{Path.home()}/{datetime.today().strftime('%Y%M%d%H%m%s')}.png"
+    )
+    print(
+        f"Screenshot saved to {Path.home()}/bank_scrapers_err_{datetime.today().strftime('%Y%M%d%H%m%s')}.png"
+    )
+    sys.exit(1)

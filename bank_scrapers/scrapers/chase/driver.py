@@ -10,7 +10,6 @@ for t in tables:
 """
 
 # Standard Library Imports
-import sys
 from typing import Dict
 
 # Non-Standard Imports
@@ -256,9 +255,7 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
             or password_needs_reset()
         )
     except TimeoutException as e:
-        print(driver.current_url)
-        print(driver.page_source)
-        sys.exit(1)
+        leave_on_timeout(driver)
 
     # Handle 2FA if prompted, or quit if Chase catches us
     if is_2fa_redirect():
