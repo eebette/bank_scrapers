@@ -18,6 +18,7 @@ dependencies = [
     "pandas>=2.0.2",
     "requests>=2.31.0",
     "undetected-chromedriver>=3.5.0",
+    "bank_scrapers==1.0.0",
 ]
 
 [project.urls]
