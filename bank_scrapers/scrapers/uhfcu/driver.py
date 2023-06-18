@@ -21,6 +21,8 @@ from selenium.webdriver.common.by import By
 
 # Local Imports
 from bank_scrapers.scrapers.common.functions import *
+from datetime import datetime
+
 
 # Logon page
 HOMEPAGE: str = "https://online.uhfcu.com/sign-in?user=&SubmitNext=Sign%20On"
@@ -243,7 +245,12 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
         )
     except TimeoutException as e:
         print(driver.current_url)
-        print(driver.page_source)
+        driver.save_screenshot(
+            f"{Path.home}/{datetime.today().strftime('%Y%m%d%H%mm%ss')}"
+        )
+        print(
+            f"Screenshot saved to {Path.home}/{datetime.today().strftime('%Y%m%d%H%mm%ss')}"
+        )
         sys.exit(1)
 
     # Handle 2FA if prompted, or quit if Chase catches us
