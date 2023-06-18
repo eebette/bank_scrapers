@@ -1,0 +1,95 @@
+# See:
+# - https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html
+# - https://packaging.python.org/en/latest/specifications/declaring-project-metadata/
+
+[project]
+name = "bank_scrapers"
+authors = [
+    { name = "Eric Bette" }
+]
+description = "Library for working with bank_scrapers drivers."
+readme = "README.md"
+requires-python = ">=3.8"
+#license = { file = "LICENSE" }
+dynamic = ["version"]
+
+dependencies = [
+    "async-generator>=1.10",
+    "attrs>=23.1.0",
+    "beautifulsoup4>=4.12.2",
+    "certifi>=2023.5.7",
+    "charset-normalizer>=3.1.0",
+    "exceptiongroup>=1.1.1",
+    "h11>=0.14.0",
+    "html5lib>=1.1",
+    "idna>=3.4",
+    "lxml>=4.9.2",
+    "mechanize>=0.4.8",
+    "multipledispatch>=0.6.0",
+    "numpy>=1.24.3",
+    "outcome>=1.2.0",
+    "packaging>=23.1",
+    "pandas>=2.0.2",
+    "pip>=22.3.1",
+    "pypdf2>=3.0.1",
+    "pyshadow>=0.0.5",
+    "PySocks>=1.7.1",
+    "python-dateutil>=2.8.2",
+    "python-dotenv>=1.0.0",
+    "pytz>=2023.3",
+    "PyVirtualDisplay>=3.0",
+    "requests>=2.31.0",
+    "selenium>=4.10.0",
+    "setuptools>=65.5.1",
+    "six>=1.16.0",
+    "sniffio>=1.3.0",
+    "sortedcontainers>=2.4.0",
+    "soupsieve>=2.4.1",
+    "tika>=2.6.0",
+    "tqdm>=4.65.0",
+    "trio-websocket>=0.10.2",
+    "trio>=0.22.0",
+    "typing-extensions>=4.6.2",
+    "tzdata>=2023.3",
+    "undetected-chromedriver>=3.5.0",
+    "urllib3>=2.0.2",
+    "webdriver-manager>=3.8.6",
+    "webencodings>=0.5.1",
+    "websockets>=11.0.3",
+    "wheel>=0.38.4",
+    "wsproto>=1.2.0",
+
+]
+
+#[project.optional-dependencies]
+#gui = [
+#    "PySide6==6.5.0",
+#    "redvox-base[matplotlib]==2023.4.27"
+#]
+#
+#native = [
+#    "redvox_native==0.2.3"
+#]
+#
+#full = [
+#    "PySide6==6.5.0",
+#    "redvox-base[matplotlib]==2023.4.27",
+#    "redvox_native==0.2.3",
+#]
+
+[project.urls]
+homepage = "https://github.com/eebette/bank_scrapers/tree/master"
+#PyPI = "https://pypi.org/project/redvox/"
+
+[project.scripts]
+bank-scrape = "bank_scrapers.cli.cli:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = { attr = "bank_scrapers.VERSION" }
+
+[tool.setuptools.packages.find]
+include = ["bank_scrapers*"]
