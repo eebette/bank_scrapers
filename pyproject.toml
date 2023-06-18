@@ -10,7 +10,7 @@ authors = [
 description = "Library for working with bank_scrapers drivers."
 readme = "README.md"
 requires-python = ">=3.8"
-#license = { file = "LICENSE" }
+license = { file = "LICENSE" }
 dynamic = ["version"]
 
 dependencies = [
