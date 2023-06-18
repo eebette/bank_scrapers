@@ -8,7 +8,6 @@ for t in tables:
     print(t.to_string())
 ```
 """
-
 # Non-Standard Imports
 import pandas as pd
 from selenium.webdriver import Chrome
@@ -16,7 +15,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 
 # Local Imports
-from scrapers.common.functions import *
+from bank_scrapers.scrapers.common.functions import *
 
 # Logon page
 HOMEPAGE: str = "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
@@ -125,7 +124,7 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
     chrome_options: Options = get_chrome_options(CHROME_OPTIONS)
 
     # Instantiating the Driver
-    driver: Chrome = Chrome(chrome_options=chrome_options)
+    driver: Chrome = Chrome(options=chrome_options)
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
     logon(driver, wait, HOMEPAGE, username, password)

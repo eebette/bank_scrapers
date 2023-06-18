@@ -20,7 +20,7 @@ from selenium.webdriver.common.by import By
 from undetected_chromedriver import ChromeOptions
 
 # Local Imports
-from scrapers.common.functions import *
+from bank_scrapers.scrapers.common.functions import *
 
 # Logon page
 HOMEPAGE: str = "https://www.chase.com/personal/credit-cards/login-account-access"

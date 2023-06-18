@@ -8,6 +8,7 @@ from typing import Tuple, List
 
 # Non-standard Imports
 from selenium.common import NoSuchElementException
+from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.remote.shadowroot import ShadowRoot
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
@@ -16,7 +17,9 @@ from undetected_chromedriver import Chrome
 
 
 def wait_and_find_element(
-    driver: WebElement | Chrome | ShadowRoot, wait: WebDriverWait, identifier: Tuple
+    driver: WebDriver | WebElement | Chrome | ShadowRoot,
+    wait: WebDriverWait,
+    identifier: Tuple,
 ) -> WebElement:
     """
     Creates a lightweight wrapper around selenium wait and find_element
@@ -30,7 +33,9 @@ def wait_and_find_element(
 
 
 def wait_and_find_elements(
-    driver: WebElement | Chrome | ShadowRoot, wait: WebDriverWait, identifier: Tuple
+    driver: WebDriver | WebElement | Chrome | ShadowRoot,
+    wait: WebDriverWait,
+    identifier: Tuple,
 ) -> List[WebElement]:
     """
     Creates a lightweight wrapper around selenium wait and find_elements
@@ -44,7 +49,9 @@ def wait_and_find_elements(
 
 
 def wait_and_find_click_element(
-    driver: WebElement | Chrome | ShadowRoot, wait: WebDriverWait, identifier: Tuple
+    driver: WebDriver | WebElement | Chrome | ShadowRoot,
+    wait: WebDriverWait,
+    identifier: Tuple,
 ) -> WebElement:
     """
     Creates a lightweight wrapper around selenium wait for element to be clickable and find_element
@@ -57,7 +64,9 @@ def wait_and_find_click_element(
     return driver.find_element(*identifier)
 
 
-def check_exists(driver: WebElement | Chrome | ShadowRoot, identifier: Tuple) -> bool:
+def check_exists(
+    driver: WebDriver | WebElement | Chrome | ShadowRoot, identifier: Tuple
+) -> bool:
     """
     Returns True if an element exists
     :param driver: The Chrome driver/browser used for this function

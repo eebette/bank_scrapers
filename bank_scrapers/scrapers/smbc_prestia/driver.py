@@ -17,7 +17,7 @@ from selenium.webdriver.common.by import By
 from undetected_chromedriver import ChromeOptions
 
 # Local Imports
-from scrapers.common.functions import *
+from bank_scrapers.scrapers.common.functions import *
 
 # Logon page
 HOMEPAGE = "https://login.smbctb.co.jp/ib/portal/POSNIN1prestiatop.prst?LOCALE=en_JP"
