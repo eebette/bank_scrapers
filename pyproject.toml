@@ -19,7 +19,7 @@ dependencies = [
     "requests>=2.31.0",
     "undetected-chromedriver>=3.5.0",
     "lxml>=4.9.2",
-    "bank_scrapers==1.0.0",
+    "bank_scrapers==1.0.1",
 ]
 
 [project.urls]

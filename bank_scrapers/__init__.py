@@ -3,7 +3,7 @@ Provides library level metadata and constants.
 """
 
 NAME: str = "bank_scrapers"
-VERSION: str = "1.0.0"
+VERSION: str = "1.0.1"
 
 
 def version() -> str:
