@@ -40,12 +40,19 @@ This is a Selenium driver that logs in using provided credentials and reads acco
 > 
 ### Example Usage
 
+#### CLI
+```shell
+bank-scrape becu $LOGIN_USER $LOGIN_PASS
+```
+#### API
 ```python
-from scrapers.becu.driver import get_accounts_info
+from bank_scrapers.scrapers.becu.driver import get_accounts_info
+
 tables = get_accounts_info(username="{username}", password="{password}")
 for t in tables:
-    print(t.to_string())
+  print(t.to_string())
 ```
+#### Example Result
 ```
       Account  YTD Interest  Current Balance  Available Balance
 0  ##########          #.##          ####.##            ####.##
@@ -88,12 +95,19 @@ from the landing page, and reads the account info from the page.
 
 ### Example Usage
 
+#### CLI
+```shell
+bank-scrape chase $LOGIN_USER $LOGIN_PASS
+```
+#### API
 ```python
-from scrapers.chase.driver import get_accounts_info
+from bank_scrapers.scrapers.chase.driver import get_accounts_info
+
 tables = get_accounts_info(username="{username}", password="{password}")
 for t in tables:
-    print(t.to_string())
+  print(t.to_string())
 ```
+#### Example 2FA Workflow
 ```console
 >>> # Example 2FA workflow
 >>> tables = get_accounts_info(username="{username}", password="{password}")
@@ -107,6 +121,7 @@ for t in tables:
 Please select one: {user_choose_2fa_option}
 Enter 2FA Code: {user_enters_2fa_code}
 ```
+#### Example Result
 ```
   Current balance Pending charges Available credit Total credit limit Next closing date Balance on last statement Remaining statement balance Payments are due on the
 0         ####.##          ###.##         #####.##           #####.##             ####              ####.#######                     ####.##                      #.
@@ -189,13 +204,26 @@ Instead of scraping the user's account info from the page, this driver will navi
 
 ### Example Usage
 
+#### CLI
+```shell
+bank-scrape fidelity-nb $LOGIN_USER $LOGIN_PASS
+```
+
+> 💡 The CLI backend handles the creation of a tmp directory in the user's home directory by default. The API doesn't
+> have this functionality
+
+#### API
 ```python
-from scrapers.fidelity_netbenefits.driver import get_accounts_info
+from bank_scrapers.scrapers.fidelity_netbenefits.driver import get_accounts_info
+
 tables = get_accounts_info(username="{username}", password="{password}", tmp_dir="~/tmp")
 for t in tables:
-    print(t.to_string())
+  print(t.to_string())
 ```
+
 > ❗️**NOTE** `tmp_dir` MUST be empty for this function to work
+
+#### Example 2FA Workflow
 ```console
 >>> # Example 2FA workflow
 >>> tables = get_accounts_info(username="{username}", password="{password}")
@@ -205,6 +233,8 @@ for t in tables:
 Please select one: {user_choose_2fa_option}
 Enter 2FA Code: {user_enters_2fa_code}
 ```
+
+#### Example Result
 ```
   Account Number        Account Name     Symbol           Description  Quantity Last Price Last Price Change Current Value Today's Gain/Loss Dollar Today's Gain/Loss Percent Total Gain/Loss Dollar Total Gain/Loss Percent Percent Of Account Cost Basis Total Average Cost Basis  Type
 #      *########    ********** - ***    *******                  ****    ##.###      $#.##             $#.##        $##.##                    $#.##                     #.##%                    ***                     ***              #.##%              ***                ***  ****
@@ -250,16 +280,26 @@ from the landing page for a mortgage serviced by Roundpoint Mortgage.
 
 ### Example Usage
 
+#### CLI
+```shell
+bank-scrape roundpoint $LOGIN_USER $LOGIN_PASS
+```
+#### API
 ```python
-from scrapers.roundpoint.driver import get_accounts_info
+from bank_scrapers.scrapers.roundpoint.driver import get_accounts_info
+
 tables = get_accounts_info(username="{username}", password="{password}")
 for t in tables:
-    print(t.to_string())
+  print(t.to_string())
 ```
+
+#### Example 2FA Workflow
 ```console
 >>> # Example 2FA workflow
 >>> # TBD
 ```
+
+#### Example Result
 ```
     Balance
 0  #####.##
@@ -294,12 +334,21 @@ account info for a member account of SMBC Prestia.
 
 ### Example Usage
 
+#### CLI
+```shell
+bank-scrape smbc-prestia $LOGIN_USER $LOGIN_PASS
+```
+
+#### API
 ```python
-from scrapers.smbc_prestia.driver import get_accounts_info
+from bank_scrapers.scrapers.smbc_prestia.driver import get_accounts_info
+
 tables = get_accounts_info(username="{username}", password="{password}")
 for t in tables:
-    print(t.to_string())
+  print(t.to_string())
 ```
+
+#### Example Result
 ```
    Account Number  Available Amount
 0         #######           #######
@@ -331,12 +380,21 @@ pull info for each credit card on the dashboard
 
 ### Example Usage
 
+#### CLI
+```shell
+bank-scrape uhfcu $LOGIN_USER $LOGIN_PASS
+```
+
+#### API
 ```python
-from scrapers.uhfcu.driver import get_accounts_info
+from bank_scrapers.scrapers.uhfcu.driver import get_accounts_info
+
 tables = get_accounts_info(username="{username}", password="{password}")
 for t in tables:
-    print(t.to_string())
+  print(t.to_string())
 ```
+
+#### Example 2FA Workflow
 ```console
 >>> # Example 2FA workflow
 >>> tables = get_accounts_info(username="{username}", password="{password}")
@@ -345,6 +403,8 @@ for t in tables:
 Please select one: {user_choose_2fa_option}
 Enter 2FA Code: {user_enters_2fa_code}
 ```
+
+#### Example Result
 ```
   Account Type               Account Desc Available Current Balance
 #      *******  **** ***** - *** ##-*####    $##.##          $##.##
@@ -395,18 +455,32 @@ download the accounts info provided by Vanguard using a folder of the user's cho
 
 ### Example Usage
 
+#### CLI
+```shell
+bank-scrape vanguard $LOGIN_USER $LOGIN_PASS
+```
+
+> 💡 The CLI backend handles the creation of a tmp directory in the user's home directory by default. The API doesn't 
+> have this functionality
+
+#### API
 ```python
-from scrapers.vanguard.driver import get_accounts_info
+from bank_scrapers.scrapers.vanguard.driver import get_accounts_info
+
 tables = get_accounts_info(username="{username}", password="{password}", tmp_dir="~/temp/")
 for t in tables:
-    print(t.to_string())
+  print(t.to_string())
 ```
 > ❗️**NOTE** `tmp_dir` MUST be empty for this function to work
+
+#### Example 2FA Workflow
 ```console
 >>> # Example 2FA workflow
 >>> tables = get_accounts_info(username="{username}", password="{password}")
 Waiting for 2FA...
 ```
+
+#### Example Result
 ```
     Account Number    Investment Name             Symbol    Shares   Share Price  Total Value
 #         ########    ***** **** ***  *** ** *    ***       ##.###   ##.####      ####.##
@@ -441,12 +515,26 @@ This is a Selenium driver that finds a property's Zestimate from a user-provided
 
 ### Example Usage
 
-```python
-from scrapers.zillow.driver import get_accounts_info
-tables = get_accounts_info(suffix="{house_num}-{street_name}-{street_type}-{city}-{state_code}-{5_digit_zip}/########_zpid")
-for t in tables:
-    print(t.to_string())
+#### CLI
+```shell
+bank-scrape zillow $URL_SUFFIX_FOR_PROPERTY
 ```
+> 💡 The suffix of the Zillow URL (the part after 'homedetails'. Note that you only need to provide the part that ends 
+> with "zpid"
+ 
+> 💡 For example, this is a valid suffix argument (provided `#` was replaced by actual digits): `########_zpid`
+
+#### API
+```python
+from bank_scrapers.scrapers.zillow.driver import get_accounts_info
+
+tables = get_accounts_info(
+  suffix="{house_num}-{street_name}-{street_type}-{city}-{state_code}-{5_digit_zip}/########_zpid")
+for t in tables:
+  print(t.to_string())
+```
+
+#### Example Result
 ```
   zestimate
 0  $###,###
@@ -478,15 +566,24 @@ data provided by Kraken with the rest of the financial data pulled by this packa
 
 ### Example Usage
 
+#### CLI
+```shell
+bank-scrape kraken $API_KEY $SECRET_KEY
+```
+
+#### API
 ```python
-from api.kraken.driver import get_accounts_info
+from bank_scrapers.api_wrappers.kraken.driver import get_accounts_info
+
 tables = get_accounts_info(
   api_key="*****************/**************************************",
   api_sec="********+*************************+****+********//******************/**************+**==",
 )
 for t in tables:
-    print(t.to_string())
+  print(t.to_string())
 ```
+
+#### Example Result
 ```
   symbol      quantity
 0   ****  #.##########
