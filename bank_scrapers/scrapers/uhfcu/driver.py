@@ -191,8 +191,8 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     account_info.pop(0)
 
     # Data
-    account_type = account_info.pop(0)
-    account_desc = account_info.pop(0)
+    account_type: str = account_info.pop(0)
+    account_desc: str = account_info.pop(0)
 
     # The remaining elements are alternating kv pairs as list elements, so split and zip
     balance_infos: zip = zip(
