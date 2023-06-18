@@ -23,7 +23,6 @@ shutil.rmtree(tmp_dir)
 """
 
 # Standard Library Imports
-import os
 import sys
 from time import sleep
 
@@ -31,7 +30,6 @@ from time import sleep
 import pandas as pd
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver import Chrome
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 
 # Local Imports
@@ -212,7 +210,7 @@ def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.Dat
     options: Options = get_chrome_options(CHROME_OPTIONS)
 
     # Instantiating the Driver
-    driver: Chrome = Chrome(options=options)
+    driver: Chrome = start_chromedriver(options)
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
     enable_downloads(driver, downloads_dir=tmp_dir)

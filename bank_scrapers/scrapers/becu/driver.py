@@ -8,14 +8,9 @@ for t in tables:
     print(t.to_string())
 ```
 """
-import os
-import shutil
-from pathlib import Path
-
 # Non-Standard Imports
 import pandas as pd
 from selenium.webdriver import Chrome
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 
 # Local Imports
@@ -126,20 +121,7 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
     """
     # Get Driver config
     chrome_options: Options = get_chrome_options(CHROME_OPTIONS)
-    if os.path.exists("/usr/bin/chromedriver"):
-        shutil.copy(
-            "/usr/bin/chromedriver",
-            f"{Path.home()}/.local/share/undetected_chromedriver/chromedriver_copy",
-        )
-
-        # Instantiating the Driver
-        driver: Chrome = Chrome(
-            options=chrome_options,
-            driver_executable_path=f"{Path.home()}/.local/share/undetected_chromedriver/chromedriver_copy",
-        )
-    else:
-        driver: Chrome = Chrome(options=chrome_options)
-
+    driver: Chrome = start_chromedriver(chrome_options)
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
     logon(driver, wait, HOMEPAGE, username, password)

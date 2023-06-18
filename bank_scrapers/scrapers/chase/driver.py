@@ -17,7 +17,6 @@ from typing import Dict
 import pandas as pd
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
-from undetected_chromedriver import ChromeOptions
 
 # Local Imports
 from bank_scrapers.scrapers.common.functions import *
@@ -225,7 +224,7 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
     chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
 
     # Instantiating the Driver
-    driver: Chrome = Chrome(options=chrome_options)
+    driver: Chrome = start_chromedriver(chrome_options)
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
     # Navigate to the logon page and submit credentials
