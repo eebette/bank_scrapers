@@ -30,16 +30,21 @@ def start_chromedriver(options: Options | ChromeOptions) -> Chrome:
     """
     # Check if there's an existing chromedriver
     if os.path.exists("/usr/bin/chromedriver"):
+
+        filepath = os.path.join(f"{Path.home()}/.local/share/undetected_chromedriver", "chromedriver_copy")
+        if not os.path.exists(f"{Path.home()}/.local/share/undetected_chromedriver"):
+            os.makedirs(f"{Path.home()}/.local/share/undetected_chromedriver")
+
         # If there is, copy it to the undetected chrome installation path
         shutil.copy(
             "/usr/bin/chromedriver",
-            f"{Path.home()}/.local/share/undetected_chromedriver/chromedriver_copy",
+            filepath,
         )
 
         # Instantiating the Driver with the chromedriver copy
         driver: Chrome = Chrome(
             options=options,
-            driver_executable_path=f"{Path.home()}/.local/share/undetected_chromedriver/chromedriver_copy",
+            driver_executable_path=filepath,
         )
     else:
         # Otherwise start as normal
