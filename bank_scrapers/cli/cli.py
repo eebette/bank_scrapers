@@ -39,7 +39,7 @@ def _get_becu(args: argparse.Namespace) -> None:
         username=args.username, password=args.password
     )
     for t in tables:
-        print(t)
+        print(t.to_string(index=False))
 
 
 def _get_chase(args: argparse.Namespace) -> None:
@@ -51,7 +51,7 @@ def _get_chase(args: argparse.Namespace) -> None:
         username=args.username, password=args.password
     )
     for t in tables:
-        print(t)
+        print(t.to_string(index=False))
 
 
 def _get_fidelity_netbenefits(args: argparse.Namespace) -> None:
@@ -65,7 +65,7 @@ def _get_fidelity_netbenefits(args: argparse.Namespace) -> None:
             username=args.username, password=args.password, tmp_dir=tmp_dir
         )
         for t in tables:
-            print(t)
+            print(t.to_string(index=False))
 
 
 def _get_roundpoint(args: argparse.Namespace) -> None:
@@ -77,7 +77,7 @@ def _get_roundpoint(args: argparse.Namespace) -> None:
         username=args.username, password=args.password
     )
     for t in tables:
-        print(t)
+        print(t.to_string(index=False))
 
 
 def _get_smbc_prestia(args: argparse.Namespace) -> None:
@@ -89,7 +89,7 @@ def _get_smbc_prestia(args: argparse.Namespace) -> None:
         username=args.username, password=args.password
     )
     for t in tables:
-        print(t)
+        print(t.to_string(index=False))
 
 
 def _get_uhfcu(args: argparse.Namespace) -> None:
@@ -101,7 +101,7 @@ def _get_uhfcu(args: argparse.Namespace) -> None:
         username=args.username, password=args.password
     )
     for t in tables:
-        print(t)
+        print(t.to_string(index=False))
 
 
 def _get_vanguard(args: argparse.Namespace) -> None:
@@ -115,7 +115,7 @@ def _get_vanguard(args: argparse.Namespace) -> None:
             username=args.username, password=args.password, tmp_dir=tmp_dir
         )
         for t in tables:
-            print(t)
+            print(t.to_string(index=False))
 
 
 def _get_zillow(args: argparse.Namespace) -> None:
@@ -125,7 +125,7 @@ def _get_zillow(args: argparse.Namespace) -> None:
     """
     tables: List[pd.DataFrame] = get_zillow(suffix=args.url_suffix[0])
     for t in tables:
-        print(t)
+        print(t.to_string(index=False))
 
 
 def _get_kraken(args: argparse.Namespace) -> None:
@@ -135,7 +135,7 @@ def _get_kraken(args: argparse.Namespace) -> None:
     """
     tables: List[pd.DataFrame] = get_kraken(api_key=args.api_key, api_sec=args.api_sec)
     for t in tables:
-        print(t)
+        print(t.to_string(index=False))
 
 
 def main() -> None:

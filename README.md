@@ -123,18 +123,18 @@ Enter 2FA Code: {user_enters_2fa_code}
 ```
 #### Example Result
 ```
-  Current balance Pending charges Available credit Total credit limit Next closing date Balance on last statement Remaining statement balance Payments are due on the
-0         ####.##          ###.##         #####.##           #####.##             ####              ####.#######                     ####.##                      #.
-   Last payment Minimum payment Automatic Payments
-0  ####.#######      ##.#######                   
-  Points available
-0           ######
-  Cash advance balance Available for cash advance Cash advance limit
-0                 #.##                    ####.##            ####.##
-  Purchase APR Cash advance APR
-0        ##.##            ##.##
-  Program details
-0            
+Current balance Pending charges Available credit Total credit limit Next closing date Balance on last statement Remaining statement balance Payments are due on the
+        ####.##          ###.##         #####.##           #####.##             ####              ####.#######                     ####.##                      #.
+Last payment Minimum payment Automatic Payments
+####.#######      ##.#######                   
+Points available
+          ######
+Cash advance balance Available for cash advance Cash advance limit
+                #.##                    ####.##            ####.##
+Purchase APR Cash advance APR
+       ##.##            ##.##
+Program details
+           
 ```
 
 ### Return Schema
@@ -236,13 +236,13 @@ Enter 2FA Code: {user_enters_2fa_code}
 
 #### Example Result
 ```
-  Account Number        Account Name     Symbol           Description  Quantity Last Price Last Price Change Current Value Today's Gain/Loss Dollar Today's Gain/Loss Percent Total Gain/Loss Dollar Total Gain/Loss Percent Percent Of Account Cost Basis Total Average Cost Basis  Type
-#      *########    ********** - ***    *******                  ****    ##.###      $#.##             $#.##        $##.##                    $#.##                     #.##%                    ***                     ***              #.##%              ***                ***  ****
-#      *########    ********** - ***       ****        ******.*** ***   ###.###    $###.##            -$#.##     $#####.##                 -$###.##                    -#.##%              -$####.##                 -##.##%             ##.##%        $#####.##            $###.##  ****
-#          #####  ****** ###(*) ****        ***    **** ** *** ******  ####.###     $##.##            -$#.##     $#####.##                 -$###.##                    -#.##%              +$####.##                 +##.##%             ##.##%        $#####.##             $##.##   ***
-#          #####  ****** ###(*) ****  #####*###  ******** ****** ####   ###.###    $###.##            -$#.##     $#####.##                  -$##.##                    -#.##%               +$###.##                  +#.##%             ##.##%        $#####.##            $###.##   ***
-#          #####  ****** ###(*) ****       ****      ******.*** *****    ##.###    $###.##            -$#.##     $#####.##                 -$###.##                    -#.##%              -$####.##                 -##.##%              #.##%        $#####.##            $###.##   ***
-#          #####  ****** ###(*) ****      *****  **** **** *** *** **  ####.###     $##.##            -$#.##     $#####.##                       --                        --              +$####.##                 +##.##%             ##.##%        $#####.##             $##.##   ***
+Account Number        Account Name     Symbol           Description  Quantity Last Price Last Price Change Current Value Today's Gain/Loss Dollar Today's Gain/Loss Percent Total Gain/Loss Dollar Total Gain/Loss Percent Percent Of Account Cost Basis Total Average Cost Basis  Type
+     *########    ********** - ***    *******                  ****    ##.###      $#.##             $#.##        $##.##                    $#.##                     #.##%                    ***                     ***              #.##%              ***                ***  ****
+     *########    ********** - ***       ****        ******.*** ***   ###.###    $###.##            -$#.##     $#####.##                 -$###.##                    -#.##%              -$####.##                 -##.##%             ##.##%        $#####.##            $###.##  ****
+         #####  ****** ###(*) ****        ***    **** ** *** ******  ####.###     $##.##            -$#.##     $#####.##                 -$###.##                    -#.##%              +$####.##                 +##.##%             ##.##%        $#####.##             $##.##   ***
+         #####  ****** ###(*) ****  #####*###  ******** ****** ####   ###.###    $###.##            -$#.##     $#####.##                  -$##.##                    -#.##%               +$###.##                  +#.##%             ##.##%        $#####.##            $###.##   ***
+         #####  ****** ###(*) ****       ****      ******.*** *****    ##.###    $###.##            -$#.##     $#####.##                 -$###.##                    -#.##%              -$####.##                 -##.##%              #.##%        $#####.##            $###.##   ***
+         #####  ****** ###(*) ****      *****  **** **** *** *** **  ####.###     $##.##            -$#.##     $#####.##                       --                        --              +$####.##                 +##.##%             ##.##%        $#####.##             $##.##   ***
 ```
 
 ### Return Schema
@@ -301,10 +301,10 @@ for t in tables:
 
 #### Example Result
 ```
-    Balance
-0  #####.##
-  Monthly Payment Amount Actual Due Date Next Draft Date
-0                 ###.##   **** ##, ####   **** ##, ####
+  Balance
+ #####.##
+Monthly Payment Amount Actual Due Date Next Draft Date
+                ###.##   **** ##, ####   **** ##, ####
 ```
 
 ### Return Schema
@@ -350,9 +350,9 @@ for t in tables:
 
 #### Example Result
 ```
-   Account Number  Available Amount
-0         #######           #######
-1        ########                 #
+Account Number  Available Amount
+       #######           #######
+      ########                 #
 ```
 
 ### Return Schema
@@ -406,12 +406,12 @@ Enter 2FA Code: {user_enters_2fa_code}
 
 #### Example Result
 ```
-  Account Type               Account Desc Available Current Balance
-#      *******  **** ***** - *** ##-*####    $##.##          $##.##
-  Account Type               Account Desc  Available Current Balance
-#     ********  **** ***** - *** ##-*####  $#,###.##       $#,###.##
-  Current Balance Pending Balance Statement Balance Available Credit Last Payment as of *** ##, #### Total Minimum Due Payment Due Date                Last Login
-#           $#.##           $#.##             $#.##       $##,###.##                          $##.##             $#.##     *** ##, ####  *** ##, ####, #:##:## **
+Account Type               Account Desc Available Current Balance
+     *******  **** ***** - *** ##-*####    $##.##          $##.##
+Account Type               Account Desc  Available Current Balance
+    ********  **** ***** - *** ##-*####  $#,###.##       $#,###.##
+Current Balance Pending Balance Statement Balance Available Credit Last Payment as of *** ##, #### Total Minimum Due Payment Due Date                Last Login
+          $#.##           $#.##             $#.##       $##,###.##                          $##.##             $#.##     *** ##, ####  *** ##, ####, #:##:## **
 ```
 
 ### Return Schema
@@ -482,12 +482,12 @@ Waiting for 2FA...
 
 #### Example Result
 ```
-    Account Number    Investment Name             Symbol    Shares   Share Price  Total Value
-#         ########    ***** **** ***  *** ** *    ***       ##.###   ##.####      ####.##
-#         ########    ******** ***                ****      ##.###   ##.####      ####.##
-#         ########    **** ********* *** ** *     ****      #.###    ###.####     ###.##
-#         ########    ******** **** ** * ***      ***       #.###    ##.####      ##.##
-#         ########    ********* ****              ****      #.###    ###.####     ###.##
+Account Number    Investment Name             Symbol    Shares   Share Price  Total Value
+      ########    ***** **** ***  *** ** *    ***       ##.###   ##.####      ####.##
+      ########    ******** ***                ****      ##.###   ##.####      ####.##
+      ########    **** ********* *** ** *     ****      #.###    ###.####     ###.##
+      ########    ******** **** ** * ***      ***       #.###    ##.####      ##.##
+      ########    ********* ****              ****      #.###    ###.####     ###.##
 ```
 
 ### Return Schema
@@ -585,11 +585,11 @@ for t in tables:
 
 #### Example Result
 ```
-  symbol      quantity
-0   ****  #.##########
-1   ****     #.#######
-2   ****        #.####
-3   ****  #.##########
+symbol      quantity
+  ****  #.##########
+  ****     #.#######
+  ****        #.####
+  ****  #.##########
 ```
 
 ### Return Schema
@@ -597,5 +597,5 @@ for t in tables:
 #### Balance Info
 | Column Name |
 |-------------|
-| sybmol      |
+| symbol      |
 | quantity    |
