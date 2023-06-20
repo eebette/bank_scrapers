@@ -115,7 +115,11 @@ def check_exists(
     return True
 
 
-def leave_on_timeout(driver):
+def leave_on_timeout(driver: WebDriver | WebElement | Chrome | ShadowRoot) -> None:
+    """
+    Takes a screenshot of the current page in the user's some folder and exits with code 1
+    :param driver: The web driver object that is exiting
+    """
     print(driver.current_url)
     driver.save_screenshot(
         f"{Path.home()}/{datetime.today().strftime('%Y%M%d%H%m%s')}.png"
