@@ -118,7 +118,7 @@ def logon(
     sleep(2)
 
     # Submit will sometimes stay inactive unless interacted with
-    submit = wait_and_find_click_element(
+    submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.XPATH, "//button[@type='submit']")
     )
     submit.click()

@@ -11,6 +11,7 @@ for t in tables:
 
 # Standard Library Imports
 from typing import Dict
+from time import sleep
 
 # Non-Standard Imports
 import pandas as pd
@@ -66,6 +67,7 @@ def handle_multi_factor_authentication(
 
     # Then click it
     expand_button.click()
+    sleep(0.5)
 
     # Identify MFA options
     labels: List[WebElement] = wait_and_find_elements(

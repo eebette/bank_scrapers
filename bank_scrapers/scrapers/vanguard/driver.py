@@ -117,7 +117,7 @@ def logon(
     passwd.send_keys(password)
 
     # Submit credentials
-    submit = wait_and_find_click_element(
+    submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "username-password-submit-btn")
     )
     submit.click()
@@ -165,7 +165,7 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> Non
     mat_checkbox.click()
 
     # Submit download request
-    submit = wait_and_find_click_element(driver, wait, (By.ID, "submitOFXDownload"))
+    submit: WebElement = wait_and_find_click_element(driver, wait, (By.ID, "submitOFXDownload"))
     submit.click()
 
     # Allow the download to process

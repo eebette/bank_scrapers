@@ -19,7 +19,7 @@ from selenium.webdriver.common.by import By
 from bank_scrapers.scrapers.common.functions import *
 
 # Logon page
-HOMEPAGE = "https://login.smbctb.co.jp/ib/portal/POSNIN1prestiatop.prst?LOCALE=en_JP"
+HOMEPAGE: str = "https://login.smbctb.co.jp/ib/portal/POSNIN1prestiatop.prst?LOCALE=en_JP"
 
 # Timeout
 TIMEOUT: int = 15

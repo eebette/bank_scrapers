@@ -1,7 +1,11 @@
+# Table of Contents
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Introduction](#introduction)
+- [Getting Started](#getting-started)
+  - [Installation](#installation)
+  - [Usage](#usage)
 - [Drivers](#drivers)
   - [BECU](#becu)
   - [Chase](#chase)
@@ -13,8 +17,19 @@
   - [Zillow](#zillow)
 - [API Wrappers](#api-wrappers)
   - [Kraken](#kraken)
+- [Disclaimer](#disclaimer)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# Quick Start 
+
+```shell
+pip install bank_scrapers
+```
+
+```shell
+bank-scrape {subcommand} $LOGIN_USER $LOGIN_PASS
+```
 
 # Introduction
 
@@ -23,6 +38,68 @@
 Since most traditional financial institutions don't provide an API for accessing one's account data, most of these
 drivers utilize `Selenium` to impersonate the user using the provided credentials.
 
+# Getting Started
+
+## Installation
+
+### `stable`
+```shell
+pip install bank_scrapers
+```
+
+
+### `experimental`
+```shell
+pip install git+https://github.com/eebette/bank_scrapers.git
+```
+
+## Usage
+
+> 💡 Usage examples for each driver are listed in that driver's documentation
+
+### CLI
+
+#### For general info and complete usage documentation
+```shell
+bank-scrape -h
+```
+
+#### General usage pattern
+```shell
+bank-scrape {subcommand} $LOGIN_USER $LOGIN_PASS
+```
+
+### API
+
+API results are returned as a Python list of pandas dataframes, containing relevant data scraped from the site. See each
+ driver's section for info on what is in that driver's return tables. 
+
+```python
+from bank_scrapers.scrapers.becu.driver import get_accounts_info
+
+tables = get_accounts_info(username="{username}", password="{password}")
+for t in tables:
+  print(t.to_string())
+```
+
+#### Drivers that need a tmp directory
+
+Some drivers download the accounts data and process the downloaded file. This requires the use of a temp directory to
+ use as Chromium's downloads folder, and **the location of this folder must be specified in `get_accounts_info()`**.
+
+> ❗️Selenium often has issues writing to `/tmp/` in Linux distributions, hence this requirement in the code.
+
+> ❗️**NOTE** `tmp_dir` MUST be empty for this function to work
+
+```python
+from bank_scrapers.scrapers.fidelity_netbenefits.driver import get_accounts_info
+
+tables = get_accounts_info(username="{username}", password="{password}", tmp_dir="~/tmp")
+for t in tables:
+  print(t.to_string())
+```
+
+    
 # Drivers
 
 These are all written in Python using the Selenium driver and, for the most part, try to simulate the real user
@@ -54,12 +131,12 @@ for t in tables:
 ```
 #### Example Result
 ```
-      Account  YTD Interest  Current Balance  Available Balance
-0  ##########          #.##          ####.##            ####.##
-1  ##########         ##.##         #####.##           #####.##
-2  ##########        ###.##         #####.##           #####.##
-   Account  Current Balance  Available Credit
-0     ####           ###.##           #####.#
+   Account  YTD Interest  Current Balance  Available Balance
+##########          #.##          ####.##            ####.##
+##########         ##.##         #####.##           #####.##
+##########        ###.##         #####.##           #####.##
+ Account  Current Balance  Available Credit
+    ####           ###.##           #####.#
 ```
 
 ### Return Schema
@@ -599,3 +676,15 @@ symbol      quantity
 |-------------|
 | symbol      |
 | quantity    |
+
+# Disclaimer
+
+The intended purpose of this code is purely academic in nature, and it IS NOT intended to be used for any real life
+production use, nefarious or otherwise.
+
+Usage of this code is potentially against your bank's terms of service and could result in you or your IP getting
+flagged, listed, or blocked as bad actors. I don't take any responsibility for any effects this code may have on your
+bank accounts or your relationships with your banking institutions.
+
+Please don't try to learn anything about me or my life based on the banks that I've arbitrarily decided to write
+drivers for. 
