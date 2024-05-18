@@ -225,10 +225,10 @@ def get_accounts_info(
     # Process tables
     return_tables: List = list()
     for t in tables:
-        is_credit_account = any(
-            list(True for header in t.columns if "credit" in header.lower())
-        )
         table: pd.DataFrame = process_table(t)
+        is_credit_account = any(
+            list(True for header in table.columns if "credit" in header.lower())
+        )
         table.name = "credit" if is_credit_account else "deposit"
         return_tables.append(table)
 
