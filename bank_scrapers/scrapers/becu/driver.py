@@ -8,6 +8,9 @@ for t in tables:
     print(t.to_string())
 ```
 """
+# Standard library imports
+from typing import Dict
+
 # Non-Standard Imports
 import pandas as pd
 from selenium.webdriver import Chrome
@@ -23,7 +26,9 @@ HOMEPAGE: str = "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
 TIMEOUT: int = 10
 
 # Chrome config
-USER_AGENT: str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36"
+USER_AGENT: str = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36"
+)
 CHROME_OPTIONS: List[str] = [
     f"user-agent={USER_AGENT}",
     "--no-sandbox",
@@ -73,8 +78,48 @@ def process_table(table: WebElement) -> pd.DataFrame:
     return table
 
 
+def get_mfa_answer(driver: Chrome, wait: WebDriverWait, mfa_answers: Dict[str, str] | None = None) -> str:
+    """
+    Returns the answer for the MFA question or prompts the user for the answer if not provided
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
+    :param mfa_answers: A dict of the MFA answers where the keys are the questions and the values are the answers
+    :return: The MFA answer to input
+    """
+    mfa_question: WebElement = wait_and_find_element(
+        driver, wait, (By.XPATH, "//label[@for='challengeAnswer']")
+    )
+
+    if mfa_answers is not None:
+        mfa_answer: str = mfa_answers[mfa_question.text]
+    else:
+        # Prompt user input for MFA option
+        print(mfa_question.text)
+        mfa_answer: str = input("Please provide an answer: ")
+
+    return mfa_answer
+
+
+def handle_redirect(wait: WebDriverWait) -> None:
+    """
+    Waits until the page redirects to account home, marketing/offer page, or MFA page
+    :param wait:
+    """
+    wait.until(
+        lambda driver: any(
+            driver.current_url in landing_page
+            for landing_page in [
+                "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx",
+                "https://onlinebanking.becu.org/BECUBankingWeb/Invitation/Default.aspx",
+                "https://onlinebanking.becu.org/BECUBankingWeb/Security/Challenge",
+            ]
+        )
+    )
+
+
 def logon(
-    driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
+        driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str,
+        mfa_answers: Dict[str, str] | None = None
 ) -> None:
     """
     Opens and signs on to an account
@@ -83,6 +128,7 @@ def logon(
     :param homepage: The logon url to initially navigate
     :param username: Your username for logging in
     :param password: Your password for logging in
+    :param mfa_answers:
     """
     # Logon Page
     driver.get(homepage)
@@ -105,11 +151,38 @@ def logon(
     )
     submit.click()
 
-    # Wait for redirect to landing page
-    wait.until(
-        lambda driver: "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"
-        in driver.current_url
-    )
+    while driver.current_url != "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx":
+        # Wait for redirect to landing page
+        handle_redirect(wait)
+
+        if (
+                driver.current_url
+                == "https://onlinebanking.becu.org/BECUBankingWeb/Invitation/Default.aspx"
+        ):
+            # Decline offer
+            decline_btn: WebElement = wait_and_find_element(
+                driver, wait, (By.NAME, "ctlWorkflow$decline")
+            )
+            decline_btn.click()
+
+        elif (
+                driver.current_url
+                == "https://onlinebanking.becu.org/BECUBankingWeb/Security/Challenge"
+        ):
+            # Get MFA answer
+            mfa_answer: str = get_mfa_answer(driver, wait, mfa_answers)
+
+            # Find input box and input MFA answer
+            answer_input: WebElement = wait_and_find_element(
+                driver, wait, (By.ID, "challengeAnswer")
+            )
+            answer_input.send_keys(mfa_answer)
+
+            # Find agree/submit button and click
+            agree_input: WebElement = wait_and_find_element(
+                driver, wait, (By.ID, "agree-and-continue-button")
+            )
+            agree_input.click()
 
 
 def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:

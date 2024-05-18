@@ -3,7 +3,7 @@ Provides library level metadata and constants.
 """
 
 NAME: str = "bank_scrapers"
-VERSION: str = "1.0.4"
+VERSION: str = "1.0.5"
 
 
 def version() -> str:
@@ -14,13 +14,3 @@ def version() -> str:
 def print_version() -> None:
     """Prints the version number of this library"""
     print(version())
-
-
-def print_redvox_info() -> None:
-    """
-    Prints information about this library to standard out.
-    """
-
-    print()
-    print(f"version: {VERSION}")
-    print()
