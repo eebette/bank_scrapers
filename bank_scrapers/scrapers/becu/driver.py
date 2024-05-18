@@ -8,6 +8,7 @@ for t in tables:
     print(t.to_string())
 ```
 """
+
 # Standard library imports
 from typing import Dict
 
@@ -18,6 +19,11 @@ from selenium.webdriver.common.by import By
 
 # Local Imports
 from bank_scrapers.scrapers.common.functions import *
+from bank_scrapers.common.functions import convert_to_prometheus
+
+# Institution info
+INSTITUTION: str = "BECU"
+SYMBOL: str = "USD"
 
 # Logon page
 HOMEPAGE: str = "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
@@ -78,7 +84,9 @@ def process_table(table: WebElement) -> pd.DataFrame:
     return table
 
 
-def get_mfa_answer(driver: Chrome, wait: WebDriverWait, mfa_answers: Dict[str, str] | None = None) -> str:
+def get_mfa_answer(
+    driver: Chrome, wait: WebDriverWait, mfa_answers: Dict[str, str] | None = None
+) -> str:
     """
     Returns the answer for the MFA question or prompts the user for the answer if not provided
     :param driver: The browser application
@@ -118,8 +126,12 @@ def handle_redirect(wait: WebDriverWait) -> None:
 
 
 def logon(
-        driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str,
-        mfa_answers: Dict[str, str] | None = None
+    driver: Chrome,
+    wait: WebDriverWait,
+    homepage: str,
+    username: str,
+    password: str,
+    mfa_answers: Dict[str, str] | None = None,
 ) -> None:
     """
     Opens and signs on to an account
@@ -151,13 +163,16 @@ def logon(
     )
     submit.click()
 
-    while driver.current_url != "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx":
+    while (
+        driver.current_url
+        != "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"
+    ):
         # Wait for redirect to landing page
         handle_redirect(wait)
 
         if (
-                driver.current_url
-                == "https://onlinebanking.becu.org/BECUBankingWeb/Invitation/Default.aspx"
+            driver.current_url
+            == "https://onlinebanking.becu.org/BECUBankingWeb/Invitation/Default.aspx"
         ):
             # Decline offer
             decline_btn: WebElement = wait_and_find_element(
@@ -166,8 +181,8 @@ def logon(
             decline_btn.click()
 
         elif (
-                driver.current_url
-                == "https://onlinebanking.becu.org/BECUBankingWeb/Security/Challenge"
+            driver.current_url
+            == "https://onlinebanking.becu.org/BECUBankingWeb/Security/Challenge"
         ):
             # Get MFA answer
             mfa_answer: str = get_mfa_answer(driver, wait, mfa_answers)
@@ -185,11 +200,14 @@ def logon(
             agree_input.click()
 
 
-def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
+def get_accounts_info(
+    username: str, password: str, prometheus: bool = False
+) -> List[pd.DataFrame] | str:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
+    :param prometheus: True/False value to exporting as Prometheus-friendly exposition
     :return: A list of pandas dataframes of accounts info tables
     """
     # Get Driver config
@@ -207,11 +225,21 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
     # Process tables
     return_tables: List = list()
     for t in tables:
+        is_credit_account = any(
+            list(True for header in t.columns if "credit" in header.lower())
+        )
         table: pd.DataFrame = process_table(t)
+        table.name = "credit" if is_credit_account else "deposit"
         return_tables.append(table)
 
     # Clean up
     driver.quit()
+
+    # Convert to Prometheus exposition if flag is set
+    if prometheus:
+        return_tables: str = convert_to_prometheus(
+            return_tables, INSTITUTION, "Account", SYMBOL, "Current Balance"
+        )
 
     # Return list of pandas df
     return return_tables

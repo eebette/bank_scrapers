@@ -8,6 +8,4 @@ sh = logging.StreamHandler(sys.stdout)
 log = logging.getLogger(__name__)
 log.addHandler(sh)
 
-
-
 logging_levels = vars(logging)["_nameToLevel"]
