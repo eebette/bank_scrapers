@@ -3,14 +3,10 @@ Handy functions used across the module
 """
 
 # Standard library imports
-from typing import List
+from typing import List, Tuple
 
 # Non-Standard Imports
 import pandas as pd
-from prometheus_client import Gauge, CollectorRegistry
-
-# Local Imports
-from bank_scrapers.common.values import PrometheusLabels
 
 
 def convert_to_prometheus(
@@ -19,7 +15,7 @@ def convert_to_prometheus(
     account_column: str,
     symbol: str,
     current_balance_column: str,
-) -> CollectorRegistry:
+) -> List[Tuple[List, float]]:
     """
     Converts standard output of list of pandas table to a Prometheus friendly text exposition
     :param table_list: Standard output of list of pandas table
@@ -27,20 +23,17 @@ def convert_to_prometheus(
     :param account_column: Column name of account identifier
     :param symbol: Asset symbol to use as Prometheus metric label
     :param current_balance_column: Column name of the account balance
-    :return: Prometheus friendly text exposition
+    :return: Prometheus friendly metrics for text exposition
     """
-    registry: CollectorRegistry = CollectorRegistry()
-    labels: List[str] = PrometheusLabels.LABELS.value
-    current_balance_metric: Gauge = Gauge(
-        "current_balance", "Current balance of the asset", labels, registry=registry
-    )
+    current_balance_metrics: List[Tuple[List, float]] = list()
     for t in table_list:
         for _, row in t.iterrows():
             account: int = int(row[account_column])
             account_type: str = t.name
             current_balance: float = row[current_balance_column]
 
-            current_balance_metric.labels(
-                institution, account, account_type, symbol
-            ).set(current_balance)
-    return registry
+            current_balance_metrics.append(
+                ([institution, account, account_type, symbol], current_balance)
+            )
+
+    return current_balance_metrics

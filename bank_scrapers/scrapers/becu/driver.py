@@ -203,7 +203,7 @@ def logon(
 
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False
-) -> List[pd.DataFrame] | CollectorRegistry:
+) -> List[pd.DataFrame] | List[Tuple[List, float]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
@@ -222,6 +222,11 @@ def get_accounts_info(
     tables: List[WebElement] = wait_and_find_elements(
         driver, wait, (By.CLASS_NAME, "tablesaw-stack")
     )
+    wait.until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//tbody[@id='visaTable']/tr[@class='item']")
+        )
+    )
 
     # Process tables
     return_tables: List = list()
@@ -238,7 +243,7 @@ def get_accounts_info(
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: CollectorRegistry = convert_to_prometheus(
+        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
             return_tables, INSTITUTION, "Account", SYMBOL, "Current Balance"
         )
 

@@ -2,7 +2,7 @@ from enum import Enum
 from typing import List
 
 
-class PrometheusLabels(Enum):
+class Labels(Enum):
     LABELS: List[str] = [
         "institution",
         "account",
