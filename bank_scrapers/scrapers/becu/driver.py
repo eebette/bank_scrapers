@@ -16,6 +16,7 @@ from typing import Dict
 import pandas as pd
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.by import By
+from prometheus_client import CollectorRegistry, write_to_textfile
 
 # Local Imports
 from bank_scrapers.scrapers.common.functions import *
@@ -202,7 +203,7 @@ def logon(
 
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False
-) -> List[pd.DataFrame] | str:
+) -> List[pd.DataFrame] | CollectorRegistry:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
@@ -237,7 +238,7 @@ def get_accounts_info(
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: str = convert_to_prometheus(
+        return_tables: CollectorRegistry = convert_to_prometheus(
             return_tables, INSTITUTION, "Account", SYMBOL, "Current Balance"
         )
 

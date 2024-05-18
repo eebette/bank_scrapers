@@ -1,5 +1,11 @@
 from enum import Enum
+from typing import List
 
 
-class ExpositionFormats(Enum):
-    PROMETHEUS = "total_assets{{institution=\"{0}\", account=\"{1}\", account_type=\"{2}\", symbol=\"{3}\"}} {4}"
+class PrometheusLabels(Enum):
+    LABELS: List[str] = [
+        "institution",
+        "account",
+        "account_type",
+        "symbol",
+    ]

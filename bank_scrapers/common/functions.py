@@ -7,9 +7,10 @@ from typing import List
 
 # Non-Standard Imports
 import pandas as pd
+from prometheus_client import Gauge, CollectorRegistry
 
 # Local Imports
-from bank_scrapers.common.values import ExpositionFormats
+from bank_scrapers.common.values import PrometheusLabels
 
 
 def convert_to_prometheus(
@@ -18,7 +19,7 @@ def convert_to_prometheus(
     account_column: str,
     symbol: str,
     current_balance_column: str,
-) -> str:
+) -> CollectorRegistry:
     """
     Converts standard output of list of pandas table to a Prometheus friendly text exposition
     :param table_list: Standard output of list of pandas table
@@ -28,16 +29,18 @@ def convert_to_prometheus(
     :param current_balance_column: Column name of the account balance
     :return: Prometheus friendly text exposition
     """
-    exposition_list: List = list()
+    registry: CollectorRegistry = CollectorRegistry()
+    labels: List[str] = PrometheusLabels.LABELS.value
+    current_balance_metric: Gauge = Gauge(
+        "current_balance", "Current balance of the asset", labels, registry=registry
+    )
     for t in table_list:
         for _, row in t.iterrows():
             account: int = int(row[account_column])
             account_type: str = t.name
             current_balance: float = row[current_balance_column]
 
-            exposition_list.append(
-                ExpositionFormats.PROMETHEUS.value.format(
-                    institution, account, account_type, symbol, current_balance
-                )
-            )
-    return "\n".join(exposition_list)
+            current_balance_metric.labels(
+                institution, account, account_type, symbol
+            ).set(current_balance)
+    return registry
