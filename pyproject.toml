@@ -20,8 +20,7 @@ dependencies = [
     "undetected-chromedriver>=3.5.0",
     "lxml>=4.9.2",
     "setuptools>=69.5.1",
-    "lxml>=5.2.2",
-    "bank_scrapers==1.0.6"
+    "lxml>=5.2.2"
 
 ]
 
