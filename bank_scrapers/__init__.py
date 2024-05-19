@@ -1,6 +1,7 @@
 """
 Provides library level metadata and constants.
 """
+from scrapers import *
 
 NAME: str = "bank_scrapers"
 VERSION: str = "1.0.11"
