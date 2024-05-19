@@ -1,1 +1,1 @@
-from becu import *
+from .becu import *
