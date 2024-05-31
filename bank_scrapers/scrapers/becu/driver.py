@@ -8,9 +8,9 @@ for t in tables:
     print(t.to_string())
 ```
 """
-
 # Standard library imports
 from typing import Dict
+from io import StringIO
 
 # Non-Standard Imports
 import pandas as pd
@@ -68,7 +68,7 @@ def process_table(table: WebElement) -> pd.DataFrame:
     html: str = table.get_attribute("outerHTML")
 
     # Load into pandas
-    table: pd.DataFrame = pd.read_html(html)[0]
+    table: pd.DataFrame = pd.read_html(StringIO(str(html)))[0]
 
     # Strip non-digit/decimal
     table: pd.DataFrame = table.replace(to_replace=r"[^0-9\.]+", value="", regex=True)
