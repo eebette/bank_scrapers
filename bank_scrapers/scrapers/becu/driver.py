@@ -16,7 +16,6 @@ from io import StringIO
 import pandas as pd
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.by import By
-from prometheus_client import CollectorRegistry, write_to_textfile
 
 # Local Imports
 from bank_scrapers.scrapers.common.functions import *
