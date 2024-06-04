@@ -85,7 +85,7 @@ def process_table(table: WebElement) -> pd.DataFrame:
 
 
 def get_mfa_answer(
-    driver: Chrome, wait: WebDriverWait, mfa_answers: Dict[str, str] | None = None
+        driver: Chrome, wait: WebDriverWait, mfa_answers: Dict[str, str] | None = None
 ) -> str:
     """
     Returns the answer for the MFA question or prompts the user for the answer if not provided
@@ -126,12 +126,12 @@ def handle_redirect(wait: WebDriverWait) -> None:
 
 
 def logon(
-    driver: Chrome,
-    wait: WebDriverWait,
-    homepage: str,
-    username: str,
-    password: str,
-    mfa_answers: Dict[str, str] | None = None,
+        driver: Chrome,
+        wait: WebDriverWait,
+        homepage: str,
+        username: str,
+        password: str,
+        mfa_answers: Dict[str, str] | None = None,
 ) -> None:
     """
     Opens and signs on to an account
@@ -164,15 +164,15 @@ def logon(
     submit.click()
 
     while (
-        driver.current_url
-        != "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"
+            driver.current_url
+            != "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"
     ):
         # Wait for redirect to landing page
         handle_redirect(wait)
 
         if (
-            driver.current_url
-            == "https://onlinebanking.becu.org/BECUBankingWeb/Invitation/Default.aspx"
+                driver.current_url
+                == "https://onlinebanking.becu.org/BECUBankingWeb/Invitation/Default.aspx"
         ):
             # Decline offer
             decline_btn: WebElement = wait_and_find_element(
@@ -181,8 +181,8 @@ def logon(
             decline_btn.click()
 
         elif (
-            driver.current_url
-            == "https://onlinebanking.becu.org/BECUBankingWeb/Security/Challenge"
+                driver.current_url
+                == "https://onlinebanking.becu.org/BECUBankingWeb/Security/Challenge"
         ):
             # Get MFA answer
             mfa_answer: str = get_mfa_answer(driver, wait, mfa_answers)
@@ -201,13 +201,13 @@ def logon(
 
 
 def get_accounts_info(
-    username: str, password: str, prometheus: bool = False
+        username: str, password: str, prometheus: bool = False
 ) -> List[pd.DataFrame] | List[Tuple[List, float]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
-    :param prometheus: True/False value to exporting as Prometheus-friendly exposition
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :return: A list of pandas dataframes of accounts info tables
     """
     # Get Driver config
@@ -234,7 +234,7 @@ def get_accounts_info(
         is_credit_account = any(
             list(True for header in table.columns if "credit" in header.lower())
         )
-        table.name = "credit" if is_credit_account else "deposit"
+        table["account_type"] = "credit" if is_credit_account else "deposit"
         return_tables.append(table)
 
     # Clean up
@@ -243,7 +243,7 @@ def get_accounts_info(
     # Convert to Prometheus exposition if flag is set
     if prometheus:
         return_tables: List[Tuple[List, float]] = convert_to_prometheus(
-            return_tables, INSTITUTION, "Account", SYMBOL, "Current Balance"
+            return_tables, INSTITUTION, "Account", SYMBOL, "Current Balance", "account_type"
         )
 
     # Return list of pandas df

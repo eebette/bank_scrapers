@@ -1,10 +1,14 @@
 """
 Provides library level metadata and constants.
 """
+
+import os
 from .scrapers import *
+
 
 NAME: str = "bank_scrapers"
 VERSION: str = "1.0.13"
+ROOT_DIR: str = os.path.dirname(os.path.abspath(__file__))
 
 
 def version() -> str:

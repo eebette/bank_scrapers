@@ -11,15 +11,24 @@ for t in tables:
 
 # Standard Library Imports
 from typing import Dict
+import re
 from time import sleep
 
 # Non-Standard Imports
 import pandas as pd
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
+from pyvirtualdisplay import Display
+
+from bank_scrapers import ROOT_DIR
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 
 # Local Imports
 from bank_scrapers.scrapers.common.functions import *
+
+# Institution info
+INSTITUTION: str = "Chase"
+SYMBOL: str = "USD"
 
 # Logon page
 HOMEPAGE: str = "https://www.chase.com/personal/credit-cards/login-account-access"
@@ -31,10 +40,31 @@ TIMEOUT: int = 60
 CHROME_OPTIONS: List[str] = [
     "--no-sandbox",
     "--window-size=1920,1080",
-    "--headless",
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
+
+
+def screenshot_on_failure(save_path: str):
+    """
+    Decorator function for saving a screenshot of the current page if the automation times out
+    :param save_path:
+    """
+
+    def wrapper(func):
+        def _screenshot_on_failure(*args, **kwargs):
+            driver = args[0]
+            nonlocal save_path
+            try:
+                return func(*args, **kwargs)
+            except TimeoutException as e:
+                print(e)
+                driver.save_screenshot(save_path)
+                exit(1)
+
+        return _screenshot_on_failure
+
+    return wrapper
 
 
 def get_chrome_options(arguments: List[str]) -> ChromeOptions:
@@ -50,16 +80,121 @@ def get_chrome_options(arguments: List[str]) -> ChromeOptions:
     return chrome_options
 
 
+def check_element_is_ineligible(
+    element: WebElement,
+    ineligibility_check_xpath: str,
+    ineligibility_check_attribute: str,
+) -> bool:
+    """
+    Checks if a WebElement has an eligibility flag set based on provided relative XPath and attribute
+    :param element: The WebElement for which to check eligibility
+    :param ineligibility_check_xpath: XPath value to a WebElement that can be used to check if the element is ineligible
+    :param ineligibility_check_attribute: Attribute value within a WebElement (set with XPath) that can be used
+    to check if the element is ineligible
+    :return: Boolean value True if the element is ineligible, False is not ineligible
+    """
+    try:
+        # Check if ineligibility flag is set, if not assume label is eligible/not disabled
+        is_disabled: bool = bool(
+            element.find_element(By.XPATH, ineligibility_check_xpath).get_attribute(
+                ineligibility_check_attribute
+            )
+        )
+    except NoSuchElementException:
+        is_disabled: bool = False
+        pass
+
+    return is_disabled
+
+
+def _split_list_into_chunks(input_list: List, n: int):
+    """
+    Splits a list into n equal size chunks
+    :param input_list: The original list to split
+    :param n: Number of output lists (chunks) to split the list into
+    :return: A list of chunked lists
+    """
+    split_list: List[List] = [
+        input_list[i : i + n] for i in range(0, len(input_list), n)
+    ]
+    return split_list
+
+
+def _organize_headers_with_labels(
+    headers: List[WebElement],
+    labels: List[WebElement],
+    label_ineligibility_check_xpath: str = None,
+    label_ineligibility_check_attribute: str = None,
+    text_to_display: str = "innerText",
+) -> Tuple[List[Tuple[str, int]], List[WebElement]]:
+    """
+    Takes a list of headers (titles) Web Elements and a list of label Web Elements and creates a human-readable list of
+    options. This function assumes that the labels are organized such that the first n elements belong to the first
+    header, the second n elements belong to the second header, and so on (where n equals the count of all elements
+    divided by the number of headers). Also returns an ordered concatenated list of headers and labels
+    :param headers: List of WebElements containing the headers (titles) which precede labels in the list
+    :param labels: List of WebElements containing the labels which proceed the headers in the list
+    :param label_ineligibility_check_xpath: XPath value to a WebElement that can be used to check if a list label
+    (option) is ineligible
+    :param label_ineligibility_check_attribute: Attribute value within a WebElement (set with XPath) that can be used
+    to check if a list label (option) is ineligible
+    :param text_to_display: Text value to pull from the headers/labels WebElements to use for the human-readable output
+    string
+    :return: A tuple containing 1: a list of
+    tuples containing a: a string of human-readable eligible options (titles + labels), and b: an integer representing
+    the index of the corresponding WebElement for that option in the unified ordered list mentioned below, and 2: a
+    unified ordered list of WebElements for the headers and labels
+    """
+    # Making the OTP options human-readable
+    n: int = int(len(labels) / len(headers))
+
+    # Split the labels into equal numbers groups based on the number of headers
+    split_labels: List[List[WebElement]] = _split_list_into_chunks(labels, n)
+
+    output_list: List[Tuple[str, int]] = list()
+    headers_with_labels: List[WebElement] = list()
+
+    # Iterate through headers and add each header to the concatenated list (followed by its labels)
+    for i, header in enumerate(headers):
+        headers_with_labels.append(header)
+
+        # Iterate through the labels, labelling each label with its index in the full headers + labels list and
+        # formatting it as a human-readable output
+        for label in split_labels[i]:
+            original_index: int = len(headers_with_labels)
+            headers_with_labels.append(label)
+
+            # Check if label is ineligible
+            is_disabled: bool = check_element_is_ineligible(
+                label,
+                label_ineligibility_check_xpath,
+                label_ineligibility_check_attribute,
+            )
+            if not is_disabled:
+                # Append human-readable label and original index for easily reconciling with full list of all
+                # WebElements
+                output_list.append(
+                    (
+                        f"{header.get_attribute(text_to_display)}: {label.get_attribute(text_to_display)}",
+                        original_index,
+                    )
+                )
+    return output_list, headers_with_labels
+
+
+@screenshot_on_failure(f"{ROOT_DIR}/errors/{datetime.now()}.png")
 def handle_multi_factor_authentication(
-    driver: Chrome, wait: WebDriverWait, password: str
+    driver: Chrome, wait: WebDriverWait, password: str, mfa_auth=None
 ) -> None:
     """
     Navigates the MFA workflow for this website
     Note that this function only covers Email Me options for now.
     :param driver: The Chrome driver/browser used for this function
     :param wait: The wait object associated with the driver function above
-    :param password: User's password to enter along with OPT
+    :param password: User's password to enter along with OTP
+    :param mfa_auth: Typed Dict with MFA inputs for automation
     """
+
     # Wait for the expand option to become clickable or else can lead to bugs where the list doesn't expand correctly
     expand_button: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "header-simplerAuth-dropdownoptions-styledselect")
@@ -67,21 +202,42 @@ def handle_multi_factor_authentication(
 
     # Then click it
     expand_button.click()
-    sleep(0.5)
+    sleep(1)
 
     # Identify MFA options
+    contact_options: List[WebElement] = wait_and_find_elements(
+        driver,
+        wait,
+        (By.XPATH, '//a[@role="option"]/span[@class="groupLabelText primary"]'),
+    )
+
     labels: List[WebElement] = wait_and_find_elements(
-        driver, wait, (By.XPATH, "//a[@role='option']")
+        driver,
+        wait,
+        (By.XPATH, '//a[@role="option"]/span[@class="primary groupingName"]'),
+    )
+
+    # Making the OTP options human-readable
+    output_list: List[Tuple[str, int]]
+    full_labels: List[WebElement]
+    output_list, full_labels = _organize_headers_with_labels(
+        contact_options, labels, "./..", "aria-disabled"
     )
 
     # Prompt user input for MFA option
-    for i, l in enumerate(labels):
-        print(f"{i}: {l.text}")
-    l_index: int = int(input("Please select one: "))
+    if mfa_auth is None:
+        for i, l in enumerate(output_list):
+            print(f"{i + 1}: {l[0]}")
+        option: str = input("Please select one: ")
+    else:
+        option: str = mfa_auth["otp_contact_option"]
+    l_index: int = output_list[int(option) - 1][1]
 
     # Click based on user input
     expand_button.click()
-    mfa_option: WebElement = wait.until(EC.element_to_be_clickable(labels[l_index]))
+    mfa_option: WebElement = wait.until(
+        EC.element_to_be_clickable(full_labels[l_index])
+    )
     mfa_option.click()
 
     # Click submit once it becomes clickable
@@ -94,7 +250,17 @@ def handle_multi_factor_authentication(
     otp_input: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "otpcode_input-input-field")
     )
-    otp_code: str = input("Enter 2FA Code: ")
+
+    # Prompt user input for MFA option
+    if mfa_auth is None:
+        otp_code: str = input("Enter 2FA Code: ")
+    else:
+        otp_code: str = str(
+            search_files_for_int(
+                mfa_auth["otp_code_location"], INSTITUTION, ".txt", 6, 10, TIMEOUT, True
+            )
+        )
+
     otp_input.send_keys(otp_code)
 
     # Re-enter the password on the OTP page
@@ -111,6 +277,7 @@ def handle_multi_factor_authentication(
     submit.click()
 
 
+@screenshot_on_failure(f"{ROOT_DIR}/errors/{datetime.now()}.png")
 def logon(
     driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
 ) -> None:
@@ -151,6 +318,8 @@ def logon(
     submit.click()
 
 
+# noinspection PyTypeChecker
+@screenshot_on_failure(f"{ROOT_DIR}/errors/{datetime.now()}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Navigate the website and click download button for the accounts data
@@ -159,25 +328,27 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     """
     # Navigate shadow root
     shadow_root: ShadowRoot = wait_and_find_element(
-        driver, wait, (By.ID, "multiMoreMenuParent-3")
+        driver, wait, (By.XPATH, "//mds-button[@text='More']")
     ).shadow_root
-    sr_wait: WebDriverWait = WebDriverWait(shadow_root, 60)
+    sr_wait: WebDriverWait = WebDriverWait(shadow_root, TIMEOUT)
 
     # Open accounts dropdown
     accounts_dropdown: WebElement = wait_and_find_element(
-        shadow_root, sr_wait, (By.CLASS_NAME, "button--tertiary")
+        shadow_root, sr_wait, (By.CSS_SELECTOR, ".button")
     )
     accounts_dropdown.click()
 
     # Navigate another shadow root
     sr: ShadowRoot = wait_and_find_element(
-        shadow_root, sr_wait, (By.CLASS_NAME, "mds-menu-button--cpo")
+        shadow_root, sr_wait, (By.CSS_SELECTOR, ".mds-menu-button--cpo")
     ).shadow_root
 
     # Wait for the account details button to be clickable and go to it
-    sr_wait_: WebDriverWait = WebDriverWait(sr, 60)
+    sr_wait_: WebDriverWait = WebDriverWait(sr, TIMEOUT)
     btn: WebElement = wait_and_find_click_element(
-        sr, sr_wait_, (By.CLASS_NAME, "menu-button-item")
+        sr,
+        sr_wait_,
+        (By.CSS_SELECTOR, "li.menu-button__list:nth-child(1) > button:nth-child(1)"),
     )
     btn.click()
 
@@ -214,13 +385,21 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     return df
 
 
-def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
+def get_accounts_info(
+    username: str, password: str, prometheus: bool = False, mfa_auth=None
+) -> List[pd.DataFrame]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :return: A list of pandas dataframes of accounts info tables
+    :param mfa_auth:
     """
+    # Instantiate the virtual display
+    display: Display = Display(visible=False, size=(800, 600))
+    display.start()
+
     # Get Driver config
     chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
 
@@ -251,40 +430,66 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
     # Wait for redirect to landing page or 2FA
     try:
         wait.until(
-            lambda driver: "chase.com/web/auth/dashboard#/dashboard/overviewAccounts/overview/singleCard"
-            in driver.current_url
+            lambda this_driver: "chase.com/web/auth/dashboard#/dashboard/overview"
+            in this_driver.current_url
             or is_2fa_redirect()
             or password_needs_reset()
         )
     except TimeoutException as e:
+        print(e)
         leave_on_timeout(driver)
 
     # Handle 2FA if prompted, or quit if Chase catches us
     if is_2fa_redirect():
-        handle_multi_factor_authentication(driver, wait, password)
+        handle_multi_factor_authentication(driver, wait, password, mfa_auth)
     elif password_needs_reset():
         print("Password needs reset!")
         sys.exit(1)
 
     # Wait for landing page after handling 2FA
     wait.until(
-        lambda driver: "chase.com/web/auth/dashboard#/dashboard/overviewAccounts/overview/singleCard"
-        in driver.current_url
+        lambda this_driver: "chase.com/web/auth/dashboard#/dashboard/overview"
+        in this_driver.current_url
     )
 
     # Navigate the site and download the accounts data
     seek_accounts_data(driver, wait)
 
+    account_number: str = wait_and_find_element(
+        driver,
+        wait,
+        (
+            By.XPATH,
+            "//h2[@class='accountdetails accountname mds-title-medium']/span[@class='mask-number mds-body-large']",
+        ),
+    ).text
+    account_number: str = re.sub("[^0-9]", "", account_number)
+
     # Process tables
     tables: List[WebElement] = wait_and_find_elements(
         driver, wait, (By.CLASS_NAME, "details-bar")
     )
-    return_tables: List = []
+    return_tables: List = list()
     for t in tables:
-        return_tables.append(parse_accounts_summary(t))
+        parsed_table = parse_accounts_summary(t)
+        parsed_table["account"] = account_number
+        parsed_table["account_type"] = "credit"
+        parsed_table.name = t.find_element(By.XPATH, "./..//h3").text
+        return_tables.append(parsed_table)
 
     # Clean up
     driver.quit()
 
-    # Return list of pandas df
+    # Convert to Prometheus exposition if flag is set
+    if prometheus:
+        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "account",
+            SYMBOL,
+            "Current balance",
+            "account_type",
+        )
+
+        # Return list of pandas df
     return return_tables

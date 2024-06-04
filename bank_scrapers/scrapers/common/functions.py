@@ -1,6 +1,7 @@
 """
 Handy functions to be used by any driver
 """
+
 from __future__ import annotations
 
 import sys
