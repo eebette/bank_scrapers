@@ -53,7 +53,7 @@ def screenshot_on_failure(save_path: str):
 
     def wrapper(func):
         def _screenshot_on_failure(*args, **kwargs):
-            driver = args[0]
+            driver: WebDriver = args[0]
             nonlocal save_path
             try:
                 return func(*args, **kwargs)
