@@ -54,7 +54,7 @@ def convert_to_prometheus(
     except AssertionError as e:
         print(e)
         print(
-            f"No tables in output list. Make sure at least one table in the output contains columns {account}, "
+            f"No tables in output list. Make sure at least one table in the output contains columns {account_column}, "
             f"{current_balance_column}, and {account_type_column}."
         )
         exit(1)
