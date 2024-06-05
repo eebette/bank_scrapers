@@ -10,13 +10,14 @@ import re
 
 # Non-Standard Imports
 import pandas as pd
+import requests
 
 
 def convert_to_prometheus(
     table_list: List[pd.DataFrame],
     institution: str,
     account_column: str,
-    symbol: str,
+    symbol_column: str,
     current_balance_column: str,
     account_type_column: str,
 ) -> List[Tuple[List, float]]:
@@ -25,7 +26,7 @@ def convert_to_prometheus(
     :param table_list: Standard output of list of pandas table
     :param institution: Text name of the institution to use as Prometheus metric label
     :param account_column: Column name of account identifier
-    :param symbol: Asset symbol to use as Prometheus metric label
+    :param symbol_column: Column name of the asset symbol to use as Prometheus metric label
     :param current_balance_column: Column name of the account balance
     :param account_type_column: Column name of the account type (credit, deposit, etc.)
     :return: Prometheus friendly metrics for text exposition
@@ -38,12 +39,14 @@ def convert_to_prometheus(
                 account_column in t.columns,
                 current_balance_column in t.columns,
                 account_type_column in t.columns,
+                symbol_column in t.columns,
             ]
         ):
             for _, row in t.iterrows():
-                account: int = int(row[account_column])
+                account: str = row[account_column]
                 account_type: str = row[account_type_column]
                 current_balance: float = row[current_balance_column]
+                symbol: str = row[symbol_column]
 
                 current_balance_metrics.append(
                     ([institution, account, account_type, symbol], current_balance)
@@ -55,7 +58,7 @@ def convert_to_prometheus(
         print(e)
         print(
             f"No tables in output list. Make sure at least one table in the output contains columns {account_column}, "
-            f"{current_balance_column}, and {account_type_column}."
+            f"{current_balance_column}, {account_type_column}, and {symbol_column}."
         )
         exit(1)
 
@@ -134,3 +137,20 @@ def search_files_for_int(
     raise Exception(
         f"No integers between {min_length} and {max_length} characters found in any files!"
     )
+
+
+def get_ticker(company_name):
+    """
+
+    :param company_name:
+    :return:
+    """
+    yfinance = "https://query2.finance.yahoo.com/v1/finance/search"
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+    params = {"q": company_name, "quotes_count": 1, "country": "United States"}
+
+    res = requests.get(url=yfinance, params=params, headers={"User-Agent": user_agent})
+    data = res.json()
+
+    company_code = data["quotes"][0]["symbol"]
+    return company_code

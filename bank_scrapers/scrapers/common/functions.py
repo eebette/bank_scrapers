@@ -4,14 +4,16 @@ Handy functions to be used by any driver
 
 from __future__ import annotations
 
+# Standard Imports
+from typing import Tuple, List
 import sys
 import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-
-# Standard Imports
-from typing import Tuple, List
+import json
+import tempfile
+from functools import reduce
 
 # Non-standard Imports
 from selenium.common import NoSuchElementException
@@ -21,6 +23,7 @@ from selenium.webdriver.remote.shadowroot import ShadowRoot
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
+from selenium.common.exceptions import TimeoutException
 from undetected_chromedriver import Chrome, ChromeOptions
 
 
@@ -59,6 +62,7 @@ def wait_and_find_element(
 ) -> WebElement:
     """
     Creates a lightweight wrapper around selenium wait and find_element
+    :rtype: object
     :param driver: The Chrome driver/browser used for this function
     :param wait: The wait object associated with the driver function above
     :param identifier: The k,v tuple used to identify the web object
@@ -129,3 +133,25 @@ def leave_on_timeout(driver: WebDriver | WebElement | Chrome | ShadowRoot) -> No
         f"Screenshot saved to {Path.home()}/bank_scrapers_err_{datetime.today().strftime('%Y%M%d%H%m%s')}.png"
     )
     sys.exit(1)
+
+
+def screenshot_on_timeout(save_path: str):
+    """
+    Decorator function for saving a screenshot of the current page if the automation times out
+    :param save_path:
+    """
+
+    def wrapper(func):
+        def _screenshot_on_timeout(*args, **kwargs):
+            driver: WebDriver = args[0]
+            nonlocal save_path
+            try:
+                return func(*args, **kwargs)
+            except TimeoutException as e:
+                print(e)
+                driver.save_screenshot(save_path)
+                exit(1)
+
+        return _screenshot_on_timeout
+
+    return wrapper

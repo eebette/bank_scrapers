@@ -16,14 +16,13 @@ from time import sleep
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from pyvirtualdisplay import Display
 
+# Local Imports
 from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
-
-# Local Imports
+from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 from bank_scrapers.scrapers.common.functions import *
 
 # Institution info
@@ -43,28 +42,6 @@ CHROME_OPTIONS: List[str] = [
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
-
-
-def screenshot_on_failure(save_path: str):
-    """
-    Decorator function for saving a screenshot of the current page if the automation times out
-    :param save_path:
-    """
-
-    def wrapper(func):
-        def _screenshot_on_failure(*args, **kwargs):
-            driver: WebDriver = args[0]
-            nonlocal save_path
-            try:
-                return func(*args, **kwargs)
-            except TimeoutException as e:
-                print(e)
-                driver.save_screenshot(save_path)
-                exit(1)
-
-        return _screenshot_on_failure
-
-    return wrapper
 
 
 def get_chrome_options(arguments: List[str]) -> ChromeOptions:
@@ -182,7 +159,7 @@ def _organize_headers_with_labels(
     return output_list, headers_with_labels
 
 
-@screenshot_on_failure(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
 def handle_multi_factor_authentication(
     driver: Chrome, wait: WebDriverWait, password: str, mfa_auth=None
 ) -> None:
@@ -277,7 +254,7 @@ def handle_multi_factor_authentication(
     submit.click()
 
 
-@screenshot_on_failure(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
 def logon(
     driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
 ) -> None:
@@ -319,7 +296,7 @@ def logon(
 
 
 # noinspection PyTypeChecker
-@screenshot_on_failure(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Navigate the website and click download button for the accounts data
@@ -385,6 +362,51 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     return df
 
 
+def is_2fa_redirect(driver: Chrome):
+    """
+
+    :param driver:
+    :return:
+    """
+    if (
+        "chase.com/web/auth/" in driver.current_url
+        and "We don't recognize this device" in driver.page_source
+    ):
+        return True
+
+
+def password_needs_reset(driver: Chrome):
+    """
+
+    :param driver:
+    :return:
+    """
+    if (
+        "chase.com/web/auth/" in driver.current_url
+        and "We can't find that username and password" in driver.page_source
+        and "Keep in mind: You won't be able to see your statements and notices until you reset your password."
+        in driver.page_source
+    ):
+        return True
+
+
+@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+def wait_for_redirect(driver: Chrome, wait: WebDriverWait) -> None:
+    """
+
+    :param driver:
+    :param wait:
+    :return:
+    """
+    # Wait for redirect to landing page or 2FA
+    wait.until(
+        lambda this_driver: "chase.com/web/auth/dashboard#/dashboard/overview"
+        in this_driver.current_url
+        or is_2fa_redirect(driver)
+        or password_needs_reset(driver)
+    )
+
+
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False, mfa_auth=None
 ) -> List[pd.DataFrame]:
@@ -393,8 +415,8 @@ def get_accounts_info(
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
-    :return: A list of pandas dataframes of accounts info tables
     :param mfa_auth:
+    :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
     display: Display = Display(visible=False, size=(800, 600))
@@ -410,39 +432,12 @@ def get_accounts_info(
     # Navigate to the logon page and submit credentials
     logon(driver, wait, HOMEPAGE, username, password)
 
-    # If 2FA...
-    def is_2fa_redirect():
-        if (
-            "chase.com/web/auth/" in driver.current_url
-            and "We don't recognize this device" in driver.page_source
-        ):
-            return True
-
-    def password_needs_reset():
-        if (
-            "chase.com/web/auth/" in driver.current_url
-            and "We can't find that username and password" in driver.page_source
-            and "Keep in mind: You won't be able to see your statements and notices until you reset your password."
-            in driver.page_source
-        ):
-            return True
-
-    # Wait for redirect to landing page or 2FA
-    try:
-        wait.until(
-            lambda this_driver: "chase.com/web/auth/dashboard#/dashboard/overview"
-            in this_driver.current_url
-            or is_2fa_redirect()
-            or password_needs_reset()
-        )
-    except TimeoutException as e:
-        print(e)
-        leave_on_timeout(driver)
+    wait_for_redirect(driver, wait)
 
     # Handle 2FA if prompted, or quit if Chase catches us
-    if is_2fa_redirect():
+    if is_2fa_redirect(driver):
         handle_multi_factor_authentication(driver, wait, password, mfa_auth)
-    elif password_needs_reset():
+    elif password_needs_reset(driver):
         print("Password needs reset!")
         sys.exit(1)
 
@@ -471,9 +466,10 @@ def get_accounts_info(
     )
     return_tables: List = list()
     for t in tables:
-        parsed_table = parse_accounts_summary(t)
-        parsed_table["account"] = account_number
-        parsed_table["account_type"] = "credit"
+        parsed_table: pd.DataFrame = parse_accounts_summary(t)
+        parsed_table["account"]: pd.DataFrame = account_number
+        parsed_table["account_type"]: pd.DataFrame = "credit"
+        parsed_table["symbol"]: pd.DataFrame = SYMBOL
         parsed_table.name = t.find_element(By.XPATH, "./..//h3").text
         return_tables.append(parsed_table)
 
@@ -486,7 +482,7 @@ def get_accounts_info(
             return_tables,
             INSTITUTION,
             "account",
-            SYMBOL,
+            "symbol",
             "Current balance",
             "account_type",
         )

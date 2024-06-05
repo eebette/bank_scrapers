@@ -27,12 +27,18 @@ from time import sleep
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.common.exceptions import TimeoutException
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.by import By
+from pyvirtualdisplay import Display
 
 # Local Imports
+from bank_scrapers import ROOT_DIR
 from bank_scrapers.scrapers.common.functions import *
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+
+# Institution info
+INSTITUTION: str = "Fidelity NetBenefits"
+SYMBOL: str = "USD"
 
 # Logon page
 HOMEPAGE: str = (
@@ -40,15 +46,16 @@ HOMEPAGE: str = (
 )
 
 # Timeout
-TIMEOUT: int = 10
+TIMEOUT: int = 60
 
 # Chrome config
-USER_AGENT: str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36"
+USER_AGENT: str = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36"
+)
 CHROME_OPTIONS: List[str] = [
     f"user-agent={USER_AGENT}",
     "--no-sandbox",
     "--window-size=1920,1080",
-    "--headless",
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
@@ -78,62 +85,55 @@ def get_chrome_options(arguments: List[str]) -> Options:
     return chrome_options
 
 
-def handle_multi_factor_authentication(driver: Chrome, wait: WebDriverWait) -> None:
+@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+def handle_multi_factor_authentication(
+    driver: Chrome, wait: WebDriverWait, mfa_auth=None
+) -> None:
     """
     Navigates the MFA workflow for this website
     Note that this function only covers Email Me options for now.
     :param driver: The Chrome driver/browser used for this function
     :param wait: The wait object associated with the driver function above
+    :param mfa_auth:
     """
-    # Navigate the page's shadow roots and select the email 2FA option
-    shadow_root: ShadowRoot = wait_and_find_element(
-        driver, wait, (By.XPATH, "//pvd-expand-collapse[@title='Email Me'][1]")
-    ).shadow_root
-    shadow_wait: WebDriverWait = WebDriverWait(shadow_root, 5)
-
-    # Wait for the expand option to become clickable or else can lead to bugs where the list doesn't expand correctly
-    shadow_wait.until(
-        EC.element_to_be_clickable((By.CLASS_NAME, "expand-collapse-trigger"))
-    )
-    expand_button: WebElement = shadow_root.find_element(
-        By.CLASS_NAME, "expand-collapse-trigger"
+    text_me_button: WebElement = wait_and_find_element(
+        driver,
+        wait,
+        (By.XPATH, "//pvd-button[@pvd-id='dom-channel-list-primary-button']"),
     )
 
-    # Then click it
-    expand_button.click()
-
-    # Identify MFA options
-    labels: List[WebElement] = wait_and_find_elements(
-        driver, wait, (By.XPATH, '//*[@id="email-me-expand-collapse"]/div/div/label')
-    )
-
-    # Prompt user input for MFA option
-    for i, l in enumerate(labels):
-        print(f"{i}: {l.text}")
-    l_index: int = int(input("Please select one: "))
-
-    # Click based on user input
-    # wait.until(EC.element_to_be_clickable(labels[l_index]))
-    labels[l_index].click()
-
-    # Click submit once it becomes clickable
-    submit: WebElement = wait_and_find_element(driver, wait, (By.ID, "submit"))
-    wait.until(EC.element_to_be_clickable((By.ID, "submit")))
-    submit.click()
+    text_me_button.click()
 
     # Prompt user for OTP code and enter onto the page
     otp_input: WebElement = wait_and_find_element(
-        driver, wait, (By.ID, "security-code")
+        driver, wait, (By.ID, "dom-otp-code-input")
     )
-    otp_code: str = input("Enter 2FA Code: ")
+    # Prompt user input for MFA option
+    if mfa_auth is None:
+        otp_code: str = input("Enter 2FA Code: ")
+    else:
+        otp_code: str = str(
+            search_files_for_int(
+                mfa_auth["otp_code_location"],
+                "NetBenefits",
+                ".txt",
+                6,
+                10,
+                TIMEOUT,
+                True,
+            )
+        )
     otp_input.send_keys(otp_code)
 
     # Click submit once it becomes clickable
-    submit: WebElement = wait_and_find_element(driver, wait, (By.ID, "submit"))
-    wait.until(EC.element_to_be_clickable((By.ID, "submit")))
+    submit: WebElement = wait_and_find_element(
+        driver, wait, (By.ID, "dom-otp-code-submit-button")
+    )
+    wait.until(EC.element_to_be_clickable((By.ID, "dom-otp-code-submit-button")))
     submit.click()
 
 
+@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
 def logon(
     driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
 ) -> None:
@@ -149,20 +149,30 @@ def logon(
     driver.get(homepage)
 
     # Enter User
-    user: WebElement = wait_and_find_element(driver, wait, (By.ID, "userId"))
+    user: WebElement = wait_and_find_element(
+        driver, wait, (By.ID, "dom-username-input")
+    )
     user.send_keys(username)
 
     # Enter Password
-    passwd: WebElement = wait_and_find_element(driver, wait, (By.ID, "password"))
+    passwd: WebElement = wait_and_find_element(driver, wait, (By.ID, "dom-pswd-input"))
     passwd.send_keys(password)
 
     # Submit
     submit: WebElement = wait_and_find_element(
-        driver, wait, (By.CSS_SELECTOR, ".buttons > button:nth-child(1)")
+        driver, wait, (By.ID, "dom-login-button")
     )
     submit.click()
 
+    # Wait for redirect to landing page or 2FA
+    wait.until(
+        lambda driver: "https://workplaceservices.fidelity.com/" in driver.current_url
+        or str("To verify it's you, we'll send a temporary code to your phone")
+        in driver.page_source
+    )
 
+
+@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Navigate the website and click download button for the accounts data
@@ -193,18 +203,36 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
     :return: A pandas dataframe of the downloaded data
     """
     df: pd.DataFrame = pd.read_csv(f"{full_path}", on_bad_lines="skip")
-    df: pd.DataFrame = df[df["Quantity"].notna()]
+    df: pd.DataFrame = df[df["Account Name"].notna()]
+
+    df["Quantity"]: pd.DataFrame = df["Quantity"].fillna(df["Current Value"])
+    df["Quantity"]: pd.DataFrame = df["Quantity"].astype(str).str.replace("$", "")
+
+    df["Last Price"]: pd.DataFrame = df["Last Price"].fillna(1)
+
+    df["Symbol"]: pd.DataFrame = df["Symbol"].fillna(df["Description"])
+    df["Symbol"]: pd.DataFrame = df["Symbol"].str.replace("FCASH**", "USD")
+
     return df
 
 
-def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.DataFrame]:
+@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+def get_accounts_info(
+    username: str, password: str, tmp_dir: str, prometheus: bool = False, mfa_auth=None
+) -> List[pd.DataFrame]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param tmp_dir: An empty directory to use for processing the downloaded file
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
+    :param mfa_auth:
     :return: A list of pandas dataframes of accounts info tables
     """
+    # Instantiate the virtual display
+    display: Display = Display(visible=False, size=(800, 600))
+    display.start()
+
     # Get Driver config
     options: Options = get_chrome_options(CHROME_OPTIONS)
 
@@ -213,29 +241,20 @@ def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.Dat
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
     enable_downloads(driver, downloads_dir=tmp_dir)
+
     # Navigate to the logon page and submit credentials
     logon(driver, wait, HOMEPAGE, username, password)
-
-    # Wait for redirect to landing page or 2FA
-    try:
-        wait.until(
-            lambda driver: "https://workplaceservices.fidelity.com/"
-            in driver.current_url
-            or str("Extra security step required") in driver.page_source
-        )
-    except TimeoutException as e:
-        leave_on_timeout(driver)
 
     # If 2FA...
     def is_2fa_redirect():
         if (
-            "https://login.fidelity.com/" in driver.current_url
-            and str("Extra security step required") in driver.page_source
+            str("To verify it's you, we'll send a temporary code to your phone")
+            in driver.page_source
         ):
             return True
 
     if is_2fa_redirect():
-        handle_multi_factor_authentication(driver, wait)
+        handle_multi_factor_authentication(driver, wait, mfa_auth)
 
     # Wait for redirect to landing page
     wait.until(
@@ -245,15 +264,37 @@ def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.Dat
     # Navigate the site and download the accounts data
     seek_accounts_data(driver, wait)
 
-    # Process tables
     file_name: str = os.listdir(tmp_dir)[0]
-    return_tables: List[pd.DataFrame] = [
-        parse_accounts_summary(f"{tmp_dir}/{file_name}")
-    ]
+    try:
+        # Process tables
+        return_tables: List[pd.DataFrame] = [
+            parse_accounts_summary(f"{tmp_dir}/{file_name}")
+        ]
+        for t in return_tables:
+            t["account_type"] = t.apply(
+                lambda row: (
+                    "deposit" if row["Account Number"].startswith("Z") else "retirement"
+                ),
+                axis=1,
+            )
+    except Exception as e:
+        print(e)
+        sys.exit(1)
+    finally:
+        # Clean up
+        driver.quit()
+        os.remove(f"{tmp_dir}/{file_name}")
 
-    # Clean up
-    driver.quit()
-    os.remove(f"{tmp_dir}/{file_name}")
+    # Convert to Prometheus exposition if flag is set
+    if prometheus:
+        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account Number",
+            "Symbol",
+            "Quantity",
+            "account_type",
+        )
 
     # Return list of pandas df
     return return_tables
