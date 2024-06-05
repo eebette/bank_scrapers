@@ -117,27 +117,11 @@ def check_exists(
     return True
 
 
-def leave_on_timeout(driver: WebDriver | WebElement | Chrome | ShadowRoot) -> None:
-    """
-    Takes a screenshot of the current page in the user's some folder and exits with code 1
-    :param driver: The web driver object that is exiting
-    """
-    print(driver.current_url)
-    driver.save_screenshot(
-        f"{Path.home()}/{datetime.today().strftime('%Y%M%d%H%m%s')}.png"
-    )
-    print(
-        f"Screenshot saved to {Path.home()}/bank_scrapers_err_{datetime.today().strftime('%Y%M%d%H%m%s')}.png"
-    )
-    sys.exit(1)
-
-
 def screenshot_on_timeout(save_path: str):
     """
     Decorator function for saving a screenshot of the current page if the automation times out
     :param save_path:
     """
-
     def wrapper(func):
         def _screenshot_on_timeout(*args, **kwargs):
             driver: WebDriver = args[0]
