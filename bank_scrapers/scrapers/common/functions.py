@@ -11,9 +11,6 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-import json
-import tempfile
-from functools import reduce
 
 # Non-standard Imports
 from selenium.common import NoSuchElementException
