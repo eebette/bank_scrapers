@@ -8,6 +8,7 @@ for t in tables:
     print(t.to_string())
 ```
 """
+
 # Standard Library Imports
 from time import sleep
 from typing import Dict
@@ -168,9 +169,7 @@ def logon(
 
     # Wait for redirect to landing page or 2FA
     wait.until(
-        lambda _: "https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/dashboard"
-        in driver.current_url
-        or is_mfa_redirect(driver)
+        lambda _: DASHBOARD_PAGE in driver.current_url or is_mfa_redirect(driver)
     )
 
     # Handle 2FA if prompted, or quit if Chase catches us
@@ -178,11 +177,7 @@ def logon(
         handle_multi_factor_authentication(driver, wait, mfa_auth)
 
     # Wait for landing page after handling 2FA
-    wait.until(
-        EC.url_to_be(
-            "https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/dashboard"
-        )
-    )
+    wait.until(EC.url_to_be(DASHBOARD_PAGE))
 
 
 @screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
@@ -216,7 +211,7 @@ def seek_other_data(
 
 def parse_other_data(keys: List[WebElement], values: List[WebElement]) -> pd.DataFrame:
     """
-    Parses other loan data, such as monthly payment info, from the Roundpoint site
+    Parses other loan data, such as monthly payment info, from the RoundPoint site
     :param keys: A list of column headers as web elements. Acts as the left table in a left join
     :param values: A list of column values as web elements
     :return: A pandas dataframe of the data in the table

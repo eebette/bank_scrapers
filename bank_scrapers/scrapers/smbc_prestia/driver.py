@@ -9,8 +9,6 @@ for t in tables:
 ```
 """
 
-# Standard Library Imports
-
 # Non-Standard Imports
 import pandas as pd
 from selenium.webdriver.common.by import By
