@@ -8,10 +8,10 @@ for t in tables:
     print(t.to_string())
 ```
 """
-
 # Standard Library Imports
 from time import sleep
 from typing import Dict
+from datetime import datetime
 
 # Non-Standard Imports
 import pandas as pd

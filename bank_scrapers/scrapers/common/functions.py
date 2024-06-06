@@ -2,18 +2,13 @@
 Handy functions to be used by any driver
 """
 
-from __future__ import annotations
-
 # Standard Imports
-from typing import Tuple, List
-import sys
 import os
 import shutil
-from datetime import datetime
 from pathlib import Path
+from typing import Tuple, List
 
 # Non-standard Imports
-from selenium.common import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.remote.shadowroot import ShadowRoot
@@ -68,7 +63,7 @@ def get_chrome_options(arguments: List[str]) -> ChromeOptions:
 def wait_and_find_element(
     driver: WebDriver | WebElement | Chrome | ShadowRoot,
     wait: WebDriverWait,
-    identifier: Tuple,
+    identifier: Tuple[str, str],
 ) -> WebElement:
     """
     Creates a lightweight wrapper around selenium wait and find_element
@@ -85,7 +80,7 @@ def wait_and_find_element(
 def wait_and_find_elements(
     driver: WebDriver | WebElement | Chrome | ShadowRoot,
     wait: WebDriverWait,
-    identifier: Tuple,
+    identifier: Tuple[str, str],
 ) -> List[WebElement]:
     """
     Creates a lightweight wrapper around selenium wait and find_elements
@@ -101,7 +96,7 @@ def wait_and_find_elements(
 def wait_and_find_click_element(
     driver: WebDriver | WebElement | Chrome | ShadowRoot,
     wait: WebDriverWait,
-    identifier: Tuple,
+    identifier: Tuple[str, str],
 ) -> WebElement:
     """
     Creates a lightweight wrapper around selenium wait for element to be clickable and find_element

@@ -10,19 +10,20 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import Dict
 import re
+from datetime import datetime
 from time import sleep
+from typing import Dict
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.webdriver.common.by import By
 from pyvirtualdisplay import Display
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.by import By
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
-from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 from bank_scrapers.scrapers.common.functions import *
 
 # Institution info
@@ -439,7 +440,7 @@ def get_accounts_info(
         handle_multi_factor_authentication(driver, wait, password, mfa_auth)
     elif password_needs_reset(driver):
         print("Password needs reset!")
-        sys.exit(1)
+        exit(1)
 
     # Wait for landing page after handling 2FA
     wait.until(
