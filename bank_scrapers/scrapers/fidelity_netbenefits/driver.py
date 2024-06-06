@@ -21,9 +21,9 @@ import shutil
 shutil.rmtree(tmp_dir)
 ```
 """
-
 # Standard Library Imports
 from time import sleep
+from datetime import datetime
 
 # Non-Standard Imports
 import pandas as pd
