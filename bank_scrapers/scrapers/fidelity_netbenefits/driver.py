@@ -166,7 +166,7 @@ def logon(
 
     # Wait for redirect to landing page or 2FA
     wait.until(
-        lambda driver: "https://workplaceservices.fidelity.com/" in driver.current_url
+        lambda _: "https://workplaceservices.fidelity.com/" in driver.current_url
         or str("To verify it's you, we'll send a temporary code to your phone")
         in driver.page_source
     )

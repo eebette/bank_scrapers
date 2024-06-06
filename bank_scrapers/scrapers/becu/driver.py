@@ -109,13 +109,14 @@ def get_mfa_answer(
     return mfa_answer
 
 
-def handle_redirect(wait: WebDriverWait) -> None:
+def handle_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Waits until the page redirects to account home, marketing/offer page, or MFA page
-    :param wait:
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
     """
     wait.until(
-        lambda driver: any(
+        lambda _: any(
             driver.current_url in landing_page
             for landing_page in [
                 "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx",

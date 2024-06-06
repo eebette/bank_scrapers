@@ -401,8 +401,8 @@ def wait_for_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     """
     # Wait for redirect to landing page or 2FA
     wait.until(
-        lambda this_driver: "chase.com/web/auth/dashboard#/dashboard/overview"
-        in this_driver.current_url
+        lambda _: "chase.com/web/auth/dashboard#/dashboard/overview"
+        in driver.current_url
         or is_2fa_redirect(driver)
         or password_needs_reset(driver)
     )
@@ -444,8 +444,8 @@ def get_accounts_info(
 
     # Wait for landing page after handling 2FA
     wait.until(
-        lambda this_driver: "chase.com/web/auth/dashboard#/dashboard/overview"
-        in this_driver.current_url
+        lambda _: "chase.com/web/auth/dashboard#/dashboard/overview"
+        in driver.current_url
     )
 
     # Navigate the site and download the accounts data
