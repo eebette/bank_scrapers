@@ -279,7 +279,7 @@ def get_accounts_info(
             )
     except Exception as e:
         print(e)
-        sys.exit(1)
+        exit(1)
     finally:
         # Clean up
         driver.quit()

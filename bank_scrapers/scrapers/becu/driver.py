@@ -170,7 +170,7 @@ def logon(
         != "https://onlinebanking.becu.org/BECUBankingWeb/Accounts/Summary.aspx"
     ):
         # Wait for redirect to landing page
-        handle_redirect(wait)
+        handle_redirect(driver, wait)
 
         if (
             driver.current_url
