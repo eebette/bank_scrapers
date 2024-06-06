@@ -219,7 +219,7 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
 @screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
 def get_accounts_info(
     username: str, password: str, tmp_dir: str, prometheus: bool = False, mfa_auth=None
-) -> List[pd.DataFrame]:
+) -> List[pd.DataFrame] | List[Tuple[List, float]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
@@ -258,7 +258,7 @@ def get_accounts_info(
 
     # Wait for redirect to landing page
     wait.until(
-        lambda driver: "https://workplaceservices.fidelity.com/" in driver.current_url
+        lambda _: "https://workplaceservices.fidelity.com/" in driver.current_url
     )
 
     # Navigate the site and download the accounts data

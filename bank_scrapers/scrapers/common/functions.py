@@ -52,6 +52,19 @@ def start_chromedriver(options: Options | ChromeOptions) -> Chrome:
     return driver
 
 
+def get_chrome_options(arguments: List[str]) -> ChromeOptions:
+    """
+    Returns Options object for a list of chrome options arguments
+    :param arguments: A list of string-ified chrome arguments
+    :return: Options object with chrome options set
+    """
+    chrome_options: ChromeOptions = ChromeOptions()
+    for arg in arguments:
+        chrome_options.add_argument(arg)
+
+    return chrome_options
+
+
 def wait_and_find_element(
     driver: WebDriver | WebElement | Chrome | ShadowRoot,
     wait: WebDriverWait,
@@ -101,27 +114,12 @@ def wait_and_find_click_element(
     return driver.find_element(*identifier)
 
 
-def check_exists(
-    driver: WebDriver | WebElement | Chrome | ShadowRoot, identifier: Tuple
-) -> bool:
-    """
-    Returns True if an element exists
-    :param driver: The Chrome driver/browser used for this function
-    :param identifier: The k,v tuple used to identify the web object
-    :return: The web element object
-    """
-    try:
-        driver.find_element(*identifier)
-    except NoSuchElementException:
-        return False
-    return True
-
-
 def screenshot_on_timeout(save_path: str):
     """
     Decorator function for saving a screenshot of the current page if the automation times out
     :param save_path:
     """
+
     def wrapper(func):
         def _screenshot_on_timeout(*args, **kwargs):
             driver: WebDriver = args[0]

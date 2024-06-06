@@ -409,7 +409,7 @@ def wait_for_redirect(driver: Chrome, wait: WebDriverWait) -> None:
 
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False, mfa_auth=None
-) -> List[pd.DataFrame]:
+) -> List[pd.DataFrame] | List[Tuple[List, float]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
@@ -487,5 +487,5 @@ def get_accounts_info(
             "account_type",
         )
 
-        # Return list of pandas df
+    # Return list of pandas df
     return return_tables
