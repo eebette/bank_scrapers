@@ -9,18 +9,28 @@ for t in tables:
 ```
 """
 
+# Standard library imports
+from io import StringIO
+
 # Non-Standard Imports
 import pandas as pd
 from selenium.webdriver.common.by import By
 
 # Local Imports
 from bank_scrapers.scrapers.common.functions import *
+from bank_scrapers.common.functions import convert_to_prometheus
+
+# Institution info
+INSTITUTION: str = "SMBC Prestia"
+SYMBOL: str = "JPY"
 
 # Logon page
-HOMEPAGE: str = "https://login.smbctb.co.jp/ib/portal/POSNIN1prestiatop.prst?LOCALE=en_JP"
+HOMEPAGE: str = (
+    "https://login.smbctb.co.jp/ib/portal/POSNIN1prestiatop.prst?LOCALE=en_JP"
+)
 
 # Timeout
-TIMEOUT: int = 15
+TIMEOUT: int = 60
 
 # Chrome config
 CHROME_OPTIONS: List[str] = [
@@ -30,19 +40,6 @@ CHROME_OPTIONS: List[str] = [
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
-
-
-def get_chrome_options(arguments: List[str]) -> ChromeOptions:
-    """
-    Returns Options object for a list of chrome options arguments
-    :param arguments: A list of string-ified chrome arguments
-    :return: Options object with chrome options set
-    """
-    chrome_options: ChromeOptions = ChromeOptions()
-    for arg in arguments:
-        chrome_options.add_argument(arg)
-
-    return chrome_options
 
 
 def logon(
@@ -105,7 +102,7 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     """
     # Create a simple dataframe from the input amount
     html: str = table.get_attribute("outerHTML")
-    df: pd.DataFrame = pd.read_html(html)[0]
+    df: pd.DataFrame = pd.read_html(StringIO(str(html)))[0]
 
     # Remove non-numeric, non-decimal characters
     df: pd.DataFrame = df.replace(to_replace=r"[^0-9\.]+", value="", regex=True)
@@ -114,17 +111,23 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     df: pd.DataFrame = df.apply(pd.to_numeric, errors="coerce")
 
     # Drop columns where all values are null
-    df.dropna(axis=1, how="all", inplace=True)
+    df: pd.DataFrame = df.dropna(axis=1, how="all")
+
+    df["symbol"]: pd.DataFrame = SYMBOL
+    df["account_type"]: pd.DataFrame = "deposit"
 
     # Return the dataframe
     return df
 
 
-def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
+def get_accounts_info(
+    username: str, password: str, prometheus: bool = False
+) -> List[pd.DataFrame]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :return: A list of pandas dataframes of accounts info tables
     """
     # Get Driver config
@@ -146,6 +149,17 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
 
     # Clean up
     driver.quit()
+
+    # Convert to Prometheus exposition if flag is set
+    if prometheus:
+        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account Number",
+            "symbol",
+            "Available Amount",
+            "account_type",
+        )
 
     # Return list of pandas df
     return return_tables
