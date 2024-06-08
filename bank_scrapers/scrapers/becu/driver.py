@@ -201,7 +201,7 @@ def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Get Driver config
-    chrome_options: Options = get_chrome_options(CHROME_OPTIONS)
+    chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
     driver: Chrome = start_chromedriver(chrome_options)
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
