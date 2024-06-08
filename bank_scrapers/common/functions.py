@@ -154,3 +154,19 @@ def get_ticker(company_name):
 
     company_code = data["quotes"][0]["symbol"]
     return company_code
+
+
+def search_for_dir(cwd: str, target: str) -> str:
+    """
+
+    :param cwd:
+    :param target:
+    :return:
+    """
+    directory: str = os.path.dirname(os.path.abspath(cwd))
+
+    # Navigate up the directory tree until you reach the target
+    while not os.path.exists(os.path.join(directory, target)):
+        directory: str = os.path.dirname(directory)
+
+    return directory

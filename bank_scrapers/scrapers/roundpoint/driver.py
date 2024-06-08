@@ -19,9 +19,8 @@ import pandas as pd
 from selenium.webdriver.common.by import By
 
 # Local Imports
-from bank_scrapers import ROOT_DIR
 from bank_scrapers.scrapers.common.functions import *
-from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int, search_for_dir
 
 # Institution info
 INSTITUTION: str = "RoundPoint Mortgage"
@@ -47,8 +46,11 @@ CHROME_OPTIONS: List[str] = [
     "--allow-running-insecure-content",
 ]
 
+# Error screenshot config
+ERROR_DIR: str = search_for_dir(__file__, "errors")
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def handle_multi_factor_authentication(
     driver: Chrome, wait: WebDriverWait, mfa_auth=None
 ) -> None:
@@ -128,7 +130,7 @@ def is_mfa_redirect(driver: Chrome) -> bool:
         return False
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def logon(
     driver: Chrome,
     wait: WebDriverWait,
@@ -180,7 +182,7 @@ def logon(
     wait.until(EC.url_to_be(DASHBOARD_PAGE))
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> str:
     """
     Navigate the website and click download button for the accounts data
@@ -191,7 +193,7 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> str:
     return amount
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def seek_other_data(
     driver: Chrome, wait: WebDriverWait
 ) -> Tuple[List[WebElement], List[WebElement]]:
@@ -255,7 +257,7 @@ def parse_accounts_summary(amount: str) -> pd.DataFrame:
     return df
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def get_loan_number(driver: Chrome, wait: WebDriverWait) -> str:
     """
     Gets the full loan number from the My Loan page on the RoundPoint website
@@ -285,7 +287,7 @@ def get_loan_number(driver: Chrome, wait: WebDriverWait) -> str:
     return loan_number
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
     """
     Iterates through the account's loans and processes the data into a list of Pandas DataFrames
@@ -355,7 +357,6 @@ def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
     return return_tables
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False, mfa_auth=None
 ) -> List[pd.DataFrame] | List[Tuple[List, float]]:

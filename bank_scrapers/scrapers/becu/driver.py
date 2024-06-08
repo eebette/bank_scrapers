@@ -12,6 +12,7 @@ for t in tables:
 # Standard library imports
 from typing import Dict
 from io import StringIO
+from datetime import datetime
 
 # Non-Standard Imports
 import pandas as pd
@@ -20,7 +21,7 @@ from selenium.webdriver.common.by import By
 
 # Local Imports
 from bank_scrapers.scrapers.common.functions import *
-from bank_scrapers.common.functions import convert_to_prometheus
+from bank_scrapers.common.functions import *
 
 # Institution info
 INSTITUTION: str = "BECU"
@@ -45,7 +46,11 @@ CHROME_OPTIONS: List[str] = [
     "--allow-running-insecure-content",
 ]
 
+# Error screenshot config
+ERROR_DIR: str = search_for_dir(__file__, "errors")
 
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def process_table(table: WebElement) -> pd.DataFrame:
     """
     Processes selenium table object into a pandas dataframe
@@ -73,6 +78,7 @@ def process_table(table: WebElement) -> pd.DataFrame:
     return table
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def get_mfa_answer(
     driver: Chrome, wait: WebDriverWait, mfa_answers: Dict[str, str] | None = None
 ) -> str:
@@ -97,6 +103,7 @@ def get_mfa_answer(
     return mfa_answer
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def handle_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Waits until the page redirects to account home, marketing/offer page, or MFA page
@@ -115,6 +122,7 @@ def handle_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     )
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def logon(
     driver: Chrome,
     wait: WebDriverWait,
@@ -190,6 +198,7 @@ def logon(
             agree_input.click()
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False
 ) -> List[pd.DataFrame] | List[Tuple[List, float]]:

@@ -12,29 +12,41 @@ for t in tables:
 # Standard Library Imports
 from time import sleep
 from typing import Dict
+from datetime import datetime
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 
 # Local Imports
 from bank_scrapers.scrapers.common.functions import *
+from bank_scrapers.common.functions import (
+    convert_to_prometheus,
+    search_files_for_int,
+    search_for_dir,
+)
+
+# Institution info
+INSTITUTION: str = "UHFCU"
+SYMBOL: str = "USD"
 
 # Logon page
 HOMEPAGE: str = "https://online.uhfcu.com/sign-in?user=&SubmitNext=Sign%20On"
 
 # Timeout
-TIMEOUT: int = 5
+TIMEOUT: int = 60
 
 # Chrome config
 CHROME_OPTIONS: List[str] = [
     "--no-sandbox",
     "--window-size=1920,1080",
-    "--headless",
+    # "--headless",
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
+
+# Error screenshot config
+ERROR_DIR: str = search_for_dir(__file__, "errors")
 
 
 def get_chrome_options(arguments: List[str]) -> ChromeOptions:
@@ -50,21 +62,41 @@ def get_chrome_options(arguments: List[str]) -> ChromeOptions:
     return chrome_options
 
 
-def handle_multi_factor_authentication(driver: Chrome, wait: WebDriverWait) -> None:
+def is_2fa_redirect(driver):
+    if "Security Checks" in driver.page_source:
+        return True
+    else:
+        return False
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+def handle_multi_factor_authentication(
+    driver: Chrome, wait: WebDriverWait, mfa_auth=None
+) -> None:
     """
     Navigates the MFA workflow for this website
     :param driver: The Chrome driver/browser used for this function
     :param wait: The wait object associated with the driver function above
+    :param mfa_auth:
     """
     # Find the 2FA options presented by the app
     options_buttons: List[WebElement] = wait_and_find_elements(
-        driver, wait, (By.XPATH, "//h2[contains(text(), 'Security Checks')]/../button")
+        driver,
+        wait,
+        (
+            By.XPATH,
+            "//h2[contains(text(), 'Security Checks')]/../button[not(@disabled)]",
+        ),
     )
 
     # Prompt user input for MFA option
-    for i, l in enumerate(options_buttons):
-        print(f"{i}: {l.text}")
-    l_index: int = int(input("Please select one: "))
+    if mfa_auth is None:
+        for i, l in enumerate(options_buttons):
+            print(f"{i+1}: {l.text}")
+        option: str = input("Please select one: ")
+    else:
+        option: str = mfa_auth["otp_contact_option"]
+    l_index: int = int(option) - 1
 
     # Click based on user input
     mfa_option: WebElement = wait.until(
@@ -82,7 +114,20 @@ def handle_multi_factor_authentication(driver: Chrome, wait: WebDriverWait) -> N
     otp_input: WebElement = wait_and_find_element(
         driver, wait, (By.XPATH, "//h2[contains(text(), 'Security Checks')]/..//input")
     )
-    otp_code: str = input("Enter 2FA Code: ")
+    if mfa_auth is None:
+        otp_code: str = input("Enter 2FA Code: ")
+    else:
+        otp_code: str = str(
+            search_files_for_int(
+                mfa_auth["otp_code_location"],
+                "University of Hawaii Federal Credit Union",
+                ".txt",
+                6,
+                10,
+                TIMEOUT,
+                True,
+            )
+        )
     otp_input.send_keys(otp_code)
 
     # Click submit once it becomes clickable
@@ -94,8 +139,14 @@ def handle_multi_factor_authentication(driver: Chrome, wait: WebDriverWait) -> N
     submit.click()
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def logon(
-    driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
+    driver: Chrome,
+    wait: WebDriverWait,
+    homepage: str,
+    username: str,
+    password: str,
+    mfa_auth=None,
 ) -> None:
     """
     Opens and signs on to an account
@@ -104,6 +155,7 @@ def logon(
     :param homepage: The logon url to initially navigate
     :param username: Your username for logging in
     :param password: Your password for logging in
+    :param mfa_auth:
     """
     # Logon Page
     driver.get(homepage)
@@ -123,7 +175,25 @@ def logon(
     )
     submit.click()
 
+    # Wait for redirect to landing page or 2FA
+    wait.until(
+        lambda _: "https://online.uhfcu.com/consumer/main/dashboard"
+        in driver.current_url
+        or is_2fa_redirect(driver)
+    )
 
+    # Handle 2FA if prompted, or quit if Chase catches us
+    if is_2fa_redirect(driver):
+        handle_multi_factor_authentication(driver, wait, mfa_auth)
+
+    # Wait for landing page after handling 2FA
+    wait.until(
+        lambda _: "https://online.uhfcu.com/consumer/main/dashboard"
+        in driver.current_url
+    )
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def seek_credit_accounts_data(
     driver: Chrome, wait: WebDriverWait, t: WebElement
 ) -> None:
@@ -147,6 +217,7 @@ def seek_credit_accounts_data(
     driver.switch_to.window(driver.window_handles[1])
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def parse_credit_card_info(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
     """
     Parses the info on the credit card accounts screen into a pandas df
@@ -173,6 +244,17 @@ def parse_credit_card_info(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
 
     # Make a df from the dict
     df: pd.DataFrame = pd.DataFrame(data=data_dict)
+
+    account_details: WebElement = wait_and_find_element(
+        driver, wait, (By.XPATH, "//li/span[text()='Account Details']/..")
+    )
+    account_details.click()
+
+    account_number: str = wait_and_find_element(
+        driver, wait, (By.XPATH, "//p[@id='AccountNumber']/span")
+    ).text
+
+    df["Account Desc"]: pd.DataFrame = account_number
 
     return df
 
@@ -211,11 +293,46 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     return df
 
 
-def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
+def postprocess_tables(
+    deposit_table: pd.DataFrame, credit_table: pd.DataFrame
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Cleans up data unnecessary substring and info contained in parsed accounts data
+    :param deposit_table: The Pandas dataframe parsed from the deposit accounts data
+    :param credit_table: The Pandas dataframe parsed from the credit accounts data
+    :return: A tuple containing the cleaned up dataframes for both deposit and credit accounts
+    """
+    deposit_table["symbol"]: pd.DataFrame = SYMBOL
+    deposit_table["account_type"]: pd.DataFrame = "deposit"
+    deposit_table["Current Balance"]: pd.DataFrame = deposit_table[
+        "Current Balance"
+    ].replace(to_replace=r"[^0-9\.]+", value="", regex=True)
+    deposit_table["Account Desc"]: pd.DataFrame = deposit_table["Account Desc"].replace(
+        to_replace=r".* - ", value="", regex=True
+    )
+
+    credit_table["symbol"]: pd.DataFrame = SYMBOL
+    credit_table["account_type"]: pd.DataFrame = "credit"
+    credit_table["Current Balance"]: pd.DataFrame = credit_table[
+        "Current Balance"
+    ].replace(to_replace=r"[^0-9\.]+", value="", regex=True)
+    credit_table["Account Desc"]: pd.DataFrame = credit_table["Account Desc"].replace(
+        to_replace=r"[^0-9]+", value="", regex=True
+    )
+
+    return deposit_table, credit_table
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+def get_accounts_info(
+    username: str, password: str, prometheus: bool = False, mfa_auth=None
+) -> List[pd.DataFrame]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
+    :param mfa_auth:
     :return: A list of pandas dataframes of accounts info tables
     """
     # Get Driver config
@@ -226,47 +343,41 @@ def get_accounts_info(username: str, password: str) -> List[pd.DataFrame]:
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
     # Navigate to the logon page and submit credentials
-    logon(driver, wait, HOMEPAGE, username, password)
-
-    # If 2FA...
-    def is_2fa_redirect():
-        if "Security Checks" in driver.page_source:
-            return True
-
-    # Wait for redirect to landing page or 2FA
-    try:
-        wait.until(
-            lambda driver: "https://online.uhfcu.com/consumer/main/dashboard"
-            in driver.current_url
-            or is_2fa_redirect()
-        )
-    except TimeoutException as e:
-        leave_on_timeout(driver)
-
-    # Handle 2FA if prompted, or quit if Chase catches us
-    if is_2fa_redirect():
-        handle_multi_factor_authentication(driver, wait)
-
-    # Wait for landing page after handling 2FA
-    wait.until(
-        lambda driver: "https://online.uhfcu.com/consumer/main/dashboard"
-        in driver.current_url
-    )
+    logon(driver, wait, HOMEPAGE, username, password, mfa_auth)
 
     # Process tables
     tables: List[WebElement] = wait_and_find_elements(
         driver, wait, (By.XPATH, "//app-sub-accounts-tiles//app-sub-account-card")
     )
-    return_tables: List = []
+    deposit_tables: List = list()
+    credit_tables: List = list()
     for t in tables:
         if "Share Account" in t.text:
-            return_tables.append(parse_accounts_summary(t))
+            deposit_tables.append(parse_accounts_summary(t))
         if "Loan Account" in t.text:
             seek_credit_accounts_data(driver, wait, t)
-            return_tables.append(parse_credit_card_info(driver, wait))
+            credit_tables.append(parse_credit_card_info(driver, wait))
+
+    deposit_table: pd.DataFrame = pd.concat(deposit_tables)
+    credit_table: pd.DataFrame = pd.concat(credit_tables)
+
+    deposit_table, credit_table = postprocess_tables(deposit_table, credit_table)
+
+    return_tables: List = [deposit_table, credit_table]
 
     # Clean up
     driver.quit()
+
+    # Convert to Prometheus exposition if flag is set
+    if prometheus:
+        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account Desc",
+            "symbol",
+            "Current Balance",
+            "account_type",
+        )
 
     # Return list of pandas df
     return return_tables

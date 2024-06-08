@@ -10,10 +10,10 @@ for t in tables:
 """
 
 # Standard Library Imports
+from typing import Dict
 import re
 from datetime import datetime
 from time import sleep
-from typing import Dict
 
 # Non-Standard Imports
 import pandas as pd
@@ -22,8 +22,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 
 # Local Imports
-from bank_scrapers import ROOT_DIR
-from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+from bank_scrapers.common.functions import *
 from bank_scrapers.scrapers.common.functions import *
 
 # Institution info
@@ -43,6 +42,9 @@ CHROME_OPTIONS: List[str] = [
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
+
+# Error screenshot config
+ERROR_DIR: str = search_for_dir(__file__, "errors")
 
 
 def check_element_is_ineligible(
@@ -147,7 +149,7 @@ def _organize_headers_with_labels(
     return output_list, headers_with_labels
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def handle_multi_factor_authentication(
     driver: Chrome, wait: WebDriverWait, password: str, mfa_auth=None
 ) -> None:
@@ -242,7 +244,7 @@ def handle_multi_factor_authentication(
     submit.click()
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def logon(
     driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
 ) -> None:
@@ -284,7 +286,7 @@ def logon(
 
 
 # noinspection PyTypeChecker
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Navigate the website and click download button for the accounts data
@@ -378,7 +380,7 @@ def password_needs_reset(driver: Chrome):
         return True
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def wait_for_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     """
 

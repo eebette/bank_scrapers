@@ -32,9 +32,8 @@ from selenium.webdriver.common.by import By
 from pyvirtualdisplay import Display
 
 # Local Imports
-from bank_scrapers import ROOT_DIR
 from bank_scrapers.scrapers.common.functions import *
-from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+from bank_scrapers.common.functions import *
 
 # Institution info
 INSTITUTION: str = "Fidelity NetBenefits"
@@ -59,6 +58,9 @@ CHROME_OPTIONS: List[str] = [
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
+
+# Error screenshot config
+ERROR_DIR: str = search_for_dir(__file__, "errors")
 
 
 def enable_downloads(driver: Chrome, downloads_dir: str) -> None:
@@ -85,7 +87,7 @@ def get_chrome_options(arguments: List[str]) -> Options:
     return chrome_options
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def handle_multi_factor_authentication(
     driver: Chrome, wait: WebDriverWait, mfa_auth=None
 ) -> None:
@@ -133,7 +135,7 @@ def handle_multi_factor_authentication(
     submit.click()
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def logon(
     driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
 ) -> None:
@@ -172,7 +174,7 @@ def logon(
     )
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Navigate the website and click download button for the accounts data
@@ -216,7 +218,7 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
     return df
 
 
-@screenshot_on_timeout(f"{ROOT_DIR}/errors/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def get_accounts_info(
     username: str, password: str, tmp_dir: str, prometheus: bool = False, mfa_auth=None
 ) -> List[pd.DataFrame] | List[Tuple[List, float]]:

@@ -10,15 +10,26 @@ for t in tables:
 """
 
 # Standard library imports
+from typing import List, Tuple
 from io import StringIO
+from datetime import datetime
 
 # Non-Standard Imports
 import pandas as pd
 from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.wait import WebDriverWait
+from undetected_chromedriver import Chrome, ChromeOptions
 
 # Local Imports
-from bank_scrapers.scrapers.common.functions import *
-from bank_scrapers.common.functions import convert_to_prometheus
+from bank_scrapers.scrapers.common.functions import (
+    start_chromedriver,
+    get_chrome_options,
+    wait_and_find_element,
+    wait_and_find_click_element,
+    screenshot_on_timeout,
+)
+from bank_scrapers.common.functions import convert_to_prometheus, search_for_dir
 
 # Institution info
 INSTITUTION: str = "SMBC Prestia"
@@ -41,7 +52,11 @@ CHROME_OPTIONS: List[str] = [
     "--allow-running-insecure-content",
 ]
 
+# Error screenshot config
+ERROR_DIR: str = search_for_dir(__file__, "errors")
 
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def logon(
     driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
 ) -> None:
@@ -69,6 +84,7 @@ def logon(
     submit.click()
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> WebElement:
     """
     Navigate the website and find the accounts data for the user
@@ -94,6 +110,7 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> WebElement:
     return table
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
 def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     """
     Post-processing of the table html
