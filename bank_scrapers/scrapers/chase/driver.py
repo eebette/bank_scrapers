@@ -45,19 +45,6 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 
-def get_chrome_options(arguments: List[str]) -> ChromeOptions:
-    """
-    Returns Options object for a list of chrome options arguments
-    :param arguments: A list of string-ified chrome arguments
-    :return: Options object with chrome options set
-    """
-    chrome_options: ChromeOptions = ChromeOptions()
-    for arg in arguments:
-        chrome_options.add_argument(arg)
-
-    return chrome_options
-
-
 def check_element_is_ineligible(
     element: WebElement,
     ineligibility_check_xpath: str,

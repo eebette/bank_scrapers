@@ -46,18 +46,6 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 
-def get_chrome_options(arguments: List[str]) -> Options:
-    """
-    Returns Options object for a list of chrome options arguments
-    :param arguments: A list of string-ified chrome arguments
-    :return: Options object with chrome options set
-    """
-    chrome_options: Options = Options()
-    for arg in arguments:
-        chrome_options.add_argument(arg)
-    return chrome_options
-
-
 def process_table(table: WebElement) -> pd.DataFrame:
     """
     Processes selenium table object into a pandas dataframe
@@ -236,7 +224,9 @@ def get_accounts_info(
         is_credit_account = any(
             list(True for header in table.columns if "credit" in header.lower())
         )
-        table["account_type"]: pd.DataFrame = "credit" if is_credit_account else "deposit"
+        table["account_type"]: pd.DataFrame = (
+            "credit" if is_credit_account else "deposit"
+        )
         table["symbol"]: pd.DataFrame = SYMBOL
         return_tables.append(table)
 
