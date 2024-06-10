@@ -31,7 +31,6 @@ import os
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
@@ -74,7 +73,7 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 # Error screenshot config
-ERROR_DIR: str = search_for_dir(__file__, "errors")
+ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -139,7 +138,7 @@ def handle_multi_factor_authentication(
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def is_2fa_redirect(driver: WebDriver) -> bool:
+def is_2fa_redirect(driver: Chrome) -> bool:
     """
     Checks and determines if the site is forcing MFA on the login attempt
     :param driver: The browser application

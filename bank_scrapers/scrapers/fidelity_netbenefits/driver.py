@@ -23,18 +23,33 @@ shutil.rmtree(tmp_dir)
 """
 
 # Standard Library Imports
-from time import sleep
+from typing import List, Tuple
 from datetime import datetime
+from time import sleep
+import os
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.webdriver import Chrome
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from undetected_chromedriver import Chrome, ChromeOptions
 from pyvirtualdisplay import Display
 
 # Local Imports
-from bank_scrapers.scrapers.common.functions import *
-from bank_scrapers.common.functions import *
+from bank_scrapers.scrapers.common.functions import (
+    start_chromedriver,
+    get_chrome_options,
+    enable_downloads,
+    wait_and_find_element,
+    screenshot_on_timeout,
+)
+from bank_scrapers.common.functions import (
+    convert_to_prometheus,
+    search_files_for_int,
+    search_for_dir,
+)
 
 # Institution info
 INSTITUTION: str = "Fidelity NetBenefits"
@@ -61,20 +76,7 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 # Error screenshot config
-ERROR_DIR: str = search_for_dir(__file__, "errors")
-
-
-def get_chrome_options(arguments: List[str]) -> Options:
-    """
-    Returns Options object for a list of chrome options arguments
-    :param arguments: A list of string-ified chrome arguments
-    :return: Options object with chrome options set
-    """
-    chrome_options: Options = Options()
-    for arg in arguments:
-        chrome_options.add_argument(arg)
-
-    return chrome_options
+ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -226,7 +228,7 @@ def get_accounts_info(
     display.start()
 
     # Get Driver config
-    options: Options = get_chrome_options(CHROME_OPTIONS)
+    options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
 
     # Instantiating the Driver
     driver: Chrome = start_chromedriver(options)

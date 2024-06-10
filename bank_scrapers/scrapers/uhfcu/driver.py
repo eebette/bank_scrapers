@@ -10,21 +10,33 @@ for t in tables:
 """
 
 # Standard Library Imports
-from time import sleep
-from typing import Dict
+from typing import List, Tuple, Dict
 from datetime import datetime
+from time import sleep
 
 # Non-Standard Imports
 import pandas as pd
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from undetected_chromedriver import Chrome, ChromeOptions
 
 # Local Imports
-from bank_scrapers.scrapers.common.functions import *
+from bank_scrapers.scrapers.common.functions import (
+    start_chromedriver,
+    get_chrome_options,
+    wait_and_find_element,
+    wait_and_find_elements,
+    wait_and_find_click_element,
+    screenshot_on_timeout,
+)
 from bank_scrapers.common.functions import (
     convert_to_prometheus,
     search_files_for_int,
     search_for_dir,
 )
+
 
 # Institution info
 INSTITUTION: str = "UHFCU"
@@ -40,29 +52,22 @@ TIMEOUT: int = 60
 CHROME_OPTIONS: List[str] = [
     "--no-sandbox",
     "--window-size=1920,1080",
-    # "--headless",
+    "--headless",
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
 
 # Error screenshot config
-ERROR_DIR: str = search_for_dir(__file__, "errors")
+ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
 
 
-def get_chrome_options(arguments: List[str]) -> ChromeOptions:
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def is_2fa_redirect(driver: Chrome) -> bool:
     """
-    Returns Options object for a list of chrome options arguments
-    :param arguments: A list of string-ified chrome arguments
-    :return: Options object with chrome options set
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param driver: The browser application
+    :return: True if MFA is being enforced
     """
-    chrome_options: ChromeOptions = ChromeOptions()
-    for arg in arguments:
-        chrome_options.add_argument(arg)
-
-    return chrome_options
-
-
-def is_2fa_redirect(driver):
     if "Security Checks" in driver.page_source:
         return True
     else:

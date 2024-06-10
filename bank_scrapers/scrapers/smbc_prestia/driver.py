@@ -9,16 +9,16 @@ for t in tables:
 ```
 """
 
-# Standard library imports
+# Standard Library Imports
 from typing import List, Tuple
 from io import StringIO
 from datetime import datetime
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.common.by import By
 from undetected_chromedriver import Chrome, ChromeOptions
 
 # Local Imports
@@ -29,7 +29,10 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
-from bank_scrapers.common.functions import convert_to_prometheus, search_for_dir
+from bank_scrapers.common.functions import (
+    convert_to_prometheus,
+    search_for_dir,
+)
 
 # Institution info
 INSTITUTION: str = "SMBC Prestia"
@@ -53,7 +56,7 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 # Error screenshot config
-ERROR_DIR: str = search_for_dir(__file__, "errors")
+ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")

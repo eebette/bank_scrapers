@@ -9,19 +9,31 @@ for t in tables:
 ```
 """
 
-# Standard library imports
-from typing import Dict
+# Standard Library Imports
+from typing import List, Tuple, Dict
 from io import StringIO
 from datetime import datetime
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.webdriver import Chrome
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from undetected_chromedriver import Chrome, ChromeOptions
 
 # Local Imports
-from bank_scrapers.scrapers.common.functions import *
-from bank_scrapers.common.functions import *
+from bank_scrapers.scrapers.common.functions import (
+    start_chromedriver,
+    get_chrome_options,
+    wait_and_find_element,
+    wait_and_find_elements,
+    screenshot_on_timeout,
+)
+from bank_scrapers.common.functions import (
+    convert_to_prometheus,
+    search_for_dir,
+)
 
 # Institution info
 INSTITUTION: str = "BECU"
@@ -31,7 +43,7 @@ SYMBOL: str = "USD"
 HOMEPAGE: str = "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
 
 # Timeout
-TIMEOUT: int = 10
+TIMEOUT: int = 60
 
 # Chrome config
 USER_AGENT: str = (
@@ -47,7 +59,7 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 # Error screenshot config
-ERROR_DIR: str = search_for_dir(__file__, "errors")
+ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
