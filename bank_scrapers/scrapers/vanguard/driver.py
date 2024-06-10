@@ -291,6 +291,18 @@ def get_account_types(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
     return accounts_df
 
 
+def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
+    """
+    Wait for landing page after handling 2FA
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
+    """
+    wait.until(
+        lambda _: "https://dashboard.web.vanguard.com/" in driver.current_url
+        or "https://challenges.web.vanguard.com/" in driver.current_url
+    )
+
+
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def get_accounts_info(
     username: str,
@@ -328,10 +340,7 @@ def get_accounts_info(
         handle_multi_factor_authentication(driver, wait, mfa_auth)
 
     # Wait for landing page after handling 2FA
-    wait.until(
-        lambda _: "https://dashboard.web.vanguard.com/" in driver.current_url
-        or "https://challenges.web.vanguard.com/" in driver.current_url
-    )
+    wait_for_landing_page(driver, wait)
 
     # Get the account types while on the dashboard screen
     accounts_df: pd.DataFrame = get_account_types(driver, wait)
@@ -342,9 +351,8 @@ def get_accounts_info(
     file_name: str = os.listdir(tmp_dir)[0]
     try:
         # Process tables
-        return_tables: List[pd.DataFrame] = [
-            pd.merge(accounts_df, parse_accounts_summary(f"{tmp_dir}/{file_name}"))
-        ]
+        accounts_data: pd.DataFrame = parse_accounts_summary(f"{tmp_dir}/{file_name}")
+        return_tables: List[pd.DataFrame] = [pd.merge(accounts_df, accounts_data)]
     except Exception as e:
         print(e)
         exit(1)
