@@ -291,6 +291,7 @@ def get_account_types(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
     return accounts_df
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Wait for landing page after handling 2FA
@@ -303,7 +304,6 @@ def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
     )
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def get_accounts_info(
     username: str,
     password: str,
