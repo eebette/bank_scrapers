@@ -50,6 +50,7 @@ from bank_scrapers.common.functions import (
     search_files_for_int,
     search_for_dir,
 )
+from bank_scrapers.common.classes import MfaAuth
 
 # Institution info
 INSTITUTION: str = "Fidelity NetBenefits"
@@ -81,14 +82,14 @@ ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def handle_multi_factor_authentication(
-    driver: Chrome, wait: WebDriverWait, mfa_auth=None
+    driver: Chrome, wait: WebDriverWait, mfa_auth: MfaAuth = None
 ) -> None:
     """
     Navigates the MFA workflow for this website
     Note that this function only covers Email Me options for now.
     :param driver: The Chrome driver/browser used for this function
     :param wait: The wait object associated with the driver function above
-    :param mfa_auth:
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
     text_me_button: WebElement = wait_and_find_element(
         driver,
@@ -212,7 +213,11 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def get_accounts_info(
-    username: str, password: str, tmp_dir: str, prometheus: bool = False, mfa_auth=None
+    username: str,
+    password: str,
+    tmp_dir: str,
+    prometheus: bool = False,
+    mfa_auth: MfaAuth = None,
 ) -> List[pd.DataFrame] | List[Tuple[List, float]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
@@ -220,7 +225,7 @@ def get_accounts_info(
     :param password: Your password for logging in
     :param tmp_dir: An empty directory to use for processing the downloaded file
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
-    :param mfa_auth:
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display

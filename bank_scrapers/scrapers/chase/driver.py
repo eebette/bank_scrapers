@@ -22,6 +22,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from undetected_chromedriver import Chrome, ChromeOptions
+from selenium.common.exceptions import NoSuchElementException
 from pyvirtualdisplay import Display
 
 # Local Imports
@@ -38,6 +39,7 @@ from bank_scrapers.common.functions import (
     search_files_for_int,
     search_for_dir,
 )
+from bank_scrapers.common.classes import MfaAuth
 
 # Institution info
 INSTITUTION: str = "Chase"
@@ -165,7 +167,7 @@ def _organize_headers_with_labels(
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def handle_multi_factor_authentication(
-    driver: Chrome, wait: WebDriverWait, password: str, mfa_auth=None
+    driver: Chrome, wait: WebDriverWait, password: str, mfa_auth: MfaAuth = None
 ) -> None:
     """
     Navigates the MFA workflow for this website
@@ -173,7 +175,7 @@ def handle_multi_factor_authentication(
     :param driver: The Chrome driver/browser used for this function
     :param wait: The wait object associated with the driver function above
     :param password: User's password to enter along with OTP
-    :param mfa_auth: Typed Dict with MFA inputs for automation
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP Typed Dict with MFA inputs for automation
     """
 
     # Wait for the expand option to become clickable or else can lead to bugs where the list doesn't expand correctly
@@ -211,7 +213,7 @@ def handle_multi_factor_authentication(
             print(f"{i + 1}: {l[0]}")
         option: str = input("Please select one: ")
     else:
-        option: str = mfa_auth["otp_contact_option"]
+        option: str = str(mfa_auth["otp_contact_option"])
     l_index: int = output_list[int(option) - 1][1]
 
     # Click based on user input
@@ -412,14 +414,14 @@ def wait_for_redirect(driver: Chrome, wait: WebDriverWait) -> None:
 
 
 def get_accounts_info(
-    username: str, password: str, prometheus: bool = False, mfa_auth=None
+    username: str, password: str, prometheus: bool = False, mfa_auth: MfaAuth = None
 ) -> List[pd.DataFrame] | List[Tuple[List, float]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
-    :param mfa_auth:
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display

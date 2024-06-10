@@ -36,6 +36,7 @@ from bank_scrapers.common.functions import (
     search_files_for_int,
     search_for_dir,
 )
+from bank_scrapers.common.classes import MfaAuth
 
 
 # Institution info
@@ -76,13 +77,13 @@ def is_2fa_redirect(driver: Chrome) -> bool:
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def handle_multi_factor_authentication(
-    driver: Chrome, wait: WebDriverWait, mfa_auth=None
+    driver: Chrome, wait: WebDriverWait, mfa_auth: MfaAuth = None
 ) -> None:
     """
     Navigates the MFA workflow for this website
     :param driver: The Chrome driver/browser used for this function
     :param wait: The wait object associated with the driver function above
-    :param mfa_auth:
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
     # Find the 2FA options presented by the app
     options_buttons: List[WebElement] = wait_and_find_elements(
@@ -151,7 +152,7 @@ def logon(
     homepage: str,
     username: str,
     password: str,
-    mfa_auth=None,
+    mfa_auth: MfaAuth = None,
 ) -> None:
     """
     Opens and signs on to an account
@@ -160,7 +161,7 @@ def logon(
     :param homepage: The logon url to initially navigate
     :param username: Your username for logging in
     :param password: Your password for logging in
-    :param mfa_auth:
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
     # Logon Page
     driver.get(homepage)
@@ -330,14 +331,14 @@ def postprocess_tables(
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def get_accounts_info(
-    username: str, password: str, prometheus: bool = False, mfa_auth=None
+    username: str, password: str, prometheus: bool = False, mfa_auth: MfaAuth = None
 ) -> List[pd.DataFrame]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
-    :param mfa_auth:
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     :return: A list of pandas dataframes of accounts info tables
     """
     # Get Driver config

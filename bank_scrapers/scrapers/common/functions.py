@@ -123,7 +123,7 @@ def wait_and_find_click_element(
 def screenshot_on_timeout(save_path: str):
     """
     Decorator function for saving a screenshot of the current page if the automation times out
-    :param save_path:
+    :param save_path: A path to which to save the screenshot of the webpage on timeout
     """
 
     def wrapper(func):
