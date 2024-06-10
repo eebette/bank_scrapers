@@ -23,16 +23,41 @@ shutil.rmtree(tmp_dir)
 """
 
 # Standard Library Imports
+from typing import List, Tuple, Dict
+from datetime import datetime
+from time import sleep
+from random import randint
+import os
 
 # Non-Standard Imports
-from time import sleep
-
 import pandas as pd
-from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.chrome.webdriver import WebDriver
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from undetected_chromedriver import Chrome, ChromeOptions
+from pyvirtualdisplay import Display
 
 # Local Imports
-from bank_scrapers.scrapers.common.functions import *
+from bank_scrapers.scrapers.common.functions import (
+    start_chromedriver,
+    get_chrome_options,
+    enable_downloads,
+    wait_and_find_element,
+    wait_and_find_elements,
+    wait_and_find_click_element,
+    screenshot_on_timeout,
+)
+from bank_scrapers.common.functions import (
+    convert_to_prometheus,
+    search_files_for_int,
+    search_for_dir,
+)
+
+# Institution info
+INSTITUTION: str = "Vanguard"
+SYMBOL: str = "USD"
 
 # Logon page
 HOMEPAGE = "https://logon.vanguard.com/logon"
@@ -44,54 +69,92 @@ TIMEOUT: int = 60
 CHROME_OPTIONS: List[str] = [
     "--no-sandbox",
     "--window-size=1920,1080",
-    "--headless",
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
 
-
-def enable_downloads(driver: Chrome, downloads_dir: str) -> None:
-    """
-    Enable downloads for an instance of undetectable Chrome
-    :param driver: The Chrome object for which to enable downloads
-    :param downloads_dir: The directory to use to handle downloaded files
-    :return: The same chrome options with downloads enabled to tmp dir
-    """
-    # Defines autodownload and download PATH
-    params = {"behavior": "allow", "downloadPath": downloads_dir}
-    driver.execute_cdp_cmd("Page.setDownloadBehavior", params)
+# Error screenshot config
+ERROR_DIR: str = search_for_dir(__file__, "errors")
 
 
-def get_chrome_options(arguments: List[str]) -> ChromeOptions:
-    """
-    Returns Options object for a list of chrome options arguments
-    :param arguments: A list of string-ified chrome arguments
-    :return: Options object with chrome options set
-    """
-    chrome_options: ChromeOptions = ChromeOptions()
-    for arg in arguments:
-        chrome_options.add_argument(arg)
-
-    return chrome_options
-
-
-def handle_multi_factor_authentication(driver: Chrome, wait: WebDriverWait) -> None:
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def handle_multi_factor_authentication(
+    driver: Chrome, wait: WebDriverWait, mfa_auth=None
+) -> None:
     """
     Navigates the MFA workflow for this website
-    Note that this function only covers Email Me options for now.
     :param driver: The Chrome driver/browser used for this function
     :param wait: The wait object associated with the driver function above
+    :param mfa_auth:
     """
     # Select the mobile app 2FA option
-    app_verification_btn = wait_and_find_click_element(
-        driver, wait, (By.CSS_SELECTOR, "button.col-md:nth-child(1) > div:nth-child(1)")
+    mfa_buttons: List[WebElement] = wait_and_find_elements(
+        driver, wait, (By.XPATH, "//lgn-auth-selection//button")
     )
-    app_verification_btn.click()
+
+    # Prompt user input for MFA option
+    if mfa_auth is None:
+        for i, l in enumerate(mfa_buttons):
+            print(f"{i + 1}: {l.text}")
+        o_index: int = int(input("Please select one: ")) - 1
+    else:
+        o_index: int = mfa_auth["otp_contact_option"] - 1
+
+    mfa_option: WebElement = mfa_buttons[o_index]
+    mfa_option_text: str = mfa_buttons[o_index].text
+    mfa_option.click()
 
     # Prompt user for 2FA
-    print("Waiting for 2FA...")
+    if "app" in mfa_option_text:
+        print("Waiting for 2FA...")
+    else:
+        sms_button: WebElement = wait_and_find_element(
+            driver, wait, (By.XPATH, "//lgn-phone-now-selection//button")
+        )
+        sms_button.click()
+
+        otp: WebElement = wait_and_find_element(
+            driver, wait, (By.XPATH, "//input[@id='CODE']")
+        )
+        if mfa_auth is None:
+            otp_code: str = input("Enter 2FA Code: ")
+        else:
+            otp_code: str = str(
+                search_files_for_int(
+                    mfa_auth["otp_code_location"],
+                    "Vanguard",
+                    ".txt",
+                    6,
+                    10,
+                    TIMEOUT,
+                    True,
+                )
+            )
+        otp.send_keys(otp_code)
+
+    submit_button: WebElement = wait_and_find_element(
+        driver, wait, (By.XPATH, "//button[@type='submit']")
+    )
+    submit_button.click()
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def is_2fa_redirect(driver: WebDriver) -> bool:
+    """
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param driver: The browser application
+    :return: True if MFA is being enforced
+    """
+    if (
+        driver.current_url == "https://logon.vanguard.com/logon"
+        and str("We need to verify it's you") in driver.page_source
+    ):
+        return True
+    else:
+        return False
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def logon(
     driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
 ) -> None:
@@ -107,22 +170,32 @@ def logon(
     driver.get(homepage)
 
     # Enter User
+    sleep(randint(1, 5))
     user: WebElement = wait_and_find_click_element(driver, wait, (By.ID, "USER"))
     user.send_keys(username)
 
     # Enter Password
+    sleep(randint(1, 5))
     passwd: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "PASSWORD-blocked")
     )
     passwd.send_keys(password)
 
     # Submit credentials
+    sleep(randint(1, 5))
     submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "username-password-submit-btn")
     )
     submit.click()
 
+    wait.until(
+        lambda _: "https://dashboard.web.vanguard.com/" in driver.current_url
+        or "https://challenges.web.vanguard.com/" in driver.current_url
+        or is_2fa_redirect(driver)
+    )
 
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> None:
     """
     Navigate the website and click download button for the accounts data
@@ -165,7 +238,9 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> Non
     mat_checkbox.click()
 
     # Submit download request
-    submit: WebElement = wait_and_find_click_element(driver, wait, (By.ID, "submitOFXDownload"))
+    submit: WebElement = wait_and_find_click_element(
+        driver, wait, (By.ID, "submitOFXDownload")
+    )
     submit.click()
 
     # Allow the download to process
@@ -184,14 +259,55 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
     return df
 
 
-def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.DataFrame]:
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def get_account_types(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
+    """
+    Gets the account numbers and types for each account
+    :param driver: The Chrome browser application
+    :param wait: WebDriverWait object for the driver
+    :return: A Pandas DataFrame containing the account numbers and types
+    """
+    account_labels: List[str] = list(
+        e.text
+        for e in wait_and_find_elements(
+            driver, wait, (By.XPATH, "//a[@data-cy='account-name']/span")
+        )
+    )
+    accounts: Dict[str, str] = {}
+    for account in account_labels:
+        account_split: List[str] = account.split(sep=" — ")[1:]
+        accounts[account_split[1]] = (
+            "retirement"
+            if "IRA" in account_split[0] or "401(k)" in account_split[0]
+            else "deposit"
+        )
+    accounts_df: pd.DataFrame = pd.DataFrame(
+        accounts.items(), columns=["Account Number", "account_type"]
+    )
+    accounts_df["Account Number"]: pd.DataFrame = accounts_df["Account Number"].astype(
+        int
+    )
+
+    return accounts_df
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def get_accounts_info(
+    username: str, password: str, tmp_dir: str, prometheus: bool = False, mfa_auth=None
+) -> List[pd.DataFrame]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param tmp_dir: An empty directory to use for processing the downloaded file
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
+    :param mfa_auth:
     :return: A list of pandas dataframes of accounts info tables
     """
+    # Instantiate the virtual display
+    display: Display = Display(visible=False, size=(800, 600))
+    display.start()
+
     # Get Driver config
     chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
 
@@ -203,46 +319,46 @@ def get_accounts_info(username: str, password: str, tmp_dir: str) -> List[pd.Dat
     # Navigate to the logon page and submit credentials
     logon(driver, wait, HOMEPAGE, username, password)
 
-    # If 2FA...
-    def is_2fa_redirect():
-        if (
-            driver.current_url == "https://logon.vanguard.com/logon"
-            and str("We need to verify it's you") in driver.page_source
-        ):
-            return True
-
-    # Wait for redirect to landing page or 2FA
-    try:
-        wait.until(
-            lambda driver: "https://dashboard.web.vanguard.com/" in driver.current_url
-            or "https://challenges.web.vanguard.com/" in driver.current_url
-            or is_2fa_redirect()
-        )
-    except TimeoutException as e:
-        leave_on_timeout(driver)
-
     # Handle 2FA if prompted, or quit if Chase catches us
-    if is_2fa_redirect():
-        handle_multi_factor_authentication(driver, wait)
+    if is_2fa_redirect(driver):
+        handle_multi_factor_authentication(driver, wait, mfa_auth)
 
     # Wait for landing page after handling 2FA
     wait.until(
-        lambda driver: "https://dashboard.web.vanguard.com/" in driver.current_url
+        lambda _: "https://dashboard.web.vanguard.com/" in driver.current_url
         or "https://challenges.web.vanguard.com/" in driver.current_url
     )
+
+    # Get the account types while on the dashboard screen
+    accounts_df: pd.DataFrame = get_account_types(driver, wait)
 
     # Navigate the site and download the accounts data
     seek_accounts_data(driver, wait, tmp_dir)
 
-    # Process tables
     file_name: str = os.listdir(tmp_dir)[0]
-    return_tables: List[pd.DataFrame] = [
-        parse_accounts_summary(f"{tmp_dir}/{file_name}")
-    ]
+    try:
+        # Process tables
+        return_tables: List[pd.DataFrame] = [
+            pd.merge(accounts_df, parse_accounts_summary(f"{tmp_dir}/{file_name}"))
+        ]
+    except Exception as e:
+        print(e)
+        exit(1)
+    finally:
+        # Clean up
+        driver.quit()
+        os.remove(f"{tmp_dir}/{file_name}")
 
-    # Clean up
-    driver.quit()
-    os.remove(f"{tmp_dir}/{file_name}")
+    # Convert to Prometheus exposition if flag is set
+    if prometheus:
+        return_tables: List[Tuple[List[str | int], float]] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account Number",
+            "Symbol",
+            "Shares",
+            "account_type",
+        )
 
     # Return list of pandas df
     return return_tables
