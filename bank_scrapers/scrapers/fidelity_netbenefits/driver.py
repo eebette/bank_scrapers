@@ -21,6 +21,7 @@ import shutil
 shutil.rmtree(tmp_dir)
 ```
 """
+
 # Standard Library Imports
 from time import sleep
 from datetime import datetime
@@ -63,17 +64,6 @@ CHROME_OPTIONS: List[str] = [
 ERROR_DIR: str = search_for_dir(__file__, "errors")
 
 
-def enable_downloads(driver: Chrome, downloads_dir: str) -> None:
-    """
-    Creates a tmp directory and sets chrome experimental options to enable downloads there
-    :param driver: The Chrome object for which to enable downloads
-    :param downloads_dir: The directory to use to handle downloaded files
-    :return: The same chrome options with downloads enabled to tmp dir
-    """
-    params = {"behavior": "allow", "downloadPath": downloads_dir}
-    driver.execute_cdp_cmd("Page.setDownloadBehavior", params)
-
-
 def get_chrome_options(arguments: List[str]) -> Options:
     """
     Returns Options object for a list of chrome options arguments
@@ -87,7 +77,7 @@ def get_chrome_options(arguments: List[str]) -> Options:
     return chrome_options
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def handle_multi_factor_authentication(
     driver: Chrome, wait: WebDriverWait, mfa_auth=None
 ) -> None:
@@ -135,7 +125,7 @@ def handle_multi_factor_authentication(
     submit.click()
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def logon(
     driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
 ) -> None:
@@ -174,7 +164,7 @@ def logon(
     )
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Navigate the website and click download button for the accounts data
@@ -218,7 +208,7 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
     return df
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def get_accounts_info(
     username: str, password: str, tmp_dir: str, prometheus: bool = False, mfa_auth=None
 ) -> List[pd.DataFrame] | List[Tuple[List, float]]:

@@ -60,6 +60,17 @@ def get_chrome_options(arguments: List[str]) -> ChromeOptions:
     return chrome_options
 
 
+def enable_downloads(driver: Chrome, downloads_dir: str) -> None:
+    """
+    Creates a tmp directory and sets chrome experimental options to enable downloads there
+    :param driver: The Chrome object for which to enable downloads
+    :param downloads_dir: The directory to use to handle downloaded files
+    :return: The same chrome options with downloads enabled to tmp dir
+    """
+    params = {"behavior": "allow", "downloadPath": downloads_dir}
+    driver.execute_cdp_cmd("Page.setDownloadBehavior", params)
+
+
 def wait_and_find_element(
     driver: WebDriver | WebElement | Chrome | ShadowRoot,
     wait: WebDriverWait,

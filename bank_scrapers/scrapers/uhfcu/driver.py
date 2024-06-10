@@ -69,7 +69,7 @@ def is_2fa_redirect(driver):
         return False
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def handle_multi_factor_authentication(
     driver: Chrome, wait: WebDriverWait, mfa_auth=None
 ) -> None:
@@ -139,7 +139,7 @@ def handle_multi_factor_authentication(
     submit.click()
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def logon(
     driver: Chrome,
     wait: WebDriverWait,
@@ -193,7 +193,7 @@ def logon(
     )
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def seek_credit_accounts_data(
     driver: Chrome, wait: WebDriverWait, t: WebElement
 ) -> None:
@@ -217,7 +217,7 @@ def seek_credit_accounts_data(
     driver.switch_to.window(driver.window_handles[1])
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def parse_credit_card_info(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
     """
     Parses the info on the credit card accounts screen into a pandas df
@@ -323,7 +323,7 @@ def postprocess_tables(
     return deposit_table, credit_table
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False, mfa_auth=None
 ) -> List[pd.DataFrame]:

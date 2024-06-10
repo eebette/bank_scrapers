@@ -50,7 +50,7 @@ CHROME_OPTIONS: List[str] = [
 ERROR_DIR: str = search_for_dir(__file__, "errors")
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def process_table(table: WebElement) -> pd.DataFrame:
     """
     Processes selenium table object into a pandas dataframe
@@ -78,7 +78,7 @@ def process_table(table: WebElement) -> pd.DataFrame:
     return table
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def get_mfa_answer(
     driver: Chrome, wait: WebDriverWait, mfa_answers: Dict[str, str] | None = None
 ) -> str:
@@ -103,7 +103,7 @@ def get_mfa_answer(
     return mfa_answer
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def handle_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Waits until the page redirects to account home, marketing/offer page, or MFA page
@@ -122,7 +122,7 @@ def handle_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     )
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def logon(
     driver: Chrome,
     wait: WebDriverWait,
@@ -198,7 +198,7 @@ def logon(
             agree_input.click()
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False
 ) -> List[pd.DataFrame] | List[Tuple[List, float]]:

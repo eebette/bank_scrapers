@@ -50,7 +50,7 @@ CHROME_OPTIONS: List[str] = [
 ERROR_DIR: str = search_for_dir(__file__, "errors")
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def handle_multi_factor_authentication(
     driver: Chrome, wait: WebDriverWait, mfa_auth=None
 ) -> None:
@@ -130,7 +130,7 @@ def is_mfa_redirect(driver: Chrome) -> bool:
         return False
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def logon(
     driver: Chrome,
     wait: WebDriverWait,
@@ -182,7 +182,7 @@ def logon(
     wait.until(EC.url_to_be(DASHBOARD_PAGE))
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> str:
     """
     Navigate the website and click download button for the accounts data
@@ -193,7 +193,7 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> str:
     return amount
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def seek_other_data(
     driver: Chrome, wait: WebDriverWait
 ) -> Tuple[List[WebElement], List[WebElement]]:
@@ -257,7 +257,7 @@ def parse_accounts_summary(amount: str) -> pd.DataFrame:
     return df
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def get_loan_number(driver: Chrome, wait: WebDriverWait) -> str:
     """
     Gets the full loan number from the My Loan page on the RoundPoint website
@@ -287,7 +287,7 @@ def get_loan_number(driver: Chrome, wait: WebDriverWait) -> str:
     return loan_number
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
     """
     Iterates through the account's loans and processes the data into a list of Pandas DataFrames

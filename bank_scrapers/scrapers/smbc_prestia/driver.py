@@ -56,7 +56,7 @@ CHROME_OPTIONS: List[str] = [
 ERROR_DIR: str = search_for_dir(__file__, "errors")
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def logon(
     driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
 ) -> None:
@@ -84,7 +84,7 @@ def logon(
     submit.click()
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> WebElement:
     """
     Navigate the website and find the accounts data for the user
@@ -110,7 +110,7 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> WebElement:
     return table
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     """
     Post-processing of the table html

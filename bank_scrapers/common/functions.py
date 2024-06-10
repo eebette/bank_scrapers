@@ -20,7 +20,7 @@ def convert_to_prometheus(
     symbol_column: str,
     current_balance_column: str,
     account_type_column: str,
-) -> List[Tuple[List, float]]:
+) -> List[Tuple[List[str | int], float]]:
     """
     Converts standard output of list of pandas table to a Prometheus friendly text exposition
     :param table_list: Standard output of list of pandas table

@@ -149,7 +149,7 @@ def _organize_headers_with_labels(
     return output_list, headers_with_labels
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def handle_multi_factor_authentication(
     driver: Chrome, wait: WebDriverWait, password: str, mfa_auth=None
 ) -> None:
@@ -244,7 +244,7 @@ def handle_multi_factor_authentication(
     submit.click()
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def logon(
     driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
 ) -> None:
@@ -286,7 +286,7 @@ def logon(
 
 
 # noinspection PyTypeChecker
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     """
     Navigate the website and click download button for the accounts data
@@ -380,7 +380,7 @@ def password_needs_reset(driver: Chrome):
         return True
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}.png")
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def wait_for_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     """
 
