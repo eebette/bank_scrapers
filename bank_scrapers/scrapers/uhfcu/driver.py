@@ -188,16 +188,6 @@ def logon(
         or is_2fa_redirect(driver)
     )
 
-    # Handle 2FA if prompted, or quit if Chase catches us
-    if is_2fa_redirect(driver):
-        handle_multi_factor_authentication(driver, wait, mfa_auth)
-
-    # Wait for landing page after handling 2FA
-    wait.until(
-        lambda _: "https://online.uhfcu.com/consumer/main/dashboard"
-        in driver.current_url
-    )
-
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def seek_credit_accounts_data(
@@ -330,6 +320,32 @@ def postprocess_tables(
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
+    """
+    Wait for landing page after handling 2FA
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
+    """
+    wait.until(
+        lambda _: "https://online.uhfcu.com/consumer/main/dashboard"
+        in driver.current_url
+    )
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def get_accounts_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
+    """
+    Gets a WebElement for each account
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
+    """
+    # Process tables
+    tables: List[WebElement] = wait_and_find_elements(
+        driver, wait, (By.XPATH, "//app-sub-accounts-tiles//app-sub-account-card")
+    )
+    return tables
+
+
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False, mfa_auth: MfaAuth = None
 ) -> List[pd.DataFrame]:
@@ -351,10 +367,15 @@ def get_accounts_info(
     # Navigate to the logon page and submit credentials
     logon(driver, wait, HOMEPAGE, username, password, mfa_auth)
 
+    # Handle 2FA if prompted, or quit if Chase catches us
+    if is_2fa_redirect(driver):
+        handle_multi_factor_authentication(driver, wait, mfa_auth)
+
+    # Wait for landing page after handling 2FA
+    wait_for_landing_page(driver, wait)
+
     # Process tables
-    tables: List[WebElement] = wait_and_find_elements(
-        driver, wait, (By.XPATH, "//app-sub-accounts-tiles//app-sub-account-card")
-    )
+    tables: List[WebElement] = get_accounts_tables(driver, wait)
     deposit_tables: List = list()
     credit_tables: List = list()
     for t in tables:
