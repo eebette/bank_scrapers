@@ -36,6 +36,7 @@ from bank_scrapers.common.functions import (
     search_files_for_int,
     search_for_dir,
 )
+from bank_scrapers.common.classes import MfaAuth
 
 # Institution info
 INSTITUTION: str = "RoundPoint Mortgage"
@@ -188,13 +189,6 @@ def logon(
     wait.until(
         lambda _: DASHBOARD_PAGE in driver.current_url or is_mfa_redirect(driver)
     )
-
-    # Handle 2FA if prompted, or quit if Chase catches us
-    if is_mfa_redirect(driver):
-        handle_multi_factor_authentication(driver, wait, mfa_auth)
-
-    # Wait for landing page after handling 2FA
-    wait.until(EC.url_to_be(DASHBOARD_PAGE))
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -372,6 +366,16 @@ def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
     return return_tables
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
+    """
+    Wait for landing page after handling 2FA
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
+    """
+    wait.until(EC.url_to_be(DASHBOARD_PAGE))
+
+
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False, mfa_auth: MfaAuth = None
 ) -> List[pd.DataFrame] | List[Tuple[List, float]]:
@@ -392,6 +396,13 @@ def get_accounts_info(
 
     # Navigate to the logon page and submit credentials
     logon(driver, wait, HOMEPAGE, username, password, mfa_auth)
+
+    # Handle 2FA if prompted, or quit if Chase catches us
+    if is_mfa_redirect(driver):
+        handle_multi_factor_authentication(driver, wait, mfa_auth)
+
+    # Wait for landing page after handling 2FA
+    wait_for_landing_page(driver, wait)
 
     # Scrape the loan data ready for output
     return_tables: List[pd.DataFrame] = scrape_loan_data(driver, wait)

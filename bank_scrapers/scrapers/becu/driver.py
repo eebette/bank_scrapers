@@ -211,6 +211,32 @@ def logon(
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def wait_for_credit_details(wait: WebDriverWait) -> None:
+    """
+    Waits for the credit portion of the web page to load
+    :param wait: WebDriverWait object for the driver
+    """
+    wait.until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//tbody[@id='visaTable']/tr[@class='item']")
+        )
+    )
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def get_detail_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
+    """
+    Gets the web elements for the tables containing the account details for each account
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
+    :return: A list containing the web elements for the tables
+    """
+    tables: List[WebElement] = wait_and_find_elements(
+        driver, wait, (By.CLASS_NAME, "tablesaw-stack")
+    )
+    return tables
+
+
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False
 ) -> List[pd.DataFrame] | List[Tuple[List, float]]:
@@ -229,14 +255,8 @@ def get_accounts_info(
     logon(driver, wait, HOMEPAGE, username, password)
 
     # Get data for account and credit cards
-    tables: List[WebElement] = wait_and_find_elements(
-        driver, wait, (By.CLASS_NAME, "tablesaw-stack")
-    )
-    wait.until(
-        EC.presence_of_element_located(
-            (By.XPATH, "//tbody[@id='visaTable']/tr[@class='item']")
-        )
-    )
+    wait_for_credit_details(wait)
+    tables: List[WebElement] = get_detail_tables(driver, wait)
 
     # Process tables
     return_tables: List = list()

@@ -212,6 +212,33 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def is_2fa_redirect(driver: Chrome) -> bool:
+    """
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param driver: The browser application
+    :return: True if MFA is being enforced
+    """
+    if (
+        str("To verify it's you, we'll send a temporary code to your phone")
+        in driver.page_source
+    ):
+        return True
+    else:
+        return False
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
+    """
+    Wait for landing page after handling 2FA
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
+    """
+    wait.until(
+        lambda _: "https://workplaceservices.fidelity.com/" in driver.current_url
+    )
+
+
 def get_accounts_info(
     username: str,
     password: str,
@@ -245,20 +272,11 @@ def get_accounts_info(
     logon(driver, wait, HOMEPAGE, username, password)
 
     # If 2FA...
-    def is_2fa_redirect():
-        if (
-            str("To verify it's you, we'll send a temporary code to your phone")
-            in driver.page_source
-        ):
-            return True
-
     if is_2fa_redirect():
         handle_multi_factor_authentication(driver, wait, mfa_auth)
 
     # Wait for redirect to landing page
-    wait.until(
-        lambda _: "https://workplaceservices.fidelity.com/" in driver.current_url
-    )
+    wait_for_landing_page(driver, wait)
 
     # Navigate the site and download the accounts data
     seek_accounts_data(driver, wait)

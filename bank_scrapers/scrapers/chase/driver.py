@@ -368,24 +368,26 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     return df
 
 
-def is_2fa_redirect(driver: Chrome):
+def is_2fa_redirect(driver: Chrome) -> bool:
     """
-
-    :param driver:
-    :return:
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param driver: The Chrome browser application
+    :return: True if MFA is being enforced
     """
     if (
         "chase.com/web/auth/" in driver.current_url
         and "We don't recognize this device" in driver.page_source
     ):
         return True
+    else:
+        return False
 
 
-def password_needs_reset(driver: Chrome):
+def password_needs_reset(driver: Chrome) -> bool:
     """
-
-    :param driver:
-    :return:
+    Checks if Chase is forcing a password change as a result of too many failed login attempts
+    :param driver: The Chrome browser application
+    :return: True if password needs reset
     """
     if (
         "chase.com/web/auth/" in driver.current_url
@@ -394,15 +396,16 @@ def password_needs_reset(driver: Chrome):
         in driver.page_source
     ):
         return True
+    else:
+        return False
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def wait_for_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     """
-
-    :param driver:
-    :param wait:
-    :return:
+    Wait for the page to redirect to the next stage of the login process
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
     """
     # Wait for redirect to landing page or 2FA
     wait.until(
@@ -411,6 +414,53 @@ def wait_for_redirect(driver: Chrome, wait: WebDriverWait) -> None:
         or is_2fa_redirect(driver)
         or password_needs_reset(driver)
     )
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
+    """
+    Wait for landing page after handling 2FA
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
+    """
+    wait.until(
+        lambda _: "chase.com/web/auth/dashboard#/dashboard/overview"
+        in driver.current_url
+    )
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def get_account_number(driver: Chrome, wait: WebDriverWait) -> str:
+    """
+    Gets the account number from the credit card details page
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
+    :return: A string containing the account number
+    """
+    account_number: str = wait_and_find_element(
+        driver,
+        wait,
+        (
+            By.XPATH,
+            "//h2[@class='accountdetails accountname mds-title-medium']/span[@class='mask-number mds-body-large']",
+        ),
+    ).text
+    account_number: str = re.sub("[^0-9]", "", account_number)
+    return account_number
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def get_detail_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
+    """
+    Gets the web elements for the tables containing the account details for each account
+    :param driver: The browser application
+    :param wait: WebDriverWait object for the driver
+    :return: A list containing the web elements for the tables
+    """
+    tables: List[WebElement] = wait_and_find_elements(
+        driver, wait, (By.CLASS_NAME, "details-bar")
+    )
+    return tables
 
 
 def get_accounts_info(
@@ -438,6 +488,7 @@ def get_accounts_info(
     # Navigate to the logon page and submit credentials
     logon(driver, wait, HOMEPAGE, username, password)
 
+    # Wait to be redirected to the next stage of the login process
     wait_for_redirect(driver, wait)
 
     # Handle 2FA if prompted, or quit if Chase catches us
@@ -448,28 +499,16 @@ def get_accounts_info(
         exit(1)
 
     # Wait for landing page after handling 2FA
-    wait.until(
-        lambda _: "chase.com/web/auth/dashboard#/dashboard/overview"
-        in driver.current_url
-    )
+    wait_for_landing_page(driver, wait)
 
     # Navigate the site and download the accounts data
     seek_accounts_data(driver, wait)
 
-    account_number: str = wait_and_find_element(
-        driver,
-        wait,
-        (
-            By.XPATH,
-            "//h2[@class='accountdetails accountname mds-title-medium']/span[@class='mask-number mds-body-large']",
-        ),
-    ).text
-    account_number: str = re.sub("[^0-9]", "", account_number)
+    # Get the account number from the current page
+    account_number: str = get_account_number(driver, wait)
 
     # Process tables
-    tables: List[WebElement] = wait_and_find_elements(
-        driver, wait, (By.CLASS_NAME, "details-bar")
-    )
+    tables: List[WebElement] = get_detail_tables(driver, wait)
     return_tables: List = list()
     for t in tables:
         parsed_table: pd.DataFrame = parse_accounts_summary(t)
