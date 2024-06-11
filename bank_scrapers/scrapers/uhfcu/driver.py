@@ -348,7 +348,7 @@ def get_accounts_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]
 
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False, mfa_auth: MfaAuth = None
-) -> List[pd.DataFrame]:
+) -> List[pd.DataFrame] | List[Tuple[List, float]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
