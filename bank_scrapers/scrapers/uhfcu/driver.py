@@ -101,7 +101,7 @@ def handle_multi_factor_authentication(
             print(f"{i+1}: {l.text}")
         option: str = input("Please select one: ")
     else:
-        option: str = mfa_auth["otp_contact_option"]
+        option: str = str(mfa_auth["otp_contact_option"])
     l_index: int = int(option) - 1
 
     # Click based on user input
