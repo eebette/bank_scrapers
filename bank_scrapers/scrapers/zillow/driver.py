@@ -164,6 +164,3 @@ def get_accounts_info(
 
     # Return list of pandas df
     return return_tables
-
-
-print(get_accounts_info("1186-Murray-Dr-Jacksonville-FL-32205/44472460_zpid/", True))
