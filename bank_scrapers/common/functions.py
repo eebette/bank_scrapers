@@ -53,7 +53,7 @@ def convert_to_prometheus(
                 )
 
     try:
-        assert table_list
+        assert current_balance_metrics
     except AssertionError as e:
         print(e)
         print(
