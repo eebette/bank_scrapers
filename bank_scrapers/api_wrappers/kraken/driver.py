@@ -12,7 +12,7 @@ print(info[0].to_string())
 """
 
 # Standard library imports
-from typing import Dict, List, TypedDict
+from typing import Dict, List, TypedDict, Tuple
 import base64
 import hashlib
 import hmac
@@ -23,6 +23,13 @@ import requests
 # Non-standard imports
 import pandas as pd
 
+# Local Imports
+from bank_scrapers.common.functions import convert_to_prometheus
+
+# Institution info
+INSTITUTION: str = "Kraken"
+
+# API Endpoint
 API_URL: str = "https://api.kraken.com"
 
 # Alternate TypedDict syntax to create TypedDict with hyphenated keys
@@ -68,10 +75,11 @@ def kraken_request(uri_path: str, data, api_key, api_sec) -> requests.Response:
     return response
 
 
-def parse_accounts_info(table: Dict) -> pd.DataFrame:
+def parse_accounts_info(table: Dict, account_id: str) -> pd.DataFrame:
     """
     Takes the requests response json and turns it into a more user-friendly pandas df
     :param table: The json response to parse
+    :param account_id: String value to use as the ID for the account
     :return: A pandas df of the response data
     """
     data: Dict[str, List[str | float]] = {
@@ -79,14 +87,19 @@ def parse_accounts_info(table: Dict) -> pd.DataFrame:
         "quantity": [q for q in table["result"].values()],
     }
     df: pd.DataFrame = pd.DataFrame(data=data)
+    df["account_id"]: pd.DataFrame = account_id
+    df["account_type"]: pd.DataFrame = "crypto"
     return df
 
 
-def get_accounts_info(api_key: str, api_sec: str) -> List[pd.DataFrame]:
+def get_accounts_info(
+    api_key: str, api_sec: str, prometheus: bool = False
+) -> List[pd.DataFrame] | List[Tuple[List, float]]:
     """
     Gets the accounts info for a given set of api keys as a list of pandas dataframes
     :param api_key: Your account's api key for this call
     :param api_sec: Your account's secret key for this call
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :return: A list of pandas dataframes containing the data of the call response
     """
     # Construct the request and print the result
@@ -94,6 +107,18 @@ def get_accounts_info(api_key: str, api_sec: str) -> List[pd.DataFrame]:
         "/0/private/Balance", {"nonce": str(int(1000 * time.time()))}, api_key, api_sec
     )
     table: Dict = resp.json()
-    df: pd.DataFrame = parse_accounts_info(table)
+    df: pd.DataFrame = parse_accounts_info(table, api_key)
+    return_tables: List[pd.DataFrame] = [df]
 
-    return [df]
+    # Convert to Prometheus exposition if flag is set
+    if prometheus:
+        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "account_id",
+            "symbol",
+            "quantity",
+            "account_type",
+        )
+
+    return return_tables
