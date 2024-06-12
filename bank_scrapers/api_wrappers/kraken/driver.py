@@ -11,56 +11,61 @@ print(info[0].to_string())
 ```
 """
 
+# Standard library imports
+from typing import Dict, List, TypedDict
 import base64
 import hashlib
 import hmac
 import time
 import urllib.parse
-from typing import Dict, List
-
-import pandas as pd
 import requests
+
+# Non-standard imports
+import pandas as pd
 
 API_URL: str = "https://api.kraken.com"
 
+# Alternate TypedDict syntax to create TypedDict with hyphenated keys
+Headers: TypedDict = TypedDict("Headers", {"API-Key": str, "API-Sign": str})
 
-def get_kraken_signature(urlpath: str, data, secret):
+
+def get_kraken_signature(urlpath: str, data: Dict[str, str], secret: str) -> str:
     """
     This function was provided by Kraken to get a valid signature for using an account's
     api key
-    :param urlpath:
-    :param data:
-    :param secret:
+    :param urlpath: The api endpoint to which to make the call
+    :param data: The dict containing the nonce timestamp for forming the api signature
+    :param secret: The user's api secret for forming the api signature
     :return: A valid kraken signature
     """
-    postdata = urllib.parse.urlencode(data)
-    encoded = (str(data["nonce"]) + postdata).encode()
-    message = urlpath.encode() + hashlib.sha256(encoded).digest()
+    post_data: str = urllib.parse.urlencode(data)
+    encoded: bytes = (str(data["nonce"]) + post_data).encode()
+    message: bytes = urlpath.encode() + hashlib.sha256(encoded).digest()
 
-    mac = hmac.new(base64.b64decode(secret), message, hashlib.sha512)
-    sigdigest = base64.b64encode(mac.digest())
-    return sigdigest.decode()
+    mac: hmac.HMAC = hmac.new(base64.b64decode(secret), message, hashlib.sha512)
+    sig_digest: bytes = base64.b64encode(mac.digest())
+
+    return sig_digest.decode()
 
 
-# Attaches auth headers and returns results of a POST request
 def kraken_request(uri_path: str, data, api_key, api_sec) -> requests.Response:
     """
-    Posts a request to Kraken's api
+    Attaches auth headers and returns results of a POST request
     :param uri_path: Path of the api call
-    :param data:
+    :param data: The dict containing the nonce timestamp for forming the api signature
     :param api_key: Your account's api key for this call
     :param api_sec: Your account's secret key for this call
     :return: A requests Response object of the call
     """
-    headers: Dict = {
+    headers: Headers = {
         "API-Key": api_key,
         "API-Sign": get_kraken_signature(uri_path, data, api_sec),
     }
-    # get_kraken_signature() as defined in the 'Authentication' section
-    req: requests.Response = requests.post(
+
+    response: requests.Response = requests.post(
         (API_URL + uri_path), headers=headers, data=data
     )
-    return req
+    return response
 
 
 def parse_accounts_info(table: Dict) -> pd.DataFrame:
@@ -69,7 +74,7 @@ def parse_accounts_info(table: Dict) -> pd.DataFrame:
     :param table: The json response to parse
     :return: A pandas df of the response data
     """
-    data: Dict[str : List[str], str : List[float]] = {
+    data: Dict[str, List[str | float]] = {
         "symbol": [s for s in table["result"].keys()],
         "quantity": [q for q in table["result"].values()],
     }
