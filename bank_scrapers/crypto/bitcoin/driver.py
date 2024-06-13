@@ -141,6 +141,3 @@ def get_accounts_info(
         )
 
     return return_tables
-
-
-print(get_accounts_info("zpub6qPdLq5fNuW8QMwSdNnpSjQUB8TM1JrtZYtgCGcVt9xS5pqJrcGZhhVtj2bxJiBhLYkvYNN7TAcFcfWqkNLdpP2HTqBSz7du4NorHfNzJkr", True))
