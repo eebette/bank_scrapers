@@ -252,6 +252,7 @@ def get_accounts_info(
     driver: Chrome = start_chromedriver(chrome_options)
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
+    # Logon to the site
     logon(driver, wait, HOMEPAGE, username, password)
 
     # Get data for account and credit cards
