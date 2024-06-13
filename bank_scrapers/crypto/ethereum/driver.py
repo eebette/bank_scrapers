@@ -10,7 +10,7 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import List, Tuple, Sequence
+from typing import List, Tuple
 import pandas as pd
 
 # Non-Standard Imports
