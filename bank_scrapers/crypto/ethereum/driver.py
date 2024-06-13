@@ -18,10 +18,7 @@ from web3 import Web3
 from eth_typing.evm import ChecksumAddress, HexAddress, HexStr
 
 # Local Imports
-from bank_scrapers.common.functions import (
-    convert_to_prometheus,
-    search_for_dir,
-)
+from bank_scrapers.common.functions import convert_to_prometheus
 
 # Institution info
 INSTITUTION: str = "ETHEREUM"
