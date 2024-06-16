@@ -3,14 +3,43 @@ Handy functions used across the module
 """
 
 # Standard library imports
-from typing import List, Tuple
+from typing import List
 import os
 from time import sleep
+from datetime import date, timedelta
 import re
 
 # Non-Standard Imports
 import pandas as pd
 import requests
+from currency_converter import CurrencyConverter
+import yfinance as yf
+
+# Local Imports
+from bank_scrapers.common.types import PrometheusMetric
+
+
+def get_usd_rate(symbol: str) -> float:
+    """
+    Get the USD conversion rate of a given forex symbol
+    :param symbol: The 3 letter forex symbol to convert to USD
+    :return: A float of the USD value of 1 unit of the given forex symbol
+    """
+    return CurrencyConverter().convert(1, symbol.upper(), "USD")
+
+
+def get_usd_rate_crypto(symbol) -> float:
+    """
+    Get the USD conversion rate of a given cryptocurrency symbol
+    :param symbol: The 3 letter cryptocurrency symbol to convert to USD
+    :return: A float of the USD value of 1 unit of the given cryptocurrency symbol
+    """
+    try:
+        return yf.download(
+            f"{symbol.upper()}-USD", date.today() - timedelta(days=1), date.today()
+        )["Close"].values[0]
+    except IndexError:
+        return 0.0
 
 
 def convert_to_prometheus(
@@ -20,7 +49,7 @@ def convert_to_prometheus(
     symbol_column: str,
     current_balance_column: str,
     account_type_column: str,
-) -> List[Tuple[List[str | int], float]]:
+) -> List[PrometheusMetric]:
     """
     Converts standard output of list of pandas table to a Prometheus friendly text exposition
     :param table_list: Standard output of list of pandas table
@@ -31,7 +60,7 @@ def convert_to_prometheus(
     :param account_type_column: Column name of the account type (credit, deposit, etc.)
     :return: Prometheus friendly metrics for text exposition
     """
-    current_balance_metrics: List[Tuple[List, float]] = list()
+    current_balance_metrics: List[PrometheusMetric] = list()
 
     for t in table_list:
         if all(
@@ -48,9 +77,11 @@ def convert_to_prometheus(
                 current_balance: float = row[current_balance_column]
                 symbol: str = row[symbol_column]
 
-                current_balance_metrics.append(
-                    ([institution, account, account_type, symbol], current_balance)
+                current_balance_metric: PrometheusMetric = (
+                    [institution, account, account_type, symbol],
+                    current_balance,
                 )
+                current_balance_metrics.append(current_balance_metric)
 
     try:
         assert current_balance_metrics
@@ -123,9 +154,9 @@ def search_files_for_int(
     for file in sorted(os.listdir(filepath), reverse=reverse):
         filename: str = os.fsdecode(file)
         if filename.endswith(file_ext):
-            filepath: str = os.path.join(filepath, filename)
+            full_filepath: str = os.path.join(filepath, filename)
 
-            with open(filepath, "r") as text:
+            with open(full_filepath, "r") as text:
                 text_content: str = text.read().replace("\n", "")
 
             if re.compile(r"^.*{}(\s+|:\s).*".format(match_string)).match(text_content):
@@ -158,10 +189,10 @@ def get_ticker(company_name):
 
 def search_for_dir(cwd: str, target: str) -> str:
     """
-
-    :param cwd:
-    :param target:
-    :return:
+    Search for a directory under the current working directory
+    :param cwd: The directory under which to search
+    :param target: The name of the directory for which to search
+    :return: String full path of the directory, if found
     """
     directory: str = os.path.dirname(os.path.abspath(cwd))
 

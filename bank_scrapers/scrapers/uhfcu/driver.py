@@ -10,7 +10,7 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Union
 from datetime import datetime
 from time import sleep
 
@@ -31,12 +31,13 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
+from bank_scrapers.scrapers.common.types import MfaAuth
 from bank_scrapers.common.functions import (
     convert_to_prometheus,
     search_files_for_int,
     search_for_dir,
 )
-from bank_scrapers.common.classes import MfaAuth
+from bank_scrapers.common.types import PrometheusMetric
 
 
 # Institution info
@@ -152,7 +153,6 @@ def logon(
     homepage: str,
     username: str,
     password: str,
-    mfa_auth: MfaAuth = None,
 ) -> None:
     """
     Opens and signs on to an account
@@ -161,7 +161,6 @@ def logon(
     :param homepage: The logon url to initially navigate
     :param username: Your username for logging in
     :param password: Your password for logging in
-    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
     # Logon Page
     driver.get(homepage)
@@ -300,18 +299,26 @@ def postprocess_tables(
     """
     deposit_table["symbol"]: pd.DataFrame = SYMBOL
     deposit_table["account_type"]: pd.DataFrame = "deposit"
+    deposit_table["usd_value"]: pd.DataFrame = 1.0
     deposit_table["Current Balance"]: pd.DataFrame = deposit_table[
         "Current Balance"
     ].replace(to_replace=r"[^0-9\.]+", value="", regex=True)
+    deposit_table["Current Balance"]: pd.DataFrame = pd.to_numeric(
+        deposit_table["Current Balance"]
+    )
     deposit_table["Account Desc"]: pd.DataFrame = deposit_table["Account Desc"].replace(
         to_replace=r".* - ", value="", regex=True
     )
 
     credit_table["symbol"]: pd.DataFrame = SYMBOL
     credit_table["account_type"]: pd.DataFrame = "credit"
+    credit_table["usd_value"]: pd.DataFrame = 1.0
     credit_table["Current Balance"]: pd.DataFrame = credit_table[
         "Current Balance"
     ].replace(to_replace=r"[^0-9\.]+", value="", regex=True)
+    credit_table["Current Balance"]: pd.DataFrame = pd.to_numeric(
+        credit_table["Current Balance"]
+    )
     credit_table["Account Desc"]: pd.DataFrame = credit_table["Account Desc"].replace(
         to_replace=r"[^0-9]+", value="", regex=True
     )
@@ -348,7 +355,7 @@ def get_accounts_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]
 
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False, mfa_auth: MfaAuth = None
-) -> List[pd.DataFrame] | List[Tuple[List, float]]:
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
@@ -390,20 +397,34 @@ def get_accounts_info(
 
     deposit_table, credit_table = postprocess_tables(deposit_table, credit_table)
 
-    return_tables: List = [deposit_table, credit_table]
+    return_tables: List[pd.DataFrame] = [deposit_table, credit_table]
 
     # Clean up
     driver.quit()
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+        balances: List[PrometheusMetric] = convert_to_prometheus(
             return_tables,
             INSTITUTION,
             "Account Desc",
             "symbol",
             "Current Balance",
             "account_type",
+        )
+
+        asset_values: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account Desc",
+            "symbol",
+            "usd_value",
+            "account_type",
+        )
+
+        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+            balances,
+            asset_values,
         )
 
     # Return list of pandas df

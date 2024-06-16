@@ -23,7 +23,7 @@ shutil.rmtree(tmp_dir)
 """
 
 # Standard Library Imports
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Union
 from datetime import datetime
 from time import sleep
 from random import randint
@@ -48,12 +48,13 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
+from bank_scrapers.scrapers.common.types import MfaAuth
 from bank_scrapers.common.functions import (
     convert_to_prometheus,
     search_files_for_int,
     search_for_dir,
 )
-from bank_scrapers.common.classes import MfaAuth
+from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
 INSTITUTION: str = "Vanguard"
@@ -256,6 +257,8 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
     """
     df: pd.DataFrame = pd.read_csv(f"{full_path}", on_bad_lines="skip")
     df: pd.DataFrame = df.dropna(axis=1, how="all")
+    df["Share Price"]: pd.DataFrame = pd.to_numeric(df["Share Price"])
+    df["Shares"]: pd.DataFrame = pd.to_numeric(df["Shares"])
     return df
 
 
@@ -284,8 +287,8 @@ def get_account_types(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
     accounts_df: pd.DataFrame = pd.DataFrame(
         accounts.items(), columns=["Account Number", "account_type"]
     )
-    accounts_df["Account Number"]: pd.DataFrame = accounts_df["Account Number"].astype(
-        int
+    accounts_df["Account Number"]: pd.DataFrame = pd.to_numeric(
+        accounts_df["Account Number"]
     )
 
     return accounts_df
@@ -310,14 +313,14 @@ def get_accounts_info(
     tmp_dir: str,
     prometheus: bool = False,
     mfa_auth: MfaAuth = None,
-) -> List[pd.DataFrame] | List[Tuple[List, float]]:
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param tmp_dir: An empty directory to use for processing the downloaded file
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
-    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
@@ -363,13 +366,27 @@ def get_accounts_info(
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: List[Tuple[List[str | int], float]] = convert_to_prometheus(
+        balances: List[PrometheusMetric] = convert_to_prometheus(
             return_tables,
             INSTITUTION,
             "Account Number",
             "Symbol",
             "Shares",
             "account_type",
+        )
+
+        asset_values: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account Number",
+            "Symbol",
+            "Share Price",
+            "account_type",
+        )
+
+        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+            balances,
+            asset_values,
         )
 
     # Return list of pandas df

@@ -10,7 +10,7 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import List, Tuple
+from typing import List, Tuple, Union
 from io import StringIO
 from datetime import datetime
 
@@ -32,7 +32,9 @@ from bank_scrapers.scrapers.common.functions import (
 from bank_scrapers.common.functions import (
     convert_to_prometheus,
     search_for_dir,
+    get_usd_rate,
 )
+from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
 INSTITUTION: str = "SMBC Prestia"
@@ -135,6 +137,7 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
 
     df["symbol"]: pd.DataFrame = SYMBOL
     df["account_type"]: pd.DataFrame = "deposit"
+    df["usd_value"]: pd.DataFrame = get_usd_rate(SYMBOL)
 
     # Return the dataframe
     return df
@@ -142,7 +145,7 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
 
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False
-) -> List[pd.DataFrame] | List[Tuple[List, float]]:
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
@@ -172,7 +175,7 @@ def get_accounts_info(
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+        balances: List[PrometheusMetric] = convert_to_prometheus(
             return_tables,
             INSTITUTION,
             "Account Number",
@@ -181,5 +184,22 @@ def get_accounts_info(
             "account_type",
         )
 
+        asset_values: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account Number",
+            "symbol",
+            "usd_value",
+            "account_type",
+        )
+
+        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+            balances,
+            asset_values,
+        )
+
     # Return list of pandas df
     return return_tables
+
+
+print(get_accounts_info("ebette1", "7b8DL76fMX25A", True)[1])

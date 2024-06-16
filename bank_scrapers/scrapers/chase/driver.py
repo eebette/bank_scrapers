@@ -10,7 +10,7 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Union
 from datetime import datetime
 from time import sleep
 import re
@@ -31,15 +31,18 @@ from bank_scrapers.scrapers.common.functions import (
     get_chrome_options,
     wait_and_find_element,
     wait_and_find_elements,
+    wait_and_find_element_in_shadow_root,
+    wait_and_find_elements_in_shadow_root,
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
+from bank_scrapers.scrapers.common.types import ChaseMfaAuth
 from bank_scrapers.common.functions import (
     convert_to_prometheus,
     search_files_for_int,
     search_for_dir,
 )
-from bank_scrapers.common.classes import MfaAuth
+from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
 INSTITUTION: str = "Chase"
@@ -167,7 +170,7 @@ def _organize_headers_with_labels(
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def handle_multi_factor_authentication(
-    driver: Chrome, wait: WebDriverWait, password: str, mfa_auth: MfaAuth = None
+    driver: Chrome, wait: WebDriverWait, password: str, mfa_auth: ChaseMfaAuth = None
 ) -> None:
     """
     Navigates the MFA workflow for this website
@@ -257,6 +260,100 @@ def handle_multi_factor_authentication(
         driver, wait, (By.ID, "log_on_to_landing_page-sm")
     )
     wait.until(EC.element_to_be_clickable((By.ID, "log_on_to_landing_page-sm")))
+    submit.click()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def handle_multi_factor_authentication_alternate(
+    driver: Chrome, wait: WebDriverWait, mfa_auth: ChaseMfaAuth = None
+) -> None:
+    """
+    Navigates the MFA workflow for this website
+    Note that this function only covers Email Me options for now.
+    :param driver: The Chrome driver/browser used for this function
+    :param wait: The wait object associated with the driver function above
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
+    """
+
+    # Identify MFA options
+    contact_options: List[WebElement]
+    contact_options_wait: WebDriverWait
+    contact_options, contact_options_wait = wait_and_find_elements_in_shadow_root(
+        driver,
+        wait,
+        (By.XPATH, "//mds-list[@id='optionsList']"),
+        TIMEOUT,
+        (By.CSS_SELECTOR, "li"),
+    )
+
+    contact_options_text: List[str] = []
+    for contact_option in contact_options:
+        contact_options_text.append(
+            wait_and_find_element(
+                contact_option,
+                contact_options_wait,
+                (By.CSS_SELECTOR, "label"),
+            ).text
+        )
+
+    # Prompt user input for MFA option
+    if mfa_auth is None:
+        for i, l in enumerate(contact_options_text):
+            print(f"{i + 1}: {l}")
+        option: str = input("Please select one: ")
+    else:
+        option: str = str(mfa_auth["otp_contact_option_alternate"])
+    l_index: int = int(option) - 1
+
+    # Click based on user input
+    contact_options[l_index].click()
+
+    # Open accounts dropdown
+    next_button: WebElement
+    next_button_wait: WebDriverWait
+    next_button, next_button_wait = wait_and_find_element_in_shadow_root(
+        driver,
+        wait,
+        (By.XPATH, "//mds-button[@text='Next']"),
+        TIMEOUT,
+        (By.CSS_SELECTOR, "button"),
+    )
+    next_button_wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button")))
+    next_button.click()
+
+    # Prompt user for OTP code and enter onto the page
+    otp_input: WebElement
+    otp_input, _ = wait_and_find_element_in_shadow_root(
+        driver,
+        wait,
+        (By.XPATH, "//mds-text-input-secure"),
+        TIMEOUT,
+        (By.CSS_SELECTOR, "input"),
+    )
+
+    # Prompt user input for MFA option
+    if mfa_auth is None:
+        otp_code: str = input("Enter 2FA Code: ")
+    else:
+        otp_code: str = str(
+            search_files_for_int(
+                mfa_auth["otp_code_location"], INSTITUTION, ".txt", 6, 10, TIMEOUT, True
+            )
+        )
+
+    otp_input.send_keys(otp_code)
+
+    # Click submit once it becomes clickable
+    submit: WebElement
+    submit_wait: WebDriverWait
+    submit, submit_wait = wait_and_find_element_in_shadow_root(
+        driver,
+        wait,
+        (By.XPATH, "//mds-button[@text='Next']"),
+        TIMEOUT,
+        (By.CSS_SELECTOR, "button"),
+    )
+    submit_wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button")))
     submit.click()
 
 
@@ -365,6 +462,9 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     # Drop any all-null columns
     df: pd.DataFrame = df.dropna(axis=1, how="all")
 
+    # Make sure that balance column is numeric
+    df["Current balance"]: pd.DataFrame = pd.to_numeric(df["Current balance"])
+
     return df
 
 
@@ -377,6 +477,21 @@ def is_2fa_redirect(driver: Chrome) -> bool:
     if (
         "chase.com/web/auth/" in driver.current_url
         and "We don't recognize this device" in driver.page_source
+    ):
+        return True
+    else:
+        return False
+
+
+def is_2fa_redirect_alternate(driver: Chrome) -> bool:
+    """
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param driver: The Chrome browser application
+    :return: True if MFA is being enforced
+    """
+    if (
+        "chase.com/web/auth/" in driver.current_url
+        and "Let's make sure it's you" in driver.page_source
     ):
         return True
     else:
@@ -412,6 +527,7 @@ def wait_for_redirect(driver: Chrome, wait: WebDriverWait) -> None:
         lambda _: "chase.com/web/auth/dashboard#/dashboard/overview"
         in driver.current_url
         or is_2fa_redirect(driver)
+        or is_2fa_redirect_alternate(driver)
         or password_needs_reset(driver)
     )
 
@@ -463,9 +579,22 @@ def get_detail_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
     return tables
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+def get_table_name(table: WebElement):
+    """
+    Gets the name of a table on the credit card info page
+    :param table: The web element for the table for which to get the name
+    :return: The text name of the table as represented on the website
+    """
+    return table.find_element(By.XPATH, "./..//h3").text
+
+
 def get_accounts_info(
-    username: str, password: str, prometheus: bool = False, mfa_auth: MfaAuth = None
-) -> List[pd.DataFrame] | List[Tuple[List, float]]:
+    username: str,
+    password: str,
+    prometheus: bool = False,
+    mfa_auth: ChaseMfaAuth = None,
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
@@ -475,8 +604,8 @@ def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    display: Display = Display(visible=False, size=(800, 600))
-    display.start()
+    # display: Display = Display(visible=True, size=(800, 600))
+    # display.start()
 
     # Get Driver config
     chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
@@ -494,6 +623,8 @@ def get_accounts_info(
     # Handle 2FA if prompted, or quit if Chase catches us
     if is_2fa_redirect(driver):
         handle_multi_factor_authentication(driver, wait, password, mfa_auth)
+    elif is_2fa_redirect_alternate(driver):
+        handle_multi_factor_authentication_alternate(driver, wait, mfa_auth)
     elif password_needs_reset(driver):
         print("Password needs reset!")
         exit(1)
@@ -515,7 +646,9 @@ def get_accounts_info(
         parsed_table["account"]: pd.DataFrame = account_number
         parsed_table["account_type"]: pd.DataFrame = "credit"
         parsed_table["symbol"]: pd.DataFrame = SYMBOL
-        parsed_table.name = t.find_element(By.XPATH, "./..//h3").text
+        if "Current balance" in parsed_table.columns:
+            parsed_table["usd_value"]: pd.DataFrame = 1.0
+        parsed_table.name = get_table_name(t)
         return_tables.append(parsed_table)
 
     # Clean up
@@ -523,13 +656,27 @@ def get_accounts_info(
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+        balances: List[PrometheusMetric] = convert_to_prometheus(
             return_tables,
             INSTITUTION,
             "account",
             "symbol",
             "Current balance",
             "account_type",
+        )
+
+        asset_values: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "account",
+            "symbol",
+            "usd_value",
+            "account_type",
+        )
+
+        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+            balances,
+            asset_values,
         )
 
     # Return list of pandas df

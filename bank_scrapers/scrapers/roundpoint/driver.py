@@ -10,7 +10,7 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Union
 from datetime import datetime
 from time import sleep
 
@@ -31,12 +31,13 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
+from bank_scrapers.scrapers.common.types import MfaAuth
 from bank_scrapers.common.functions import (
     convert_to_prometheus,
     search_files_for_int,
     search_for_dir,
 )
-from bank_scrapers.common.classes import MfaAuth
+from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
 INSTITUTION: str = "RoundPoint Mortgage"
@@ -153,7 +154,6 @@ def logon(
     homepage: str,
     username: str,
     password: str,
-    mfa_auth: MfaAuth = None,
 ) -> None:
     """
     Opens and signs on to an account
@@ -162,7 +162,6 @@ def logon(
     :param homepage: The logon url to initially navigate
     :param username: Your username for logging in
     :param password: Your password for logging in
-    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
     # Logon Page
     driver.get(homepage)
@@ -354,6 +353,10 @@ def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
         )
         return_table["account_number"]: pd.DataFrame = loan_number
         return_table["account_type"]: pd.DataFrame = "loan"
+        return_table["usd_value"]: pd.DataFrame = 1.0
+        return_table["Balance"]: pd.DataFrame = pd.to_numeric(
+            return_table["Balance"]
+        )
 
         return_tables.append(return_table)
 
@@ -367,10 +370,9 @@ def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
+def wait_for_landing_page(wait: WebDriverWait) -> None:
     """
     Wait for landing page after handling 2FA
-    :param driver: The browser application
     :param wait: WebDriverWait object for the driver
     """
     wait.until(EC.url_to_be(DASHBOARD_PAGE))
@@ -378,7 +380,7 @@ def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
 
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False, mfa_auth: MfaAuth = None
-) -> List[pd.DataFrame] | List[Tuple[List, float]]:
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
@@ -412,13 +414,27 @@ def get_accounts_info(
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+        balances: List[PrometheusMetric] = convert_to_prometheus(
             return_tables,
             INSTITUTION,
             "account_number",
             "symbol",
             "Balance",
             "account_type",
+        )
+
+        asset_values: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "account_number",
+            "symbol",
+            "usd_value",
+            "account_type",
+        )
+
+        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+            balances,
+            asset_values,
         )
 
     # Return list of pandas df

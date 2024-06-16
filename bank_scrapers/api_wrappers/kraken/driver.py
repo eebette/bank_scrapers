@@ -12,7 +12,7 @@ print(info[0].to_string())
 """
 
 # Standard library imports
-from typing import Dict, List, TypedDict, Tuple
+from typing import Dict, List, TypedDict, Tuple, Union
 import base64
 import hashlib
 import hmac
@@ -24,7 +24,8 @@ import requests
 import pandas as pd
 
 # Local Imports
-from bank_scrapers.common.functions import convert_to_prometheus
+from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate_crypto
+from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
 INSTITUTION: str = "Kraken"
@@ -88,13 +89,14 @@ def parse_accounts_info(table: Dict, account_id: str) -> pd.DataFrame:
     }
     df: pd.DataFrame = pd.DataFrame(data=data)
     df["account_id"]: pd.DataFrame = account_id
-    df["account_type"]: pd.DataFrame = "crypto"
+    df["account_type"]: pd.DataFrame = "cryptocurrency"
+    df["usd_value"]: pd.DataFrame = df["symbol"].map(get_usd_rate_crypto)
     return df
 
 
 def get_accounts_info(
     api_key: str, api_sec: str, prometheus: bool = False
-) -> List[pd.DataFrame] | List[Tuple[List, float]]:
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given set of api keys as a list of pandas dataframes
     :param api_key: Your account's api key for this call
@@ -112,13 +114,27 @@ def get_accounts_info(
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+        balances: List[PrometheusMetric] = convert_to_prometheus(
             return_tables,
             INSTITUTION,
             "account_id",
             "symbol",
             "quantity",
             "account_type",
+        )
+
+        asset_values: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "account_id",
+            "symbol",
+            "usd_value",
+            "account_type",
+        )
+
+        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+            balances,
+            asset_values,
         )
 
     return return_tables

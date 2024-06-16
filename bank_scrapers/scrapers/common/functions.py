@@ -7,6 +7,7 @@ import os
 import shutil
 from pathlib import Path
 from typing import Tuple, List
+import traceback
 
 # Non-standard Imports
 from selenium.webdriver.chrome.options import Options
@@ -71,6 +72,70 @@ def enable_downloads(driver: Chrome, downloads_dir: str) -> None:
     driver.execute_cdp_cmd("Page.setDownloadBehavior", params)
 
 
+def wait_and_find_elements_in_shadow_root(
+        driver: WebDriver | WebElement | Chrome | ShadowRoot,
+        wait: WebDriverWait,
+        shadow_root_identifier: Tuple[str, str],
+        shadow_root_timeout: int,
+        identifier: Tuple[str, str],
+) -> Tuple[List[WebElement], WebDriverWait]:
+    """
+    Creates a lightweight wrapper around selenium wait and find_elements with ability to search inside shadow root
+    :rtype: object
+    :param driver: The Chrome driver/browser used for this function
+    :param wait: The wait object associated with the driver function above
+    :param shadow_root_identifier: Identifier tuple for the shadow root under which to search for the element identifier
+    :param shadow_root_timeout: Timeout (in seconds) to apply to elements inside the shadow root
+    :param identifier: The k,v tuple used to identify the web object
+    :return: The web element object and the shadow root wait object
+    """
+    # Navigate shadow root
+    shadow_root: ShadowRoot = wait_and_find_element(
+        driver, wait, shadow_root_identifier
+    ).shadow_root
+
+    # noinspection PyTypeChecker
+    # Create new wait under shadow root
+    sr_wait: WebDriverWait = WebDriverWait(shadow_root, shadow_root_timeout)
+
+    # Wait until presence of element in shadow root
+    sr_wait.until(EC.presence_of_element_located(identifier))
+
+    return shadow_root.find_elements(*identifier), sr_wait
+
+
+def wait_and_find_element_in_shadow_root(
+    driver: WebDriver | WebElement | Chrome | ShadowRoot,
+    wait: WebDriverWait,
+    shadow_root_identifier: Tuple[str, str],
+    shadow_root_timeout: int,
+    identifier: Tuple[str, str],
+) -> Tuple[WebElement, WebDriverWait]:
+    """
+    Creates a lightweight wrapper around selenium wait and find_element with ability to search inside shadow root
+    :rtype: object
+    :param driver: The Chrome driver/browser used for this function
+    :param wait: The wait object associated with the driver function above
+    :param shadow_root_identifier: Identifier tuple for the shadow root under which to search for the element identifier
+    :param shadow_root_timeout: Timeout (in seconds) to apply to elements inside the shadow root
+    :param identifier: The k,v tuple used to identify the web object
+    :return: The web element object and the shadow root wait object
+    """
+    # Navigate shadow root
+    shadow_root: ShadowRoot = wait_and_find_element(
+        driver, wait, shadow_root_identifier
+    ).shadow_root
+
+    # noinspection PyTypeChecker
+    # Create new wait under shadow root
+    sr_wait: WebDriverWait = WebDriverWait(shadow_root, shadow_root_timeout)
+
+    # Wait until presence of element in shadow root
+    sr_wait.until(EC.presence_of_element_located(identifier))
+
+    return shadow_root.find_element(*identifier), sr_wait
+
+
 def wait_and_find_element(
     driver: WebDriver | WebElement | Chrome | ShadowRoot,
     wait: WebDriverWait,
@@ -132,8 +197,8 @@ def screenshot_on_timeout(save_path: str):
             nonlocal save_path
             try:
                 return func(*args, **kwargs)
-            except TimeoutException as e:
-                print(e)
+            except TimeoutException:
+                print(traceback.format_exc())
                 driver.save_screenshot(save_path)
                 exit(1)
 

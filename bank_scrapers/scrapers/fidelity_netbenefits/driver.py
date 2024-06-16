@@ -23,7 +23,7 @@ shutil.rmtree(tmp_dir)
 """
 
 # Standard Library Imports
-from typing import List, Tuple
+from typing import List, Tuple, Union
 from datetime import datetime
 from time import sleep
 import os
@@ -45,12 +45,13 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_element,
     screenshot_on_timeout,
 )
+from bank_scrapers.scrapers.common.types import FidelityNetBenefitsMfaAuth
 from bank_scrapers.common.functions import (
     convert_to_prometheus,
     search_files_for_int,
     search_for_dir,
 )
-from bank_scrapers.common.classes import MfaAuth
+from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
 INSTITUTION: str = "Fidelity NetBenefits"
@@ -82,7 +83,7 @@ ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def handle_multi_factor_authentication(
-    driver: Chrome, wait: WebDriverWait, mfa_auth: MfaAuth = None
+    driver: Chrome, wait: WebDriverWait, mfa_auth: FidelityNetBenefitsMfaAuth = None
 ) -> None:
     """
     Navigates the MFA workflow for this website
@@ -202,8 +203,11 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
 
     df["Quantity"]: pd.DataFrame = df["Quantity"].fillna(df["Current Value"])
     df["Quantity"]: pd.DataFrame = df["Quantity"].astype(str).str.replace("$", "")
+    df["Quantity"]: pd.DataFrame = pd.to_numeric(df["Quantity"])
 
-    df["Last Price"]: pd.DataFrame = df["Last Price"].fillna(1)
+    df["Last Price"]: pd.DataFrame = df["Last Price"].fillna(1.0)
+    df["Last Price"]: pd.DataFrame = df["Last Price"].astype(str).str.replace("$", "")
+    df["Last Price"]: pd.DataFrame = pd.to_numeric(df["Last Price"])
 
     df["Symbol"]: pd.DataFrame = df["Symbol"].fillna(df["Description"])
     df["Symbol"]: pd.DataFrame = df["Symbol"].str.replace("FCASH**", "USD")
@@ -244,8 +248,8 @@ def get_accounts_info(
     password: str,
     tmp_dir: str,
     prometheus: bool = False,
-    mfa_auth: MfaAuth = None,
-) -> List[pd.DataFrame] | List[Tuple[List, float]]:
+    mfa_auth: FidelityNetBenefitsMfaAuth = None,
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
@@ -272,7 +276,7 @@ def get_accounts_info(
     logon(driver, wait, HOMEPAGE, username, password)
 
     # If 2FA...
-    if is_2fa_redirect():
+    if is_2fa_redirect(driver):
         handle_multi_factor_authentication(driver, wait, mfa_auth)
 
     # Wait for redirect to landing page
@@ -304,13 +308,27 @@ def get_accounts_info(
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+        balances: List[PrometheusMetric] = convert_to_prometheus(
             return_tables,
             INSTITUTION,
             "Account Number",
             "Symbol",
             "Quantity",
             "account_type",
+        )
+
+        asset_values: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account Number",
+            "Symbol",
+            "Last Price",
+            "account_type",
+        )
+
+        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+            balances,
+            asset_values,
         )
 
     # Return list of pandas df

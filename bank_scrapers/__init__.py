@@ -17,3 +17,5 @@ def version() -> str:
 def print_version() -> None:
     """Prints the version number of this library"""
     print(version())
+
+# TODO: logging, currency conversion, master get_accounts_info, cli update, readme update

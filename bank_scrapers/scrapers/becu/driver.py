@@ -10,7 +10,7 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Union
 from io import StringIO
 from datetime import datetime
 
@@ -30,10 +30,8 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_elements,
     screenshot_on_timeout,
 )
-from bank_scrapers.common.functions import (
-    convert_to_prometheus,
-    search_for_dir,
-)
+from bank_scrapers.common.functions import convert_to_prometheus, search_for_dir
+from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
 INSTITUTION: str = "BECU"
@@ -69,7 +67,7 @@ def process_table(table: WebElement) -> pd.DataFrame:
     :param table: The selenium table object to be processed
     :return: A post-processed pandas dataframe of the original table object
     """
-    # Get the htmnl
+    # Get the html
     html: str = table.get_attribute("outerHTML")
 
     # Load into pandas
@@ -239,7 +237,7 @@ def get_detail_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
 
 def get_accounts_info(
     username: str, password: str, prometheus: bool = False
-) -> List[pd.DataFrame] | List[Tuple[List, float]]:
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param username: Your username for logging in
@@ -270,6 +268,8 @@ def get_accounts_info(
             "credit" if is_credit_account else "deposit"
         )
         table["symbol"]: pd.DataFrame = SYMBOL
+        table["usd_value"]: pd.DataFrame = 1.0
+
         return_tables.append(table)
 
     # Clean up
@@ -277,13 +277,27 @@ def get_accounts_info(
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+        balances: List[PrometheusMetric] = convert_to_prometheus(
             return_tables,
             INSTITUTION,
             "Account",
             "symbol",
             "Current Balance",
             "account_type",
+        )
+
+        asset_values: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account",
+            "symbol",
+            "usd_value",
+            "account_type",
+        )
+
+        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+            balances,
+            asset_values,
         )
 
     # Return list of pandas df

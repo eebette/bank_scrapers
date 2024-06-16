@@ -10,7 +10,7 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import pandas as pd
 
 # Non-Standard Imports
@@ -18,7 +18,8 @@ from web3 import Web3
 from eth_typing.evm import ChecksumAddress, HexAddress, HexStr
 
 # Local Imports
-from bank_scrapers.common.functions import convert_to_prometheus
+from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate_crypto
+from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
 INSTITUTION: str = "ETHEREUM"
@@ -42,6 +43,7 @@ def parse_accounts_summary(address: str, balance: float) -> pd.DataFrame:
             "balance": [balance],
             "symbol": [SYMBOL],
             "account_type": ["cryptocurrency"],
+            "usd_value": [get_usd_rate_crypto(SYMBOL)],
         }
     )
 
@@ -73,13 +75,27 @@ def get_accounts_info(
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
-        return_tables: List[Tuple[List, float]] = convert_to_prometheus(
+        balances: List[PrometheusMetric] = convert_to_prometheus(
             return_tables,
             INSTITUTION,
             "address",
             "symbol",
             "balance",
             "account_type",
+        )
+
+        asset_values: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "address",
+            "symbol",
+            "usd_value",
+            "account_type",
+        )
+
+        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+            balances,
+            asset_values,
         )
 
     return return_tables
