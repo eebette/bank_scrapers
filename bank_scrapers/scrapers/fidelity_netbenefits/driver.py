@@ -45,12 +45,12 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_element,
     screenshot_on_timeout,
 )
-from bank_scrapers.scrapers.common.types import FidelityNetBenefitsMfaAuth
 from bank_scrapers.common.functions import (
     convert_to_prometheus,
     search_files_for_int,
     search_for_dir,
 )
+from bank_scrapers.scrapers.fidelity_netbenefits.types import FidelityNetBenefitsMfaAuth
 from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info

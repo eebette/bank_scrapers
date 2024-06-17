@@ -36,13 +36,13 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
-from bank_scrapers.scrapers.common.types import ChaseMfaAuth
 from bank_scrapers.common.functions import (
     convert_to_prometheus,
     search_files_for_int,
     search_for_dir,
 )
 from bank_scrapers.common.types import PrometheusMetric
+from bank_scrapers.scrapers.chase.types import ChaseMfaAuth
 
 # Institution info
 INSTITUTION: str = "Chase"
@@ -604,8 +604,8 @@ def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    # display: Display = Display(visible=True, size=(800, 600))
-    # display.start()
+    display: Display = Display(visible=True, size=(800, 600))
+    display.start()
 
     # Get Driver config
     chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
