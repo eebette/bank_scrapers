@@ -23,6 +23,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from undetected_chromedriver import Chrome, ChromeOptions
 
 # Local Imports
+from bank_scrapers import ROOT_DIR
 from bank_scrapers.scrapers.common.functions import (
     start_chromedriver,
     get_chrome_options,
@@ -32,11 +33,7 @@ from bank_scrapers.scrapers.common.functions import (
     screenshot_on_timeout,
 )
 from bank_scrapers.scrapers.common.types import MfaAuth
-from bank_scrapers.common.functions import (
-    convert_to_prometheus,
-    search_files_for_int,
-    search_for_dir,
-)
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
@@ -64,7 +61,7 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 # Error screenshot config
-ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
+ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -354,9 +351,7 @@ def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
         return_table["account_number"]: pd.DataFrame = loan_number
         return_table["account_type"]: pd.DataFrame = "loan"
         return_table["usd_value"]: pd.DataFrame = 1.0
-        return_table["Balance"]: pd.DataFrame = pd.to_numeric(
-            return_table["Balance"]
-        )
+        return_table["Balance"]: pd.DataFrame = pd.to_numeric(return_table["Balance"])
 
         return_tables.append(return_table)
 
@@ -397,14 +392,14 @@ def get_accounts_info(
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
     # Navigate to the logon page and submit credentials
-    logon(driver, wait, HOMEPAGE, username, password, mfa_auth)
+    logon(driver, wait, HOMEPAGE, username, password)
 
     # Handle 2FA if prompted, or quit if Chase catches us
     if is_mfa_redirect(driver):
         handle_multi_factor_authentication(driver, wait, mfa_auth)
 
     # Wait for landing page after handling 2FA
-    wait_for_landing_page(driver, wait)
+    wait_for_landing_page(wait)
 
     # Scrape the loan data ready for output
     return_tables: List[pd.DataFrame] = scrape_loan_data(driver, wait)

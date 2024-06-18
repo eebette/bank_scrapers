@@ -11,7 +11,6 @@ import re
 
 # Non-Standard Imports
 import pandas as pd
-import requests
 from currency_converter import CurrencyConverter
 import yfinance as yf
 
@@ -28,7 +27,7 @@ def get_usd_rate(symbol: str) -> float:
     return CurrencyConverter().convert(1, symbol.upper(), "USD")
 
 
-def get_usd_rate_crypto(symbol) -> float:
+def get_usd_rate_crypto(symbol: str) -> float:
     """
     Get the USD conversion rate of a given cryptocurrency symbol
     :param symbol: The 3 letter cryptocurrency symbol to convert to USD
@@ -36,7 +35,10 @@ def get_usd_rate_crypto(symbol) -> float:
     """
     try:
         return yf.download(
-            f"{symbol.upper()}-USD", date.today() - timedelta(days=1), date.today()
+            f"{symbol.upper()}-USD",
+            date.today() - timedelta(days=1),
+            date.today(),
+            progress=False,
         )["Close"].values[0]
     except IndexError:
         return 0.0
@@ -168,36 +170,3 @@ def search_files_for_int(
     raise Exception(
         f"No integers between {min_length} and {max_length} characters found in any files!"
     )
-
-
-def get_ticker(company_name):
-    """
-
-    :param company_name:
-    :return:
-    """
-    yfinance = "https://query2.finance.yahoo.com/v1/finance/search"
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-    params = {"q": company_name, "quotes_count": 1, "country": "United States"}
-
-    res = requests.get(url=yfinance, params=params, headers={"User-Agent": user_agent})
-    data = res.json()
-
-    company_code = data["quotes"][0]["symbol"]
-    return company_code
-
-
-def search_for_dir(cwd: str, target: str) -> str:
-    """
-    Search for a directory under the current working directory
-    :param cwd: The directory under which to search
-    :param target: The name of the directory for which to search
-    :return: String full path of the directory, if found
-    """
-    directory: str = os.path.dirname(os.path.abspath(cwd))
-
-    # Navigate up the directory tree until you reach the target
-    while not os.path.exists(os.path.join(directory, target)):
-        directory: str = os.path.dirname(directory)
-
-    return directory

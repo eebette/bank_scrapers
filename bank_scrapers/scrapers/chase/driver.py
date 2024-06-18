@@ -26,6 +26,7 @@ from selenium.common.exceptions import NoSuchElementException
 from pyvirtualdisplay import Display
 
 # Local Imports
+from bank_scrapers import ROOT_DIR
 from bank_scrapers.scrapers.common.functions import (
     start_chromedriver,
     get_chrome_options,
@@ -36,11 +37,7 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
-from bank_scrapers.common.functions import (
-    convert_to_prometheus,
-    search_files_for_int,
-    search_for_dir,
-)
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.scrapers.chase.types import ChaseMfaAuth
 
@@ -63,7 +60,7 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 # Error screenshot config
-ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
+ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 def check_element_is_ineligible(
@@ -463,7 +460,8 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     df: pd.DataFrame = df.dropna(axis=1, how="all")
 
     # Make sure that balance column is numeric
-    df["Current balance"]: pd.DataFrame = pd.to_numeric(df["Current balance"])
+    if "Current balance" in df.columns:
+        df["Current balance"]: pd.DataFrame = pd.to_numeric(df["Current balance"])
 
     return df
 
@@ -604,7 +602,7 @@ def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    display: Display = Display(visible=True, size=(800, 600))
+    display: Display = Display(visible=False, size=(800, 600))
     display.start()
 
     # Get Driver config

@@ -39,6 +39,7 @@ from undetected_chromedriver import Chrome, ChromeOptions
 from pyvirtualdisplay import Display
 
 # Local Imports
+from bank_scrapers import ROOT_DIR
 from bank_scrapers.scrapers.common.functions import (
     start_chromedriver,
     get_chrome_options,
@@ -49,11 +50,7 @@ from bank_scrapers.scrapers.common.functions import (
     screenshot_on_timeout,
 )
 from bank_scrapers.scrapers.common.types import MfaAuth
-from bank_scrapers.common.functions import (
-    convert_to_prometheus,
-    search_files_for_int,
-    search_for_dir,
-)
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
@@ -75,7 +72,7 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 # Error screenshot config
-ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
+ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -129,6 +126,7 @@ def handle_multi_factor_authentication(
                     10,
                     TIMEOUT,
                     True,
+                    delay=20,
                 )
             )
         otp.send_keys(otp_code)

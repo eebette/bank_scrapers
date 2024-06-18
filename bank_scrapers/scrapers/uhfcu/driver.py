@@ -23,6 +23,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from undetected_chromedriver import Chrome, ChromeOptions
 
 # Local Imports
+from bank_scrapers import ROOT_DIR
 from bank_scrapers.scrapers.common.functions import (
     start_chromedriver,
     get_chrome_options,
@@ -32,11 +33,7 @@ from bank_scrapers.scrapers.common.functions import (
     screenshot_on_timeout,
 )
 from bank_scrapers.scrapers.common.types import MfaAuth
-from bank_scrapers.common.functions import (
-    convert_to_prometheus,
-    search_files_for_int,
-    search_for_dir,
-)
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.common.types import PrometheusMetric
 
 
@@ -60,7 +57,7 @@ CHROME_OPTIONS: List[str] = [
 ]
 
 # Error screenshot config
-ERROR_DIR: str = f"{search_for_dir(__file__, "errors")}/errors"
+ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -372,7 +369,7 @@ def get_accounts_info(
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
     # Navigate to the logon page and submit credentials
-    logon(driver, wait, HOMEPAGE, username, password, mfa_auth)
+    logon(driver, wait, HOMEPAGE, username, password)
 
     # Handle 2FA if prompted, or quit if Chase catches us
     if is_2fa_redirect(driver):

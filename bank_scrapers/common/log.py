@@ -1,11 +1,10 @@
 import logging
-
 import sys
+from typing import Dict
 
-sh = logging.StreamHandler(sys.stdout)
-# logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-# add the handler
-log = logging.getLogger(__name__)
-log.addHandler(sh)
+stream_handler: logging.StreamHandler = logging.StreamHandler(sys.stdout)
 
-logging_levels = vars(logging)["_nameToLevel"]
+log: logging.Logger = logging.getLogger(__name__)
+log.addHandler(stream_handler)
+
+logging_levels: Dict[str, int] = vars(logging)["_nameToLevel"]

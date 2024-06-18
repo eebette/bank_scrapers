@@ -53,7 +53,7 @@ def parse_accounts_summary(address: str, balance: float) -> pd.DataFrame:
 
 def get_accounts_info(
     address: str, prometheus: bool = False
-) -> List[pd.DataFrame] | List[Tuple[List, float]]:
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
     :param address: The address to associate with the account/wallet. Should be in hex format already

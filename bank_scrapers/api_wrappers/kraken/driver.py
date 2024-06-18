@@ -24,6 +24,7 @@ import requests
 import pandas as pd
 
 # Local Imports
+from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate_crypto
 from bank_scrapers.common.types import PrometheusMetric
 

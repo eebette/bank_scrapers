@@ -2,8 +2,13 @@
 Provides library level metadata and constants.
 """
 
+import os
+
 NAME: str = "bank_scrapers"
 VERSION: str = "1.0.13"
+
+
+ROOT_DIR: str = os.path.dirname(os.path.abspath(__file__))
 
 
 def version() -> str:
@@ -16,4 +21,4 @@ def print_version() -> None:
     print(version())
 
 
-# TODO: logging, master get_accounts_info, cli update, readme update
+# TODO: logging, cli update, readme update
