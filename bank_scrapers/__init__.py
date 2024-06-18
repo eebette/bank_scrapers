@@ -21,4 +21,4 @@ def print_version() -> None:
     print(version())
 
 
-# TODO: logging, cli update, readme update
+# TODO: logging, readme update
