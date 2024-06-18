@@ -24,7 +24,7 @@ import requests
 import pandas as pd
 
 # Local Imports
-from bank_scrapers import ROOT_DIR
+from bank_scrapers.common.log import log
 from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate_crypto
 from bank_scrapers.common.types import PrometheusMetric
 
@@ -70,10 +70,13 @@ def kraken_request(uri_path: str, data, api_key, api_sec) -> requests.Response:
         "API-Key": api_key,
         "API-Sign": get_kraken_signature(uri_path, data, api_sec),
     }
+    log.debug(f"Request headers: {headers}")
 
+    log.debug(f"Request URL: {API_URL + uri_path}")
     response: requests.Response = requests.post(
-        (API_URL + uri_path), headers=headers, data=data
+        API_URL + uri_path, headers=headers, data=data
     )
+    log.debug(f"Response text: {response.text}")
     return response
 
 
@@ -84,6 +87,7 @@ def parse_accounts_info(table: Dict, account_id: str) -> pd.DataFrame:
     :param account_id: String value to use as the ID for the account
     :return: A pandas df of the response data
     """
+    log.debug(f"Response JSON: {table}")
     data: Dict[str, List[str | float]] = {
         "symbol": [s for s in table["result"].keys()],
         "quantity": [q for q in table["result"].values()],
