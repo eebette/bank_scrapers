@@ -30,6 +30,7 @@ from bank_scrapers.scrapers.common.functions import (
     screenshot_on_timeout,
 )
 from bank_scrapers.common.functions import convert_to_prometheus
+from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
@@ -63,6 +64,7 @@ def logon(driver: Chrome, homepage: str, suffix: str) -> None:
     :param suffix: The URL suffix after 'https://www.zillow.com/homedetails/' to use to identify the property
     """
     # Property Page
+    log.info(f"Accessing: {homepage + suffix}")
     driver.get(homepage + suffix)
 
 
@@ -76,6 +78,7 @@ def seek_accounts_data(
     :param wait: WebDriverWait object for the driver
     :return: The web element of the accounts data
     """
+    log.info(f"Finding zestimate element...")
     zestimate: WebElement = wait_and_find_element(
         driver,
         wait,
@@ -85,6 +88,7 @@ def seek_accounts_data(
         ),
     )
 
+    log.info(f"Finding address element...")
     address: WebElement = wait_and_find_element(
         driver, wait, (By.XPATH, "//div[@class='summary-container']//h1")
     )

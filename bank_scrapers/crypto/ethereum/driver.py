@@ -20,6 +20,7 @@ from eth_typing.evm import ChecksumAddress, HexAddress, HexStr
 # Local Imports
 from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate_crypto
 from bank_scrapers.common.types import PrometheusMetric
+from bank_scrapers.common.log import log
 
 # Institution info
 INSTITUTION: str = "ETHEREUM"
@@ -64,9 +65,11 @@ def get_accounts_info(
     checksum: ChecksumAddress = ChecksumAddress(HexAddress(HexStr(address)))
 
     # Connect to the node
+    log.info(f"Connecting to: {HOMEPAGE}")
     web3: Web3 = Web3(Web3.HTTPProvider(HOMEPAGE))
 
     # Get and convert the balance from wei to eth
+    log.info(f"Getting balance using checksum: {checksum}")
     balance_wei: int = web3.eth.get_balance(checksum)
     balance: float = web3.from_wei(balance_wei, "ether")
 

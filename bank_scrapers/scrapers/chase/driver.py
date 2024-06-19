@@ -38,6 +38,7 @@ from bank_scrapers.scrapers.common.functions import (
     screenshot_on_timeout,
 )
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.scrapers.chase.types import ChaseMfaAuth
 
@@ -177,23 +178,28 @@ def handle_multi_factor_authentication(
     :param password: User's password to enter along with OTP
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP Typed Dict with MFA inputs for automation
     """
+    log.info(f"Redirected to traditional two-factor authentication page.")
 
     # Wait for the expand option to become clickable or else can lead to bugs where the list doesn't expand correctly
+    log.info(f"Finding list expand button element and waiting for it to be click-able...")
     expand_button: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "header-simplerAuth-dropdownoptions-styledselect")
     )
 
     # Then click it
+    log.info(f"Clicking list expand button element...")
     expand_button.click()
     sleep(1)
 
     # Identify MFA options
+    log.info(f"Finding contact options elements...")
     contact_options: List[WebElement] = wait_and_find_elements(
         driver,
         wait,
         (By.XPATH, '//a[@role="option"]/span[@class="groupLabelText primary"]'),
     )
 
+    log.info(f"Finding labels for contact options elements...")
     labels: List[WebElement] = wait_and_find_elements(
         driver,
         wait,
@@ -209,54 +215,77 @@ def handle_multi_factor_authentication(
 
     # Prompt user input for MFA option
     if mfa_auth is None:
+        log.info(f"No automation info provided. Prompting user for contact option.")
         for i, l in enumerate(output_list):
             print(f"{i + 1}: {l[0]}")
         option: str = input("Please select one: ")
     else:
+        log.info(f"Contact option found in automation info.")
         option: str = str(mfa_auth["otp_contact_option"])
     l_index: int = output_list[int(option) - 1][1]
+    log.debug(f"Contact option: {l_index}")
 
     # Click based on user input
+    log.info(f"Clicking list expand button element...")
     expand_button.click()
+
+    log.info(f"Finding element for user selected contact option...")
     mfa_option: WebElement = wait.until(
         EC.element_to_be_clickable(full_labels[l_index])
     )
+    log.info(f"Clicking element for user selected contact option...")
     mfa_option.click()
 
     # Click submit once it becomes clickable
+    log.info(f"Finding submit button element and waiting for it to be click-able...")
     submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "requestIdentificationCode-sm")
     )
+
+    log.info(f"Clicking submit button element...")
     submit.click()
 
     # Prompt user for OTP code and enter onto the page
+    log.info(f"Finding input box element for OTP...")
     otp_input: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "otpcode_input-input-field")
     )
 
     # Prompt user input for MFA option
     if mfa_auth is None:
+        log.info(f"No automation info provided. Prompting user for OTP.")
         otp_code: str = input("Enter 2FA Code: ")
     else:
+        log.info(
+            f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
+        )
         otp_code: str = str(
             search_files_for_int(
                 mfa_auth["otp_code_location"], INSTITUTION, ".txt", 6, 10, TIMEOUT, True
             )
         )
 
+    log.info(f"Sending info to OTP input box element...")
     otp_input.send_keys(otp_code)
 
     # Re-enter the password on the OTP page
+    log.info(f"Finding password element...")
     pwd_input: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "password_input-input-field")
     )
+    log.info(f"Sending info to password element...")
     pwd_input.send_keys(password)
 
     # Click submit once it becomes clickable
+    log.info(f"Finding submit button element...")
     submit: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "log_on_to_landing_page-sm")
     )
+
+    log.info(f"Waiting for submit button element to be click-able...")
     wait.until(EC.element_to_be_clickable((By.ID, "log_on_to_landing_page-sm")))
+
+    log.info(f"Clicking submit button element...")
     submit.click()
 
 
@@ -271,8 +300,10 @@ def handle_multi_factor_authentication_alternate(
     :param wait: The wait object associated with the driver function above
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
+    log.info(f"Redirected to two-factor authentication page.")
 
     # Identify MFA options
+    log.info(f"Finding contact options elements...")
     contact_options: List[WebElement]
     contact_options_wait: WebDriverWait
     contact_options, contact_options_wait = wait_and_find_elements_in_shadow_root(
@@ -295,17 +326,21 @@ def handle_multi_factor_authentication_alternate(
 
     # Prompt user input for MFA option
     if mfa_auth is None:
+        log.info(f"No automation info provided. Prompting user for contact option.")
         for i, l in enumerate(contact_options_text):
             print(f"{i + 1}: {l}")
         option: str = input("Please select one: ")
     else:
+        log.info(f"Contact option found in automation info.")
         option: str = str(mfa_auth["otp_contact_option_alternate"])
     l_index: int = int(option) - 1
+    log.debug(f"Contact option: {l_index}")
 
     # Click based on user input
     contact_options[l_index].click()
 
     # Open accounts dropdown
+    log.info(f"Finding next button element...")
     next_button: WebElement
     next_button_wait: WebDriverWait
     next_button, next_button_wait = wait_and_find_element_in_shadow_root(
@@ -315,10 +350,13 @@ def handle_multi_factor_authentication_alternate(
         TIMEOUT,
         (By.CSS_SELECTOR, "button"),
     )
+    log.info(f"Waiting for next button element to be click-able...")
     next_button_wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button")))
+    log.info(f"Clicking next button element...")
     next_button.click()
 
     # Prompt user for OTP code and enter onto the page
+    log.info(f"Finding input box element for OTP...")
     otp_input: WebElement
     otp_input, _ = wait_and_find_element_in_shadow_root(
         driver,
@@ -330,17 +368,23 @@ def handle_multi_factor_authentication_alternate(
 
     # Prompt user input for MFA option
     if mfa_auth is None:
+        log.info(f"No automation info provided. Prompting user for OTP.")
         otp_code: str = input("Enter 2FA Code: ")
     else:
+        log.info(
+            f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
+        )
         otp_code: str = str(
             search_files_for_int(
                 mfa_auth["otp_code_location"], INSTITUTION, ".txt", 6, 10, TIMEOUT, True
             )
         )
 
+    log.info(f"Sending info to OTP input box element...")
     otp_input.send_keys(otp_code)
 
     # Click submit once it becomes clickable
+    log.info(f"Finding submit button element...")
     submit: WebElement
     submit_wait: WebDriverWait
     submit, submit_wait = wait_and_find_element_in_shadow_root(
@@ -350,7 +394,11 @@ def handle_multi_factor_authentication_alternate(
         TIMEOUT,
         (By.CSS_SELECTOR, "button"),
     )
+
+    log.info(f"Waiting for submit button element to be click-able...")
     submit_wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button")))
+
+    log.info(f"Clicking submit button element...")
     submit.click()
 
 
@@ -367,31 +415,52 @@ def logon(
     :param password: Your password for logging in
     """
     # Logon Page
+    log.info(f"Accessing: {homepage}")
     driver.get(homepage)
 
     # Navigate iframe
+    log.info(f"Finding iframe for login...")
     iframe: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "routablecpologonbox")
     )
+
+    log.info(f"Switching to iframe...")
     driver.switch_to.frame(iframe)
 
     # Enter User
+    log.info(f"Finding username element and waiting for it to be click-able...")
+    log.debug(f"Username: {username}")
     user: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "userId-text-input-field")
     )
+
+    log.info(f"Clicking username element...")
     user.click()
+
+    log.info(f"Sending info to username element...")
+    log.debug(f"Username: {username}")
     user.send_keys(username)
 
     # Enter Password
+    log.info(f"Finding password element...")
     passwd: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "password-text-input-field")
     )
+
+    log.info(f"Sending info to password element...")
     passwd.send_keys(password)
 
     # Submit will sometimes stay inactive unless interacted with
+    log.info(f"Finding submit button element...")
     submit: WebElement = wait_and_find_element(driver, wait, (By.ID, "signin-button"))
+
+    log.info(f"Sending dummy key to submit button element...")
     submit.send_keys("")
+
+    log.info(f"Waiting for submit button element to be click-able...")
     wait.until(EC.element_to_be_clickable((By.ID, "signin-button")))
+
+    log.info(f"Clicking submit button element...")
     submit.click()
 
 
@@ -404,29 +473,36 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     :param wait: WebDriverWait object for the driver
     """
     # Navigate shadow root
+    log.info(f"Finding shadow root for accounts dropdown element...")
     shadow_root: ShadowRoot = wait_and_find_element(
         driver, wait, (By.XPATH, "//mds-button[@text='More']")
     ).shadow_root
     sr_wait: WebDriverWait = WebDriverWait(shadow_root, TIMEOUT)
 
     # Open accounts dropdown
+    log.info(f"Finding accounts dropdown element...")
     accounts_dropdown: WebElement = wait_and_find_element(
         shadow_root, sr_wait, (By.CSS_SELECTOR, ".button")
     )
+
+    log.info(f"Clicking accounts dropdown element...")
     accounts_dropdown.click()
 
     # Navigate another shadow root
-    sr: ShadowRoot = wait_and_find_element(
+    log.info(f"Finding shadow root for account details element...")
+    shadow_root_: ShadowRoot = wait_and_find_element(
         shadow_root, sr_wait, (By.CSS_SELECTOR, ".mds-menu-button--cpo")
     ).shadow_root
+    sr_wait_: WebDriverWait = WebDriverWait(shadow_root_, TIMEOUT)
 
     # Wait for the account details button to be clickable and go to it
-    sr_wait_: WebDriverWait = WebDriverWait(sr, TIMEOUT)
+    log.info(f"Finding button for account details element and waiting for it to be click-able...")
     btn: WebElement = wait_and_find_click_element(
-        sr,
+        shadow_root_,
         sr_wait_,
         (By.CSS_SELECTOR, "li.menu-button__list:nth-child(1) > button:nth-child(1)"),
     )
+    log.info(f"Clicking button for account details element...")
     btn.click()
 
 
@@ -521,6 +597,7 @@ def wait_for_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     :param wait: WebDriverWait object for the driver
     """
     # Wait for redirect to landing page or 2FA
+    log.info(f"Handling redirect...")
     wait.until(
         lambda _: "chase.com/web/auth/dashboard#/dashboard/overview"
         in driver.current_url
@@ -537,6 +614,7 @@ def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
     :param driver: The browser application
     :param wait: WebDriverWait object for the driver
     """
+    log.info(f"Waiting for landing page...")
     wait.until(
         lambda _: "chase.com/web/auth/dashboard#/dashboard/overview"
         in driver.current_url
@@ -551,6 +629,7 @@ def get_account_number(driver: Chrome, wait: WebDriverWait) -> str:
     :param wait: WebDriverWait object for the driver
     :return: A string containing the account number
     """
+    log.info(f"Finding account number element...")
     account_number: str = wait_and_find_element(
         driver,
         wait,
@@ -559,6 +638,7 @@ def get_account_number(driver: Chrome, wait: WebDriverWait) -> str:
             "//h2[@class='accountdetails accountname mds-title-medium']/span[@class='mask-number mds-body-large']",
         ),
     ).text
+    log.debug(f"Account number (raw): {account_number}")
     account_number: str = re.sub("[^0-9]", "", account_number)
     return account_number
 
@@ -571,20 +651,11 @@ def get_detail_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
     :param wait: WebDriverWait object for the driver
     :return: A list containing the web elements for the tables
     """
+    log.info(f"Finding account details elements...")
     tables: List[WebElement] = wait_and_find_elements(
         driver, wait, (By.CLASS_NAME, "details-bar")
     )
     return tables
-
-
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def get_table_name(table: WebElement):
-    """
-    Gets the name of a table on the credit card info page
-    :param table: The web element for the table for which to get the name
-    :return: The text name of the table as represented on the website
-    """
-    return table.find_element(By.XPATH, "./..//h3").text
 
 
 def get_accounts_info(
@@ -624,7 +695,7 @@ def get_accounts_info(
     elif is_2fa_redirect_alternate(driver):
         handle_multi_factor_authentication_alternate(driver, wait, mfa_auth)
     elif password_needs_reset(driver):
-        print("Password needs reset!")
+        log.error("Password needs reset!")
         exit(1)
 
     # Wait for landing page after handling 2FA
@@ -646,7 +717,6 @@ def get_accounts_info(
         parsed_table["symbol"]: pd.DataFrame = SYMBOL
         if "Current balance" in parsed_table.columns:
             parsed_table["usd_value"]: pd.DataFrame = 1.0
-        parsed_table.name = get_table_name(t)
         return_tables.append(parsed_table)
 
     # Clean up

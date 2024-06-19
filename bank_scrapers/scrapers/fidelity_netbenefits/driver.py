@@ -48,6 +48,7 @@ from bank_scrapers.scrapers.common.functions import (
 )
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.scrapers.fidelity_netbenefits.types import FidelityNetBenefitsMfaAuth
+from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
@@ -58,6 +59,7 @@ SYMBOL: str = "USD"
 HOMEPAGE: str = (
     "https://login.fidelity.com/ftgw/Fas/Fidelity/NBPart/Login/Init?ISPBypass=true"
 )
+DASHBOARD_PAGE: str = "https://digital.fidelity.com/ftgw/digital/portfolio/positions"
 
 # Timeout
 TIMEOUT: int = 60
@@ -89,22 +91,32 @@ def handle_multi_factor_authentication(
     :param wait: The wait object associated with the driver function above
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
+    log.info(f"Redirected to two-factor authentication page.")
+
+    log.info(f"Finding Text Me button element...")
     text_me_button: WebElement = wait_and_find_element(
         driver,
         wait,
         (By.XPATH, "//pvd-button[@pvd-id='dom-channel-list-primary-button']"),
     )
 
+    log.info(f"Clicking Text Me button element...")
     text_me_button.click()
 
     # Prompt user for OTP code and enter onto the page
+    log.info(f"Finding input box element for OTP...")
     otp_input: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "dom-otp-code-input")
     )
+
     # Prompt user input for MFA option
     if mfa_auth is None:
+        log.info(f"No automation info provided. Prompting user for OTP.")
         otp_code: str = input("Enter 2FA Code: ")
     else:
+        log.info(
+            f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
+        )
         otp_code: str = str(
             search_files_for_int(
                 mfa_auth["otp_code_location"],
@@ -116,13 +128,20 @@ def handle_multi_factor_authentication(
                 True,
             )
         )
+
+    log.info(f"Sending info to OTP input box element...")
     otp_input.send_keys(otp_code)
 
     # Click submit once it becomes clickable
+    log.info(f"Finding submit button element...")
     submit: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "dom-otp-code-submit-button")
     )
+
+    log.info(f"Waiting for submit button element to be click-able...")
     wait.until(EC.element_to_be_clickable((By.ID, "dom-otp-code-submit-button")))
+
+    log.info(f"Clicking submit button element...")
     submit.click()
 
 
@@ -139,25 +158,37 @@ def logon(
     :param password: Your password for logging in
     """
     # Logon Page
+    log.info(f"Accessing: {homepage}")
     driver.get(homepage)
 
     # Enter User
+    log.info(f"Finding username element...")
     user: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "dom-username-input")
     )
+
+    log.info(f"Sending info to username element...")
+    log.debug(f"Username: {username}")
     user.send_keys(username)
 
     # Enter Password
+    log.info(f"Finding password element...")
     passwd: WebElement = wait_and_find_element(driver, wait, (By.ID, "dom-pswd-input"))
+
+    log.info(f"Sending info to password element...")
     passwd.send_keys(password)
 
     # Submit
+    log.info(f"Finding submit button element...")
     submit: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "dom-login-button")
     )
+
+    log.info(f"Clicking submit button element...")
     submit.click()
 
     # Wait for redirect to landing page or 2FA
+    log.info(f"Waiting for redirect...")
     wait.until(
         lambda _: "https://workplaceservices.fidelity.com/" in driver.current_url
         or str("To verify it's you, we'll send a temporary code to your phone")
@@ -173,9 +204,11 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     :param wait: WebDriverWait object for the driver
     """
     # Go to the accounts page
-    driver.get("https://digital.fidelity.com/ftgw/digital/portfolio/positions")
+    log.info(f"Accessing: {DASHBOARD_PAGE}")
+    driver.get(DASHBOARD_PAGE)
 
     # Wait for the downloads button to be clickable
+    log.info(f"Finding download button element...")
     download_btn: WebElement = wait.until(
         EC.element_to_be_clickable(
             (By.XPATH, "//button[@aria-label='Download Positions']")
@@ -183,9 +216,11 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     )
 
     # Click the button
+    log.info(f"Clicking download button element...")
     download_btn.click()
 
     # Sleep time to make sure the download completes
+    log.info(f"Sleeping for 3 seconds...")
     sleep(3)
 
 
@@ -235,6 +270,7 @@ def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
     :param driver: The browser application
     :param wait: WebDriverWait object for the driver
     """
+    log.info(f"Waiting for landing page...")
     wait.until(
         lambda _: "https://workplaceservices.fidelity.com/" in driver.current_url
     )
@@ -296,7 +332,7 @@ def get_accounts_info(
                 axis=1,
             )
     except Exception as e:
-        print(e)
+        log.error(e)
         exit(1)
     finally:
         # Clean up

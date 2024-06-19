@@ -31,6 +31,7 @@ from bank_scrapers.scrapers.common.functions import (
     screenshot_on_timeout,
 )
 from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate
+from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
@@ -71,18 +72,29 @@ def logon(
     :param password: Your password for logging in
     """
     # Logon Page
+    log.info(f"Accessing: {homepage}")
     driver.get(homepage)
 
     # Enter User
+    log.info(f"Finding username element...")
     user: WebElement = wait_and_find_click_element(driver, wait, (By.ID, "dispuserId"))
+
+    log.info(f"Sending info to username element...")
+    log.debug(f"Username: {username}")
     user.send_keys(username)
 
     # Enter Password
+    log.info(f"Finding password element...")
     passwd: WebElement = wait_and_find_element(driver, wait, (By.ID, "disppassword"))
+
+    log.info(f"Sending info to password element...")
     passwd.send_keys(password)
 
     # Submit credentials
+    log.info(f"Finding submit button element...")
     submit: WebElement = wait_and_find_element(driver, wait, (By.LINK_TEXT, "Sign On"))
+
+    log.info(f"Clicking submit button element...")
     submit.click()
 
 
@@ -94,16 +106,23 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> WebElement:
     :param wait: WebDriverWait object for the driver
     :return: The web element of the accounts data
     """
+    log.info(f"Finding accounts button element...")
     accounts_btn: WebElement = wait_and_find_click_element(
         driver, wait, (By.LINK_TEXT, "Accounts")
     )
+
+    log.info(f"Clicking accounts button element...")
     accounts_btn.click()
 
+    log.info(f"Finding balance button element...")
     balance_btn: WebElement = wait_and_find_click_element(
         driver, wait, (By.LINK_TEXT, "Balance Summary")
     )
+
+    log.info(f"Clicking balance button element...")
     balance_btn.click()
 
+    log.info(f"Finding account info table element...")
     table: WebElement = driver.find_element(
         By.CSS_SELECTOR,
         "body > form:nth-child(2) > main > div > section > div.inner > table.table.table-normal",
@@ -112,7 +131,6 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> WebElement:
     return table
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     """
     Post-processing of the table html

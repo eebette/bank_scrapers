@@ -28,6 +28,7 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_element,
     screenshot_on_timeout,
 )
+from bank_scrapers.common.log import log
 from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate_crypto
 from bank_scrapers.common.types import PrometheusMetric
 
@@ -50,7 +51,8 @@ CHROME_OPTIONS: List[str] = [
     "--no-sandbox",
     "--window-size=1920,1080",
     "--disable-gpu",
-    "--headless" "--allow-running-insecure-content",
+    "--headless",
+    "--allow-running-insecure-content",
 ]
 
 # Error screenshot config
@@ -65,6 +67,7 @@ def get_account_balance(driver: Chrome, wait: WebDriverWait) -> float:
     :param wait: WebDriverWait object for the driver
     :return: A float containing the account/wallet balance
     """
+    log.info(f"Getting account balance from page...")
     prefix: WebElement = wait_and_find_element(
         driver,
         wait,
@@ -78,6 +81,7 @@ def get_account_balance(driver: Chrome, wait: WebDriverWait) -> float:
             "//div[@id='addressFinalBalanceDecimal' and string-length(text()) > 0]",
         ),
     )
+    log.info(f"Got account balance from page!")
     return float(prefix.text + suffix.text)
 
 
@@ -118,6 +122,7 @@ def get_accounts_info(
     wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
 
     # Access the site with the given zpub as a search parameter
+    log.info(f"Accessing {HOMEPAGE}{zpub}...")
     driver.get(f"{HOMEPAGE}{zpub}")
 
     # Get the account balance

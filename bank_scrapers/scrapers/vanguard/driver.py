@@ -51,6 +51,7 @@ from bank_scrapers.scrapers.common.functions import (
 )
 from bank_scrapers.scrapers.common.types import MfaAuth
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
@@ -85,7 +86,10 @@ def handle_multi_factor_authentication(
     :param wait: The wait object associated with the driver function above
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
+    log.info(f"Redirected to two-factor authentication page.")
+
     # Select the mobile app 2FA option
+    log.info(f"Finding contact options elements...")
     mfa_buttons: List[WebElement] = wait_and_find_elements(
         driver, wait, (By.XPATH, "//lgn-auth-selection//button")
     )
@@ -93,30 +97,43 @@ def handle_multi_factor_authentication(
     # Prompt user input for MFA option
     if mfa_auth is None:
         for i, l in enumerate(mfa_buttons):
+            log.info(f"No automation info provided. Prompting user for contact option.")
             print(f"{i + 1}: {l.text}")
         o_index: int = int(input("Please select one: ")) - 1
     else:
+        log.info(f"Contact option found in automation info.")
         o_index: int = mfa_auth["otp_contact_option"] - 1
+    log.debug(f"Contact option: {o_index}")
 
     mfa_option: WebElement = mfa_buttons[o_index]
     mfa_option_text: str = mfa_buttons[o_index].text
+
+    log.info(f"Clicking element for user selected contact option...")
     mfa_option.click()
 
     # Prompt user for 2FA
     if "app" in mfa_option_text:
         print("Waiting for 2FA...")
     else:
+        log.info(f"Finding element for user selected contact option...")
         sms_button: WebElement = wait_and_find_element(
             driver, wait, (By.XPATH, "//lgn-phone-now-selection//button")
         )
+
+        log.info(f"Clicking element for user selected contact option...")
         sms_button.click()
 
+        log.info(f"Finding input box element for OTP...")
         otp: WebElement = wait_and_find_element(
             driver, wait, (By.XPATH, "//input[@id='CODE']")
         )
         if mfa_auth is None:
+            log.info(f"No automation info provided. Prompting user for OTP.")
             otp_code: str = input("Enter 2FA Code: ")
         else:
+            log.info(
+                f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
+            )
             otp_code: str = str(
                 search_files_for_int(
                     mfa_auth["otp_code_location"],
@@ -129,11 +146,16 @@ def handle_multi_factor_authentication(
                     delay=20,
                 )
             )
+
+        log.info(f"Sending info to OTP input box element...")
         otp.send_keys(otp_code)
 
+    log.info(f"Finding submit button element...")
     submit_button: WebElement = wait_and_find_element(
         driver, wait, (By.XPATH, "//button[@type='submit']")
     )
+
+    log.info(f"Clicking submit button element...")
     submit_button.click()
 
 
@@ -166,27 +188,39 @@ def logon(
     :param password: Your password for logging in
     """
     # Logon Page
+    log.info(f"Accessing: {homepage}")
     driver.get(homepage)
 
     # Enter User
     sleep(randint(1, 5))
+    log.info(f"Finding username element...")
     user: WebElement = wait_and_find_click_element(driver, wait, (By.ID, "USER"))
+
+    log.info(f"Sending info to username element...")
+    log.debug(f"Username: {username}")
     user.send_keys(username)
 
     # Enter Password
     sleep(randint(1, 5))
+    log.info(f"Finding password element...")
     passwd: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "PASSWORD-blocked")
     )
+
+    log.info(f"Sending info to password element...")
     passwd.send_keys(password)
 
     # Submit credentials
     sleep(randint(1, 5))
+    log.info(f"Finding submit button element and waiting for it to be click-able...")
     submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "username-password-submit-btn")
     )
+
+    log.info(f"Clicking submit button element...")
     submit.click()
 
+    log.info(f"Waiting for redirect...")
     wait.until(
         lambda _: "https://dashboard.web.vanguard.com/" in driver.current_url
         or "https://challenges.web.vanguard.com/" in driver.current_url
@@ -203,47 +237,79 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> Non
     :param tmp_dir: An empty directory to use for processing the downloaded file
     """
     # Go to Downloads Center
+    log.info(
+        f"Accessing: https://personal1.vanguard.com/ofu-open-fin-exchange-webapp/ofx-welcome"
+    )
     driver.get(
         "https://personal1.vanguard.com/ofu-open-fin-exchange-webapp/ofx-welcome"
     )
 
     # Select CSV option for download formats
+    log.info(f"Finding download button element and waiting for it to be click-able...")
     download_option: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "optionSelect")
     )
+
+    log.info(f"Clicking download button...")
     download_option.click()
 
+    log.info(
+        f"Finding vui option button element and waiting for it to be click-able..."
+    )
     vui_option: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "vuioption2")
     )
+
+    log.info(f"Clicking vui option button...")
     vui_option.click()
 
     # Select last 18 months for date range
+    log.info(
+        f"Finding date range button element and waiting for it to be click-able..."
+    )
     date_range: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "dateSelect")
     )
+
+    log.info(f"Clicking date range option button...")
     date_range.click()
 
-    vui_option: WebElement = wait_and_find_click_element(
+    log.info(
+        f"Finding vui option button element and waiting for it to be click-able..."
+    )
+    vui_option_: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "vui-option-7")
     )
-    vui_option.click()
+
+    log.info(f"Clicking vui option button...")
+    vui_option_.click()
 
     # Select for all accounts
+    log.info(f"Waiting for accounts checkbox element to exist...")
     wait.until(EC.presence_of_element_located((By.ID, "mat-checkbox-1-input")))
+
+    log.info(
+        f"Finding accounts checkbox element and waiting for it to be click-able..."
+    )
     mat_checkbox = wait_and_find_click_element(
         driver, wait, (By.ID, "mat-checkbox-1-input")
     )
+
+    log.info(f"Clicking accounts checkbox element...")
     mat_checkbox.click()
 
     # Submit download request
+    log.info(f"Finding submit button element and waiting for it to be click-able...")
     submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "submitOFXDownload")
     )
+
+    log.info(f"Clicking submit button element...")
     submit.click()
 
     # Allow the download to process
     while not os.path.exists(f"{tmp_dir}/OfxDownload.csv"):
+        log.info(f"Waiting for file: {tmp_dir}/OfxDownload.csv")
         sleep(1)
 
 
@@ -268,12 +334,14 @@ def get_account_types(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
     :param wait: WebDriverWait object for the driver
     :return: A Pandas DataFrame containing the account numbers and types
     """
+    log.info(f"Finding account type elements...")
     account_labels: List[str] = list(
         e.text
         for e in wait_and_find_elements(
             driver, wait, (By.XPATH, "//a[@data-cy='account-name']/span")
         )
     )
+
     accounts: Dict[str, str] = {}
     for account in account_labels:
         account_split: List[str] = account.split(sep=" — ")[1:]
@@ -282,6 +350,7 @@ def get_account_types(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
             if "IRA" in account_split[0] or "401(k)" in account_split[0]
             else "deposit"
         )
+
     accounts_df: pd.DataFrame = pd.DataFrame(
         accounts.items(), columns=["Account Number", "account_type"]
     )
@@ -299,6 +368,7 @@ def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
     :param driver: The browser application
     :param wait: WebDriverWait object for the driver
     """
+    log.info(f"Waiting for landing page...")
     wait.until(
         lambda _: "https://dashboard.web.vanguard.com/" in driver.current_url
         or "https://challenges.web.vanguard.com/" in driver.current_url
@@ -355,7 +425,7 @@ def get_accounts_info(
         accounts_data: pd.DataFrame = parse_accounts_summary(f"{tmp_dir}/{file_name}")
         return_tables: List[pd.DataFrame] = [pd.merge(accounts_df, accounts_data)]
     except Exception as e:
-        print(e)
+        log.error(e)
         exit(1)
     finally:
         # Clean up

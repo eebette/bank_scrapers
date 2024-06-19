@@ -15,6 +15,7 @@ from currency_converter import CurrencyConverter
 import yfinance as yf
 
 # Local Imports
+from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
 
 
@@ -24,6 +25,7 @@ def get_usd_rate(symbol: str) -> float:
     :param symbol: The 3 letter forex symbol to convert to USD
     :return: A float of the USD value of 1 unit of the given forex symbol
     """
+    log.info(f"Getting conversion rate of {symbol.upper()} to USD...")
     return CurrencyConverter().convert(1, symbol.upper(), "USD")
 
 
@@ -34,6 +36,7 @@ def get_usd_rate_crypto(symbol: str) -> float:
     :return: A float of the USD value of 1 unit of the given cryptocurrency symbol
     """
     try:
+        log.info(f"Getting value of {symbol.upper()}-USD from YFinance...")
         return yf.download(
             f"{symbol.upper()}-USD",
             date.today() - timedelta(days=1),
@@ -41,6 +44,9 @@ def get_usd_rate_crypto(symbol: str) -> float:
             progress=False,
         )["Close"].values[0]
     except IndexError:
+        log.warning(
+            f"Couldn't find value of {symbol.upper()}-USD from YFinance! Filling with 0.0 instead."
+        )
         return 0.0
 
 
@@ -62,8 +68,11 @@ def convert_to_prometheus(
     :param account_type_column: Column name of the account type (credit, deposit, etc.)
     :return: Prometheus friendly metrics for text exposition
     """
+    log.info(
+        f"Creating Prometheus metric from columns {account_column}, {current_balance_column}, {account_type_column}, "
+        f"and {symbol_column}..."
+    )
     current_balance_metrics: List[PrometheusMetric] = list()
-
     for t in table_list:
         if all(
             [
@@ -87,9 +96,9 @@ def convert_to_prometheus(
 
     try:
         assert current_balance_metrics
-    except AssertionError as e:
-        print(e)
-        print(
+        log.info(f"Prometheus metrics created.")
+    except AssertionError:
+        log.error(
             f"No tables in output list. Make sure at least one table in the output contains columns {account_column}, "
             f"{current_balance_column}, {account_type_column}, and {symbol_column}."
         )
@@ -104,12 +113,15 @@ def wait_for_path_to_exist(filepath: str, timeout: int) -> None:
     :param filepath: The path to the directory for which to wait
     :param timeout: Timeout parameter that will throw a TimeoutError if path doesn't exist
     """
+    log.info(f"Waiting for path at {filepath}")
     i = 0
     while not os.path.exists(filepath):
         sleep(1)
         i += 1
         if i == timeout:
             raise TimeoutError("File path doesn't exist!")
+
+    log.info(f"Found {filepath}")
     pass
 
 
@@ -119,12 +131,15 @@ def wait_for_files_in_dir(filepath: str, timeout: int) -> None:
     :param filepath: The path to the directory for which to wait
     :param timeout: Timeout parameter that will throw a TimeoutError if path doesn't exist
     """
+    log.info(f"Waiting for files in {filepath}")
     i = 0
     while not os.listdir(filepath):
         sleep(1)
         i += 1
         if i == timeout:
             raise TimeoutError("No files in file path!")
+
+    log.info(f"Found files in {filepath}")
     pass
 
 
@@ -157,7 +172,7 @@ def search_files_for_int(
         filename: str = os.fsdecode(file)
         if filename.endswith(file_ext):
             full_filepath: str = os.path.join(filepath, filename)
-
+            log.info(f"Checking {full_filepath} for OTP...")
             with open(full_filepath, "r") as text:
                 text_content: str = text.read().replace("\n", "")
 
@@ -165,6 +180,9 @@ def search_files_for_int(
                 return_int: int = re.findall(
                     rf"\d{{{min_length},{max_length}}}", text_content
                 )[0]
+
+                log.info(f"OTP found.")
+                log.debug(f"OTP: {return_int}")
                 return int(return_int)
 
     raise Exception(

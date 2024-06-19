@@ -33,6 +33,7 @@ from bank_scrapers.scrapers.common.functions import (
 )
 from bank_scrapers.common.functions import convert_to_prometheus
 from bank_scrapers.common.types import PrometheusMetric
+from bank_scrapers.common.log import log
 
 # Institution info
 INSTITUTION: str = "BECU"
@@ -104,6 +105,10 @@ def get_mfa_answer(
         driver, wait, (By.XPATH, "//label[@for='challengeAnswer']")
     )
 
+    log.warning(
+        f"Presented security challenge. This cannot be handled using json for automation."
+    )
+
     if mfa_answers is not None:
         mfa_answer: str = mfa_answers[mfa_question.text]
     else:
@@ -121,6 +126,7 @@ def handle_redirect(driver: Chrome, wait: WebDriverWait) -> None:
     :param driver: The browser application
     :param wait: WebDriverWait object for the driver
     """
+    log.info(f"Handling redirect...")
     wait.until(
         lambda _: any(
             driver.current_url in landing_page
@@ -131,6 +137,7 @@ def handle_redirect(driver: Chrome, wait: WebDriverWait) -> None:
             ]
         )
     )
+    pass
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -152,24 +159,35 @@ def logon(
     :param mfa_answers:
     """
     # Logon Page
+    log.info(f"Accessing: {homepage}")
     driver.get(homepage)
 
     # Enter User
+    log.info(f"Finding username element...")
     user: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "ctlSignon_txtUserID")
     )
+
+    log.info(f"Sending info to username element...")
+    log.debug(f"Username: {username}")
     user.send_keys(username)
 
     # Enter Password
+    log.info(f"Finding password element...")
     passwd: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "ctlSignon_txtPassword")
     )
+
+    log.info(f"Sending info to password element...")
     passwd.send_keys(password)
 
     # Submit
+    log.info(f"Finding submit button element...")
     submit: WebElement = wait_and_find_element(
         driver, wait, (By.ID, "ctlSignon_btnLogin")
     )
+
+    log.info(f"Clicking submit button element...")
     submit.click()
 
     while (
@@ -183,29 +201,43 @@ def logon(
             driver.current_url
             == "https://onlinebanking.becu.org/BECUBankingWeb/Invitation/Default.aspx"
         ):
+            log.info(f"Redirected to marketing offer page.")
+
             # Decline offer
+            log.info(f"Finding decline button element...")
             decline_btn: WebElement = wait_and_find_element(
                 driver, wait, (By.NAME, "ctlWorkflow$decline")
             )
+
+            log.info(f"Clicking decline button element...")
             decline_btn.click()
 
         elif (
             driver.current_url
             == "https://onlinebanking.becu.org/BECUBankingWeb/Security/Challenge"
         ):
+            log.warning(f"Redirected to security challenge page.")
+
             # Get MFA answer
             mfa_answer: str = get_mfa_answer(driver, wait, mfa_answers)
 
             # Find input box and input MFA answer
+            log.info(f"Finding answer input box element...")
             answer_input: WebElement = wait_and_find_element(
                 driver, wait, (By.ID, "challengeAnswer")
             )
+
+            log.info(f"Sending answer to input box element...")
+            log.debug(f"Answer: {mfa_answer}")
             answer_input.send_keys(mfa_answer)
 
             # Find agree/submit button and click
+            log.info(f"Finding agree/submit button element...")
             agree_input: WebElement = wait_and_find_element(
                 driver, wait, (By.ID, "agree-and-continue-button")
             )
+
+            log.info(f"Clicking agree/submit button element...")
             agree_input.click()
 
 
@@ -215,6 +247,7 @@ def wait_for_credit_details(wait: WebDriverWait) -> None:
     Waits for the credit portion of the web page to load
     :param wait: WebDriverWait object for the driver
     """
+    log.info(f"Waiting for credit details to render...")
     wait.until(
         EC.presence_of_element_located(
             (By.XPATH, "//tbody[@id='visaTable']/tr[@class='item']")
@@ -230,6 +263,7 @@ def get_detail_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
     :param wait: WebDriverWait object for the driver
     :return: A list containing the web elements for the tables
     """
+    log.info(f"Finding accounts details elements...")
     tables: List[WebElement] = wait_and_find_elements(
         driver, wait, (By.CLASS_NAME, "tablesaw-stack")
     )
