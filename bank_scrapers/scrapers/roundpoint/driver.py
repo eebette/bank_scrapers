@@ -317,7 +317,9 @@ def get_loan_number(driver: Chrome, wait: WebDriverWait) -> str:
     :return: The full loan number as a string
     """
     # Navigate to the My Loan page
-    log.info(f"Accessing: https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/my-loan")
+    log.info(
+        f"Accessing: https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/my-loan"
+    )
     driver.get(
         "https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/my-loan"
     )

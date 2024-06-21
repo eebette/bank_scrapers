@@ -47,9 +47,9 @@ from bank_scrapers.scrapers.common.functions import (
     screenshot_on_timeout,
 )
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
-from bank_scrapers.scrapers.fidelity_netbenefits.types import FidelityNetBenefitsMfaAuth
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
+from bank_scrapers.scrapers.fidelity_netbenefits.types import FidelityNetBenefitsMfaAuth
 
 # Institution info
 INSTITUTION: str = "Fidelity NetBenefits"

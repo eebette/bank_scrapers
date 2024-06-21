@@ -181,7 +181,9 @@ def handle_multi_factor_authentication(
     log.info(f"Redirected to traditional two-factor authentication page.")
 
     # Wait for the expand option to become clickable or else can lead to bugs where the list doesn't expand correctly
-    log.info(f"Finding list expand button element and waiting for it to be click-able...")
+    log.info(
+        f"Finding list expand button element and waiting for it to be click-able..."
+    )
     expand_button: WebElement = wait_and_find_click_element(
         driver, wait, (By.ID, "header-simplerAuth-dropdownoptions-styledselect")
     )
@@ -496,7 +498,9 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
     sr_wait_: WebDriverWait = WebDriverWait(shadow_root_, TIMEOUT)
 
     # Wait for the account details button to be clickable and go to it
-    log.info(f"Finding button for account details element and waiting for it to be click-able...")
+    log.info(
+        f"Finding button for account details element and waiting for it to be click-able..."
+    )
     btn: WebElement = wait_and_find_click_element(
         shadow_root_,
         sr_wait_,
@@ -512,7 +516,6 @@ def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
     :param table: The table as a web element
     :return: A pandas dataframe of the table
     """
-
     #  Transpose vertical headers labels
     dt: List[WebElement] = table.find_elements(By.CLASS_NAME, "DATALABELH")
     dt_txt: List[str] = list(d.text for d in dt)
