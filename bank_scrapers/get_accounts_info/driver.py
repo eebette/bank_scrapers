@@ -5,18 +5,23 @@ import pandas as pd
 
 from bank_scrapers.common.types import PrometheusMetric
 
-from bank_scrapers.api_wrappers import kraken
-from bank_scrapers.crypto import bitcoin, ethereum
-from bank_scrapers.scrapers import (
-    becu,
-    chase,
-    fidelity_netbenefits,
-    roundpoint,
-    smbc_prestia,
-    uhfcu,
-    vanguard,
-    zillow,
+from bank_scrapers.scrapers.becu.driver import get_accounts_info as get_becu
+from bank_scrapers.scrapers.chase.driver import get_accounts_info as get_chase
+from bank_scrapers.scrapers.fidelity_netbenefits.driver import (
+    get_accounts_info as get_fidelity_nb,
 )
+from bank_scrapers.scrapers.roundpoint.driver import get_accounts_info as get_roundpoint
+from bank_scrapers.scrapers.smbc_prestia.driver import (
+    get_accounts_info as get_smbc_prestia,
+)
+from bank_scrapers.scrapers.uhfcu.driver import get_accounts_info as get_uhfcu
+from bank_scrapers.scrapers.vanguard.driver import get_accounts_info as get_vanguard
+from bank_scrapers.scrapers.zillow.driver import get_accounts_info as get_zillow
+
+from bank_scrapers.api_wrappers.kraken.driver import get_accounts_info as get_kraken
+
+from bank_scrapers.crypto.bitcoin.driver import get_accounts_info as get_bitcoin
+from bank_scrapers.crypto.ethereum.driver import get_accounts_info as get_ethereum
 
 DRIVERS: set[str] = {
     "kraken",
@@ -34,30 +39,30 @@ DRIVERS: set[str] = {
 
 
 def get_accounts_info(
-    driver: str, *args
+    driver: str, *args, **kwargs
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     if driver not in DRIVERS:
         raise ValueError(f"results: status must be one of {DRIVERS}.")
 
     if driver == "kraken":
-        return kraken.get_accounts_info(*args)
+        return get_kraken(*args, **kwargs)
     elif driver == "bitcoin":
-        return bitcoin.get_accounts_info(*args)
+        return get_bitcoin(*args, **kwargs)
     elif driver == "ethereum":
-        return ethereum.get_accounts_info(*args)
+        return get_ethereum(*args, **kwargs)
     elif driver == "becu":
-        return becu.get_accounts_info(*args)
+        return get_becu(*args, **kwargs)
     elif driver == "chase":
-        return chase.get_accounts_info(*args)
+        return get_chase(*args, **kwargs)
     elif driver == "fidelity_netbenefits":
-        return fidelity_netbenefits.get_accounts_info(*args)
+        return get_fidelity_nb(*args, **kwargs)
     elif driver == "roundpoint":
-        return roundpoint.get_accounts_info(*args)
+        return get_roundpoint(*args, **kwargs)
     elif driver == "smbc_prestia":
-        return smbc_prestia.get_accounts_info(*args)
+        return get_smbc_prestia(*args, **kwargs)
     elif driver == "uhfcu":
-        return uhfcu.get_accounts_info(*args)
+        return get_uhfcu(*args, **kwargs)
     elif driver == "vanguard":
-        return vanguard.get_accounts_info(*args)
+        return get_vanguard(*args, **kwargs)
     elif driver == "zillow":
-        return zillow.get_accounts_info(*args)
+        return get_zillow(*args, **kwargs)
