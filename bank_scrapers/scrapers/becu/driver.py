@@ -29,6 +29,7 @@ from bank_scrapers.scrapers.common.functions import (
     get_chrome_options,
     wait_and_find_element,
     wait_and_find_elements,
+    wait_and_find_click_element,
     screenshot_on_timeout,
 )
 from bank_scrapers.common.functions import convert_to_prometheus
@@ -53,7 +54,7 @@ CHROME_OPTIONS: List[str] = [
     f"user-agent={USER_AGENT}",
     "--no-sandbox",
     "--window-size=1920,1080",
-    "--headless",
+    # "--headless",
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
@@ -165,7 +166,7 @@ def logon(
     # Enter User
     log.info(f"Finding username element...")
     user: WebElement = wait_and_find_element(
-        driver, wait, (By.ID, "ctlSignon_txtUserID")
+        driver, wait, (By.XPATH, "//input[@id='ctlSignon_txtUserID']")
     )
 
     log.info(f"Sending info to username element...")
@@ -175,7 +176,7 @@ def logon(
     # Enter Password
     log.info(f"Finding password element...")
     passwd: WebElement = wait_and_find_element(
-        driver, wait, (By.ID, "ctlSignon_txtPassword")
+        driver, wait, (By.XPATH, "//input[@id='ctlSignon_txtPassword']")
     )
 
     log.info(f"Sending info to password element...")
@@ -183,8 +184,8 @@ def logon(
 
     # Submit
     log.info(f"Finding submit button element...")
-    submit: WebElement = wait_and_find_element(
-        driver, wait, (By.ID, "ctlSignon_btnLogin")
+    submit: WebElement = wait_and_find_click_element(
+        driver, wait, (By.XPATH, "//input[@id='ctlSignon_btnLogin']")
     )
 
     log.info(f"Clicking submit button element...")
@@ -205,7 +206,7 @@ def logon(
 
             # Decline offer
             log.info(f"Finding decline button element...")
-            decline_btn: WebElement = wait_and_find_element(
+            decline_btn: WebElement = wait_and_find_click_element(
                 driver, wait, (By.NAME, "ctlWorkflow$decline")
             )
 
@@ -233,7 +234,7 @@ def logon(
 
             # Find agree/submit button and click
             log.info(f"Finding agree/submit button element...")
-            agree_input: WebElement = wait_and_find_element(
+            agree_input: WebElement = wait_and_find_click_element(
                 driver, wait, (By.ID, "agree-and-continue-button")
             )
 
@@ -265,7 +266,7 @@ def get_detail_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
     """
     log.info(f"Finding accounts details elements...")
     tables: List[WebElement] = wait_and_find_elements(
-        driver, wait, (By.CLASS_NAME, "tablesaw-stack")
+        driver, wait, (By.XPATH, "//table[contains(@class, 'tablesaw-stack')]")
     )
     return tables
 
@@ -337,3 +338,6 @@ def get_accounts_info(
 
     # Return list of pandas df
     return return_tables
+
+
+print(get_accounts_info("ebette1", "oc7doFWCsUk%$NV5u"))
