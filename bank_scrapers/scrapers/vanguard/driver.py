@@ -264,7 +264,9 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> Non
     vui_option.click()
 
     # Select last 18 months for date range
-    log.info(f"Finding date range options dropdown button element and waiting for it to be clickable...")
+    log.info(
+        f"Finding date range options dropdown button element and waiting for it to be clickable..."
+    )
     date_range: WebElement = wait_and_find_click_element(
         driver, wait, (By.XPATH, "//vui-select[@id='dateSelect']")
     )
@@ -272,12 +274,16 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> Non
     log.info(f"Clicking date range options dropdown button...")
     date_range.click()
 
-    log.info(f"Finding \'18 months\' option button element and waiting for it to be clickable...")
+    log.info(
+        f"Finding '18 months' option button element and waiting for it to be clickable..."
+    )
     vui_option_: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//vui-option/span[text()[contains(.,'18 months')]]/..")
+        driver,
+        wait,
+        (By.XPATH, "//vui-option/span[text()[contains(.,'18 months')]]/.."),
     )
 
-    log.info(f"Clicking \'18 months\' option button...")
+    log.info(f"Clicking '18 months' option button...")
     vui_option_.click()
 
     # Select for all accounts
@@ -450,13 +456,3 @@ def get_accounts_info(
 
     # Return list of pandas df
     return return_tables
-
-
-print(
-    get_accounts_info(
-        "ericbett",
-        "8D4%$j72Q!99L",
-        "/home/eric/tmp",
-        mfa_auth={"otp_contact_option": 2, "otp_code_location": "/media/eric/tmp"},
-    )
-)

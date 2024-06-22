@@ -79,13 +79,11 @@ def seek_accounts_data(
     :return: The web element of the accounts data
     """
     log.info(f"Finding zestimate element...")
+    zestimate_xpath: str = (
+        "//p/button[contains(text(),'Zestimate')]/../../h3[contains(text(),'$')]"
+    )
     zestimate: WebElement = wait_and_find_element(
-        driver,
-        wait,
-        (
-            By.XPATH,
-            "//p/button[contains(text(),'Zestimate')]/../../h3[contains(text(),'$')]",
-        ),
+        driver, wait, (By.XPATH, zestimate_xpath)
     )
 
     log.info(f"Finding address element...")

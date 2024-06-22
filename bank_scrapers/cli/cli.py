@@ -19,6 +19,8 @@ import pandas as pd
 from bank_scrapers.common.log import log, logging_levels
 
 # CLI Func Imports
+from bank_scrapers import print_version
+
 from bank_scrapers.scrapers.becu.driver import get_accounts_info as get_becu
 from bank_scrapers.scrapers.chase.driver import get_accounts_info as get_chase
 from bank_scrapers.scrapers.fidelity_netbenefits.driver import (
@@ -36,6 +38,14 @@ from bank_scrapers.api_wrappers.kraken.driver import get_accounts_info as get_kr
 
 from bank_scrapers.crypto.bitcoin.driver import get_accounts_info as get_bitcoin
 from bank_scrapers.crypto.ethereum.driver import get_accounts_info as get_ethereum
+
+
+def _get_version(args: argparse.Namespace) -> None:
+    """
+    A wrapper function for printing the library version
+    :param args: The argparse namespace containing args required by this function
+    """
+    print_version()
 
 
 def _get_becu(args: argparse.Namespace) -> None:
@@ -179,7 +189,9 @@ def _get_kraken(args: argparse.Namespace) -> None:
     A wrapper function for printing the Pandas response from the base function for CLI functionality
     :param args: The argparse namespace containing args required by this function
     """
-    tables: List[pd.DataFrame] = get_kraken(api_key=args.api_key[0], api_sec=args.secret_key[0])
+    tables: List[pd.DataFrame] = get_kraken(
+        api_key=args.api_key[0], api_sec=args.secret_key[0]
+    )
     for t in tables:
         print(t.to_string(index=False))
 
@@ -221,6 +233,10 @@ def main() -> None:
     sub_parser = parser.add_subparsers()
     sub_parser.required = True
     sub_parser.dest = "command"
+
+    # Version
+    version_parser = sub_parser.add_parser("version")
+    version_parser.set_defaults(func=_get_version)
 
     # BECU
     becu_parser = sub_parser.add_parser("becu")
