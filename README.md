@@ -1,4 +1,8 @@
-# Table of Contents
+![pip installation](bank_scrapers/docs/badges/pip.svg)
+![pip installation](bank_scrapers/docs/badges/version.svg)
+![pip installation](bank_scrapers/docs/badges/license.svg)
+
+# bank_scrapers
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
