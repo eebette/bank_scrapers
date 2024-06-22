@@ -8,7 +8,7 @@ def create_version_badge(
     right_text: str = version(),
     right_color: str = "blue",
     target: str = f"{ROOT_DIR}/docs/badges/version.svg",
-):
+) -> None:
     """
     Creates a version badge used in README.md
     :param left_text: The text on the left-hand side of the badge
