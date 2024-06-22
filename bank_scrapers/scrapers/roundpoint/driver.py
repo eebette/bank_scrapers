@@ -12,7 +12,6 @@ for t in tables:
 # Standard Library Imports
 from typing import List, Tuple, Dict, Union
 from datetime import datetime
-from time import sleep
 
 # Non-Standard Imports
 import pandas as pd
@@ -24,6 +23,9 @@ from undetected_chromedriver import Chrome, ChromeOptions
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+from bank_scrapers.common.log import log
+from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.scrapers.common.functions import (
     start_chromedriver,
     get_chrome_options,
@@ -32,10 +34,7 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
-from bank_scrapers.scrapers.common.types import MfaAuth
-from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
-from bank_scrapers.common.log import log
-from bank_scrapers.common.types import PrometheusMetric
+from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
 
 # Institution info
 INSTITUTION: str = "RoundPoint Mortgage"
@@ -105,7 +104,7 @@ def handle_multi_factor_authentication(
     mfa_option.click()
 
     # Click submit once it becomes clickable
-    log.info(f"Finding submit button element and waiting for it to be click-able...")
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
     submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.XPATH, "//bki-one-time-pin-verify//button[@type='submit']")
     )
@@ -120,7 +119,7 @@ def handle_multi_factor_authentication(
     )
     if mfa_auth is None:
         log.info(f"No automation info provided. Prompting user for OTP.")
-        otp_code: str = input("Enter 2FA Code: ")
+        otp_code: str = input("Enter OTP Code: ")
     else:
         log.info(
             f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
@@ -141,22 +140,24 @@ def handle_multi_factor_authentication(
     otp.send_keys(otp_code)
 
     # Click submit once it becomes clickable
-    log.info(f"Finding submit button element...")
-    submit: WebElement = wait_and_find_element(
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
+    submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.XPATH, "//bki-one-time-pin-verify//button[@type='submit']")
     )
-    driver.execute_script("arguments[0].click();", submit)
+    submit.click()
 
-    log.info(f"Sleeping for 5 seconds...")
-    sleep(5)
+    # log.info(f"Sleeping for 5 seconds...")
+    # sleep(5)
 
-    log.info(f"Finding close prompt button element...")
-    close: WebElement = wait_and_find_element(
+    log.info(
+        f"Finding close prompt button element and waiting for it to be clickable..."
+    )
+    close: WebElement = wait_and_find_click_element(
         driver, wait, (By.XPATH, "//bki-one-time-pin-verify//button[@type='submit']")
     )
 
     log.info(f"Clicking close prompt button element...")
-    driver.execute_script("arguments[0].click();", close)
+    close.click()
 
 
 def is_mfa_redirect(driver: Chrome) -> bool:
@@ -208,19 +209,23 @@ def logon(
 
     # TOS
     log.info(f"Finding TOS element...")
-    tos: WebElement = wait_and_find_element(driver, wait, (By.ID, "agreeToTerms-input"))
+
+    # Waiting for clickable doesn't trigger here
+    tos: WebElement = wait_and_find_element(
+        driver, wait, (By.XPATH, "//input[@id='agreeToTerms-input']")
+    )
 
     log.info(f"Clicking TOS element...")
-    driver.execute_script("arguments[0].click();", tos)
+    tos.click()
 
     # Submit credentials
-    log.info(f"Finding submit button element and waiting for it to be click-able...")
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
     submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.XPATH, "//button[@type='submit'][1]")
     )
 
     log.info(f"Clicking submit button element...")
-    driver.execute_script("arguments[0].click();", submit)
+    submit.click()
 
     # Wait for redirect to landing page or 2FA
     log.info(f"Waiting for redirect...")
@@ -325,8 +330,8 @@ def get_loan_number(driver: Chrome, wait: WebDriverWait) -> str:
     )
 
     # Find the element for the loan number
-    log.info(f"Finding loan number element...")
-    loan_number_element: WebElement = wait_and_find_element(
+    log.info(f"Finding loan number element and waiting for it to be clickable...")
+    loan_number_element: WebElement = wait_and_find_click_element(
         driver, wait, (By.XPATH, "//bki-myloan-balance//a[@class='card-link']")
     )
 
@@ -353,8 +358,10 @@ def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
     :return: A list of Pandas DataFrames containing the loans data
     """
     # Find and expand the dropdown list containing the account's loans
-    log.info(f"Finding loans button dropdown element...")
-    loans_button: WebElement = wait_and_find_element(
+    log.info(
+        f"Finding loans button dropdown element and waiting for it to be clickable..."
+    )
+    loans_button: WebElement = wait_and_find_click_element(
         driver, wait, (By.XPATH, "//div[@class='secondary-header-top']//button")
     )
 
@@ -363,10 +370,9 @@ def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
 
     # Get the list of loans in the dropdown list
     log.info(f"Finding loans button elements...")
+    loans_xpath: str = "//div[@id='loanMenuId']//div[contains(@class, 'cursor')]"
     loans: List[WebElement] = wait_and_find_elements(
-        driver,
-        wait,
-        (By.XPATH, "//div[@id='loanMenuId']//div[contains(@class, 'cursor')]"),
+        driver, wait, (By.XPATH, loans_xpath)
     )
 
     return_tables: List = list()
@@ -377,7 +383,7 @@ def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
             driver.get(DASHBOARD_PAGE)
 
         # Must click twice to expand list
-        log.info(f"Waiting for loans button dropdown element to be click-able...")
+        log.info(f"Waiting for loans button dropdown element to be clickable...")
         wait.until(EC.element_to_be_clickable(loans_button))
 
         log.info(f"Clicking loans button dropdown element...")
@@ -387,14 +393,14 @@ def scrape_loan_data(driver: Chrome, wait: WebDriverWait) -> List[pd.DataFrame]:
         loans_button.click()
 
         # Click on the next loan
-        log.info(f"Waiting for loan button element to be click-able...")
+        log.info(f"Waiting for loan button element to be clickable...")
         wait.until(EC.element_to_be_clickable(loan))
 
         log.info(f"Clicking loan button element...")
         loan.click()
 
-        log.info(f"Sleeping for 2 seconds...")
-        sleep(2)
+        # log.info(f"Sleeping for 2 seconds...")
+        # sleep(2)
 
         # Navigate the site and get the loan amount
         amount: str = seek_accounts_data(driver, wait)

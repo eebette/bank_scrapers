@@ -199,7 +199,7 @@ def wait_and_find_click_element(
     :param identifier: The k,v tuple used to identify the web object
     :return: The web element object
     """
-    log.debug(f"Waiting for element to be click-able: {identifier}")
+    log.debug(f"Waiting for element to be clickable: {identifier}")
     wait.until(EC.element_to_be_clickable(identifier))
     return driver.find_element(*identifier)
 

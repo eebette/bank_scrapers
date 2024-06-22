@@ -20,7 +20,4 @@ def print_version() -> None:
     """Prints the version number of this library"""
     print(version())
 
-
-# TODO: readme update,
-
-# TODO: Improve element locators, Replace waiting to be click-able operations with common function, Standardize #fa/mfa verbiage across project, Improve logging in vanguard seek_accounts_data
+# TODO: initial testing badge

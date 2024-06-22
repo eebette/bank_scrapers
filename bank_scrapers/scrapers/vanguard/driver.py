@@ -40,6 +40,9 @@ from pyvirtualdisplay import Display
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+from bank_scrapers.common.log import log
+from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.scrapers.common.functions import (
     start_chromedriver,
     get_chrome_options,
@@ -49,10 +52,7 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
-from bank_scrapers.scrapers.common.types import MfaAuth
-from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
-from bank_scrapers.common.log import log
-from bank_scrapers.common.types import PrometheusMetric
+from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
 
 # Institution info
 INSTITUTION: str = "Vanguard"
@@ -88,7 +88,7 @@ def handle_multi_factor_authentication(
     """
     log.info(f"Redirected to two-factor authentication page.")
 
-    # Select the mobile app 2FA option
+    # Select the mobile app MFA option
     log.info(f"Finding contact options elements...")
     mfa_buttons: List[WebElement] = wait_and_find_elements(
         driver, wait, (By.XPATH, "//lgn-auth-selection//button")
@@ -111,9 +111,9 @@ def handle_multi_factor_authentication(
     log.info(f"Clicking element for user selected contact option...")
     mfa_option.click()
 
-    # Prompt user for 2FA
+    # Prompt user for MFA
     if "app" in mfa_option_text:
-        print("Waiting for 2FA...")
+        print("Waiting for MFA...")
     else:
         log.info(f"Finding element for user selected contact option...")
         sms_button: WebElement = wait_and_find_element(
@@ -129,7 +129,7 @@ def handle_multi_factor_authentication(
         )
         if mfa_auth is None:
             log.info(f"No automation info provided. Prompting user for OTP.")
-            otp_code: str = input("Enter 2FA Code: ")
+            otp_code: str = input("Enter OTP Code: ")
         else:
             log.info(
                 f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
@@ -143,7 +143,7 @@ def handle_multi_factor_authentication(
                     10,
                     TIMEOUT,
                     True,
-                    delay=20,
+                    delay=30,
                 )
             )
 
@@ -160,7 +160,7 @@ def handle_multi_factor_authentication(
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def is_2fa_redirect(driver: Chrome) -> bool:
+def is_mfa_redirect(driver: Chrome) -> bool:
     """
     Checks and determines if the site is forcing MFA on the login attempt
     :param driver: The browser application
@@ -194,7 +194,9 @@ def logon(
     # Enter User
     sleep(randint(1, 5))
     log.info(f"Finding username element...")
-    user: WebElement = wait_and_find_click_element(driver, wait, (By.ID, "USER"))
+    user: WebElement = wait_and_find_click_element(
+        driver, wait, (By.XPATH, "//input[@id='USER']")
+    )
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
@@ -204,7 +206,7 @@ def logon(
     sleep(randint(1, 5))
     log.info(f"Finding password element...")
     passwd: WebElement = wait_and_find_element(
-        driver, wait, (By.ID, "PASSWORD-blocked")
+        driver, wait, (By.XPATH, "//input[@id='PASSWORD-blocked']")
     )
 
     log.info(f"Sending info to password element...")
@@ -212,9 +214,9 @@ def logon(
 
     # Submit credentials
     sleep(randint(1, 5))
-    log.info(f"Finding submit button element and waiting for it to be click-able...")
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
     submit: WebElement = wait_and_find_click_element(
-        driver, wait, (By.ID, "username-password-submit-btn")
+        driver, wait, (By.XPATH, "//button[@id='username-password-submit-btn-1']")
     )
 
     log.info(f"Clicking submit button element...")
@@ -224,7 +226,7 @@ def logon(
     wait.until(
         lambda _: "https://dashboard.web.vanguard.com/" in driver.current_url
         or "https://challenges.web.vanguard.com/" in driver.current_url
-        or is_2fa_redirect(driver)
+        or is_mfa_redirect(driver)
     )
 
 
@@ -245,63 +247,52 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> Non
     )
 
     # Select CSV option for download formats
-    log.info(f"Finding download button element and waiting for it to be click-able...")
+    log.info(f"Finding download options element and waiting for it to be clickable...")
     download_option: WebElement = wait_and_find_click_element(
-        driver, wait, (By.ID, "optionSelect")
+        driver, wait, (By.XPATH, "//vui-select[@id='optionSelect']")
     )
 
     log.info(f"Clicking download button...")
     download_option.click()
 
-    log.info(
-        f"Finding vui option button element and waiting for it to be click-able..."
-    )
+    log.info(f"Finding CSV option button element and waiting for it to be clickable...")
     vui_option: WebElement = wait_and_find_click_element(
-        driver, wait, (By.ID, "vuioption2")
+        driver, wait, (By.XPATH, "//vui-option/span[text()[contains(.,'CSV')]]/..")
     )
 
-    log.info(f"Clicking vui option button...")
+    log.info(f"Clicking CSV option button...")
     vui_option.click()
 
     # Select last 18 months for date range
-    log.info(
-        f"Finding date range button element and waiting for it to be click-able..."
-    )
+    log.info(f"Finding date range options dropdown button element and waiting for it to be clickable...")
     date_range: WebElement = wait_and_find_click_element(
-        driver, wait, (By.ID, "dateSelect")
+        driver, wait, (By.XPATH, "//vui-select[@id='dateSelect']")
     )
 
-    log.info(f"Clicking date range option button...")
+    log.info(f"Clicking date range options dropdown button...")
     date_range.click()
 
-    log.info(
-        f"Finding vui option button element and waiting for it to be click-able..."
-    )
+    log.info(f"Finding \'18 months\' option button element and waiting for it to be clickable...")
     vui_option_: WebElement = wait_and_find_click_element(
-        driver, wait, (By.ID, "vui-option-7")
+        driver, wait, (By.XPATH, "//vui-option/span[text()[contains(.,'18 months')]]/..")
     )
 
-    log.info(f"Clicking vui option button...")
+    log.info(f"Clicking \'18 months\' option button...")
     vui_option_.click()
 
     # Select for all accounts
-    log.info(f"Waiting for accounts checkbox element to exist...")
-    wait.until(EC.presence_of_element_located((By.ID, "mat-checkbox-1-input")))
-
-    log.info(
-        f"Finding accounts checkbox element and waiting for it to be click-able..."
-    )
+    log.info(f"Finding accounts checkbox element and waiting for it to be clickable...")
     mat_checkbox = wait_and_find_click_element(
-        driver, wait, (By.ID, "mat-checkbox-1-input")
+        driver, wait, (By.XPATH, "//input[@id='mat-checkbox-1-input']")
     )
 
     log.info(f"Clicking accounts checkbox element...")
     mat_checkbox.click()
 
     # Submit download request
-    log.info(f"Finding submit button element and waiting for it to be click-able...")
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
     submit: WebElement = wait_and_find_click_element(
-        driver, wait, (By.ID, "submitOFXDownload")
+        driver, wait, (By.XPATH, "//vui-button[@id='submitOFXDownload']")
     )
 
     log.info(f"Clicking submit button element...")
@@ -364,7 +355,7 @@ def get_account_types(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
     """
-    Wait for landing page after handling 2FA
+    Wait for landing page after handling MFA
     :param driver: The browser application
     :param wait: WebDriverWait object for the driver
     """
@@ -392,8 +383,8 @@ def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    display: Display = Display(visible=False, size=(800, 600))
-    display.start()
+    # display: Display = Display(visible=False, size=(800, 600))
+    # display.start()
 
     # Get Driver config
     chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
@@ -406,11 +397,11 @@ def get_accounts_info(
     # Navigate to the logon page and submit credentials
     logon(driver, wait, HOMEPAGE, username, password)
 
-    # Handle 2FA if prompted, or quit if Chase catches us
-    if is_2fa_redirect(driver):
+    # Handle MFA if prompted, or quit if Chase catches us
+    if is_mfa_redirect(driver):
         handle_multi_factor_authentication(driver, wait, mfa_auth)
 
-    # Wait for landing page after handling 2FA
+    # Wait for landing page after handling MFA
     wait_for_landing_page(driver, wait)
 
     # Get the account types while on the dashboard screen
@@ -459,3 +450,13 @@ def get_accounts_info(
 
     # Return list of pandas df
     return return_tables
+
+
+print(
+    get_accounts_info(
+        "ericbett",
+        "8D4%$j72Q!99L",
+        "/home/eric/tmp",
+        mfa_auth={"otp_contact_option": 2, "otp_code_location": "/media/eric/tmp"},
+    )
+)

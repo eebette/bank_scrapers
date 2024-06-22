@@ -12,7 +12,6 @@ for t in tables:
 # Standard Library Imports
 from typing import List, Tuple, Dict, Union
 from datetime import datetime
-from time import sleep
 
 # Non-Standard Imports
 import pandas as pd
@@ -24,6 +23,9 @@ from undetected_chromedriver import Chrome, ChromeOptions
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+from bank_scrapers.common.log import log
+from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.scrapers.common.functions import (
     start_chromedriver,
     get_chrome_options,
@@ -32,10 +34,7 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
-from bank_scrapers.scrapers.common.types import MfaAuth
-from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
-from bank_scrapers.common.log import log
-from bank_scrapers.common.types import PrometheusMetric
+from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
 
 
 # Institution info
@@ -62,7 +61,7 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def is_2fa_redirect(driver: Chrome) -> bool:
+def is_mfa_redirect(driver: Chrome) -> bool:
     """
     Checks and determines if the site is forcing MFA on the login attempt
     :param driver: The browser application
@@ -86,7 +85,7 @@ def handle_multi_factor_authentication(
     """
     log.info(f"Redirected to two-factor authentication page.")
 
-    # Find the 2FA options presented by the app
+    # Find the MFA options presented by the app
     log.info(f"Finding MFA options elements...")
     options_buttons: List[WebElement] = wait_and_find_elements(
         driver,
@@ -110,9 +109,7 @@ def handle_multi_factor_authentication(
     log.debug(f"Contact option: {l_index}")
 
     # Click based on user input
-    log.info(
-        f"Waiting for element for user selected contact option to be click-able..."
-    )
+    log.info(f"Waiting for element for user selected contact option to be clickable...")
     mfa_option: WebElement = wait.until(
         EC.element_to_be_clickable(options_buttons[l_index])
     )
@@ -121,7 +118,7 @@ def handle_multi_factor_authentication(
     mfa_option.click()
 
     # Click submit once it becomes clickable
-    log.info(f"Finding submit button element and waiting for it to be click-able...")
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
     submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.XPATH, "//button[contains(text(), 'Get Code')]")
     )
@@ -136,7 +133,7 @@ def handle_multi_factor_authentication(
     )
     if mfa_auth is None:
         log.info(f"No automation info provided. Prompting user for OTP.")
-        otp_code: str = input("Enter 2FA Code: ")
+        otp_code: str = input("Enter OTP Code: ")
     else:
         log.info(
             f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
@@ -157,7 +154,7 @@ def handle_multi_factor_authentication(
     otp_input.send_keys(otp_code)
 
     # Click submit once it becomes clickable
-    log.info(f"Finding submit button element and waiting for it to be click-able...")
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
     submit: WebElement = wait_and_find_click_element(
         driver,
         wait,
@@ -190,7 +187,9 @@ def logon(
 
     # Enter User
     log.info(f"Finding username element...")
-    user: WebElement = wait_and_find_click_element(driver, wait, (By.ID, "username"))
+    user: WebElement = wait_and_find_click_element(
+        driver, wait, (By.XPATH, "//input[@id='username']")
+    )
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
@@ -198,13 +197,15 @@ def logon(
 
     # Enter Password
     log.info(f"Finding password element...")
-    passwd: WebElement = wait_and_find_element(driver, wait, (By.ID, "password"))
+    passwd: WebElement = wait_and_find_element(
+        driver, wait, (By.XPATH, "//input[@id='password']")
+    )
 
     log.info(f"Sending info to password element...")
     passwd.send_keys(password)
 
-    log.info(f"Sleeping for 2 seconds....")
-    sleep(2)
+    # log.info(f"Sleeping for 2 seconds....")
+    # sleep(2)
 
     # Submit will sometimes stay inactive unless interacted with
     log.info(f"Finding submit button element...")
@@ -215,28 +216,28 @@ def logon(
     log.info(f"Clicking submit button element...")
     submit.click()
 
-    # Wait for redirect to landing page or 2FA
+    # Wait for redirect to landing page or MFA
     log.info(f"Waiting for redirect...")
     wait.until(
         lambda _: "https://online.uhfcu.com/consumer/main/dashboard"
         in driver.current_url
-        or is_2fa_redirect(driver)
+        or is_mfa_redirect(driver)
     )
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def seek_credit_accounts_data(
-    driver: Chrome, wait: WebDriverWait, t: WebElement
+    driver: Chrome, wait: WebDriverWait, table: WebElement
 ) -> None:
     """
     Navigate the website to get to the credit accounts details subpage
     :param driver: The Chrome browser application
     :param wait: WebDriverWait object for the driver
-    :param t: The table on the dashboard which is being navigated for info
+    :param table: The table on the dashboard which is being navigated for info
     """
     # Click into the credit card table
     log.info(f"Clicking into the credit card table...")
-    t.click()
+    table.click()
 
     # Navigate to the Manage Cards button on the page and click it
     log.info(f"Finding the Manage Cards button element...")
@@ -247,12 +248,12 @@ def seek_credit_accounts_data(
     log.info(f"Clicking the Manage Cards button element...")
     manage_cards_btn.click()
 
-    log.info(f"Sleeping for 3 seconds...")
-    sleep(3)
+    # Wait for the new window or tab
+    log.info(f"Waiting for new window...")
+    wait.until(EC.number_of_windows_to_be(2))
 
     # Switch to the new window
-
-    log.info(f"Switching to  the Manage Cards window...")
+    log.info(f"Switching to the Manage Cards window...")
     driver.switch_to.window(driver.window_handles[1])
 
 
@@ -265,7 +266,7 @@ def parse_credit_card_info(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
     :return: A pandas dataframe of the credit card accounts data on the page
     """
     # Identify the account info rows on the screen
-    log.info(f"Finding into the credit card details table...")
+    log.info(f"Finding the credit card details table...")
     data_tbl: WebElement = wait_and_find_element(
         driver, wait, (By.XPATH, "//div[@class='module module-condensed'][1]")
     )
@@ -374,7 +375,7 @@ def post_process_tables(
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
     """
-    Wait for landing page after handling 2FA
+    Wait for landing page after handling MFA
     :param driver: The browser application
     :param wait: WebDriverWait object for the driver
     """
@@ -421,11 +422,11 @@ def get_accounts_info(
     # Navigate to the logon page and submit credentials
     logon(driver, wait, HOMEPAGE, username, password)
 
-    # Handle 2FA if prompted, or quit if Chase catches us
-    if is_2fa_redirect(driver):
+    # Handle MFA if prompted, or quit if Chase catches us
+    if is_mfa_redirect(driver):
         handle_multi_factor_authentication(driver, wait, mfa_auth)
 
-    # Wait for landing page after handling 2FA
+    # Wait for landing page after handling MFA
     wait_for_landing_page(driver, wait)
 
     # Process tables

@@ -23,20 +23,20 @@ from undetected_chromedriver import Chrome, ChromeOptions
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
+from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate
+from bank_scrapers.common.log import log
+from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.scrapers.common.functions import (
     start_chromedriver,
     get_chrome_options,
     wait_and_find_element,
+    wait_and_find_elements,
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
-from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate
-from bank_scrapers.common.log import log
-from bank_scrapers.common.types import PrometheusMetric
 
 # Institution info
 INSTITUTION: str = "SMBC Prestia"
-SYMBOL: str = "JPY"
 
 # Logon page
 HOMEPAGE: str = (
@@ -77,7 +77,9 @@ def logon(
 
     # Enter User
     log.info(f"Finding username element...")
-    user: WebElement = wait_and_find_click_element(driver, wait, (By.ID, "dispuserId"))
+    user: WebElement = wait_and_find_click_element(
+        driver, wait, (By.XPATH, "//input[@id='dispuserId']")
+    )
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
@@ -85,7 +87,9 @@ def logon(
 
     # Enter Password
     log.info(f"Finding password element...")
-    passwd: WebElement = wait_and_find_element(driver, wait, (By.ID, "disppassword"))
+    passwd: WebElement = wait_and_find_element(
+        driver, wait, (By.XPATH, "//input[@id='disppassword']")
+    )
 
     log.info(f"Sending info to password element...")
     passwd.send_keys(password)
@@ -99,12 +103,12 @@ def logon(
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> WebElement:
+def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
     """
     Navigate the website and find the accounts data for the user
     :param driver: The Chrome browser application
     :param wait: WebDriverWait object for the driver
-    :return: The web element of the accounts data
+    :return: The list of web elements of the accounts data
     """
     log.info(f"Finding accounts button element...")
     accounts_btn: WebElement = wait_and_find_click_element(
@@ -123,39 +127,56 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> WebElement:
     balance_btn.click()
 
     log.info(f"Finding account info table element...")
-    table: WebElement = driver.find_element(
-        By.CSS_SELECTOR,
-        "body > form:nth-child(2) > main > div > section > div.inner > table.table.table-normal",
+    tables: List[WebElement] = wait_and_find_elements(
+        driver, wait, (By.XPATH, "//table[contains(@class, 'table-normal')]")
     )
 
-    return table
+    return tables
 
 
-def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
+def parse_accounts_summary(tables: List[WebElement]) -> pd.DataFrame:
     """
     Post-processing of the table html
-    :param table: The html input of the accounts data from the site
+    :param tables: The WebElement inputs of the accounts data from the site
     :return: A pandas dataframe of the downloaded data
     """
-    # Create a simple dataframe from the input amount
-    html: str = table.get_attribute("outerHTML")
-    df: pd.DataFrame = pd.read_html(StringIO(str(html)))[0]
+    table_dfs: List[pd.DataFrame] = list()
+    for table in tables:
+        # Create a simple dataframe from the input amount
+        html: str = table.get_attribute("outerHTML")
+        df: pd.DataFrame = pd.read_html(StringIO(str(html)))[0]
 
-    # Remove non-numeric, non-decimal characters
-    df: pd.DataFrame = df.replace(to_replace=r"[^0-9\.]+", value="", regex=True)
+        # Remove non-numeric, non-decimal characters
+        df["Account Number"]: pd.DataFrame = df["Account Number"].replace(
+            to_replace=r"[^0-9\.]+", value="", regex=True
+        )
+        df["Available Amount"]: pd.DataFrame = df["Available Amount"].replace(
+            to_replace=r"[^0-9\.]+", value="", regex=True
+        )
 
-    # Int-ify the monthly payment amount column
-    df: pd.DataFrame = df.apply(pd.to_numeric, errors="coerce")
+        # Int-ify the monthly payment amount column
+        df["Account Number"]: pd.DataFrame = df["Account Number"].apply(
+            pd.to_numeric, errors="coerce"
+        )
+        df["Available Amount"]: pd.DataFrame = df["Available Amount"].apply(
+            pd.to_numeric, errors="coerce"
+        )
 
-    # Drop columns where all values are null
-    df: pd.DataFrame = df.dropna(axis=1, how="all")
+        # Drop unnamed columns
+        df: pd.DataFrame = df.loc[:, ~df.columns.str.contains("^Unnamed")]
 
-    df["symbol"]: pd.DataFrame = SYMBOL
-    df["account_type"]: pd.DataFrame = "deposit"
-    df["usd_value"]: pd.DataFrame = get_usd_rate(SYMBOL)
+        # Drop columns where all values are null
+        df: pd.DataFrame = df.dropna(axis=1, how="all")
+
+        df["account_type"]: pd.DataFrame = "deposit"
+        df["usd_value"]: pd.DataFrame = df["Currency"].map(get_usd_rate)
+
+        table_dfs.append(df)
+
+    return_df: pd.DataFrame = pd.concat(table_dfs)
 
     # Return the dataframe
-    return df
+    return return_df
 
 
 def get_accounts_info(
@@ -179,7 +200,7 @@ def get_accounts_info(
     logon(driver, wait, HOMEPAGE, username, password)
 
     # Navigate the site and download the accounts data
-    accounts_data: WebElement = seek_accounts_data(driver, wait)
+    accounts_data: List[WebElement] = seek_accounts_data(driver, wait)
     accounts_data_df: pd.DataFrame = parse_accounts_summary(accounts_data)
 
     # Process tables
@@ -194,7 +215,7 @@ def get_accounts_info(
             return_tables,
             INSTITUTION,
             "Account Number",
-            "symbol",
+            "Currency",
             "Available Amount",
             "account_type",
         )
@@ -203,7 +224,7 @@ def get_accounts_info(
             return_tables,
             INSTITUTION,
             "Account Number",
-            "symbol",
+            "Currency",
             "usd_value",
             "account_type",
         )

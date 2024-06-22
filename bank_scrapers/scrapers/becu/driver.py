@@ -24,6 +24,9 @@ from undetected_chromedriver import Chrome, ChromeOptions
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
+from bank_scrapers.common.functions import convert_to_prometheus
+from bank_scrapers.common.types import PrometheusMetric
+from bank_scrapers.common.log import log
 from bank_scrapers.scrapers.common.functions import (
     start_chromedriver,
     get_chrome_options,
@@ -32,9 +35,6 @@ from bank_scrapers.scrapers.common.functions import (
     wait_and_find_click_element,
     screenshot_on_timeout,
 )
-from bank_scrapers.common.functions import convert_to_prometheus
-from bank_scrapers.common.types import PrometheusMetric
-from bank_scrapers.common.log import log
 
 # Institution info
 INSTITUTION: str = "BECU"
@@ -183,7 +183,7 @@ def logon(
     passwd.send_keys(password)
 
     # Submit
-    log.info(f"Finding submit button element...")
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
     submit: WebElement = wait_and_find_click_element(
         driver, wait, (By.XPATH, "//input[@id='ctlSignon_btnLogin']")
     )
@@ -205,7 +205,7 @@ def logon(
             log.info(f"Redirected to marketing offer page.")
 
             # Decline offer
-            log.info(f"Finding decline button element...")
+            log.info(f"Finding decline button element and waiting for it to be clickable...")
             decline_btn: WebElement = wait_and_find_click_element(
                 driver, wait, (By.NAME, "ctlWorkflow$decline")
             )
@@ -233,7 +233,7 @@ def logon(
             answer_input.send_keys(mfa_answer)
 
             # Find agree/submit button and click
-            log.info(f"Finding agree/submit button element...")
+            log.info(f"Finding agree/submit button element and waiting for it to be clickable...")
             agree_input: WebElement = wait_and_find_click_element(
                 driver, wait, (By.ID, "agree-and-continue-button")
             )
@@ -339,5 +339,3 @@ def get_accounts_info(
     # Return list of pandas df
     return return_tables
 
-
-print(get_accounts_info("ebette1", "oc7doFWCsUk%$NV5u"))

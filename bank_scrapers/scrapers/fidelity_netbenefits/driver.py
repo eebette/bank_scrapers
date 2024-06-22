@@ -27,29 +27,32 @@ from typing import List, Tuple, Union
 from datetime import datetime
 from time import sleep
 import os
+import glob
 
 # Non-Standard Imports
 import pandas as pd
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
 from undetected_chromedriver import Chrome, ChromeOptions
 from pyvirtualdisplay import Display
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+from bank_scrapers.common.log import log
+from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.scrapers.common.functions import (
     start_chromedriver,
     get_chrome_options,
     enable_downloads,
     wait_and_find_element,
+    wait_and_find_click_element,
     screenshot_on_timeout,
 )
-from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
-from bank_scrapers.common.log import log
-from bank_scrapers.common.types import PrometheusMetric
-from bank_scrapers.scrapers.fidelity_netbenefits.types import FidelityNetBenefitsMfaAuth
+from bank_scrapers.scrapers.fidelity_netbenefits.mfa_auth import (
+    FidelityNetBenefitsMfaAuth,
+)
 
 # Institution info
 INSTITUTION: str = "Fidelity NetBenefits"
@@ -94,10 +97,11 @@ def handle_multi_factor_authentication(
     log.info(f"Redirected to two-factor authentication page.")
 
     log.info(f"Finding Text Me button element...")
+    text_me_button_xpath: str = (
+        "//pvd-button[@pvd-id='dom-channel-list-primary-button']"
+    )
     text_me_button: WebElement = wait_and_find_element(
-        driver,
-        wait,
-        (By.XPATH, "//pvd-button[@pvd-id='dom-channel-list-primary-button']"),
+        driver, wait, (By.XPATH, text_me_button_xpath)
     )
 
     log.info(f"Clicking Text Me button element...")
@@ -106,13 +110,13 @@ def handle_multi_factor_authentication(
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
     otp_input: WebElement = wait_and_find_element(
-        driver, wait, (By.ID, "dom-otp-code-input")
+        driver, wait, (By.XPATH, "//input[@id='dom-otp-code-input']")
     )
 
     # Prompt user input for MFA option
     if mfa_auth is None:
         log.info(f"No automation info provided. Prompting user for OTP.")
-        otp_code: str = input("Enter 2FA Code: ")
+        otp_code: str = input("Enter OTP Code: ")
     else:
         log.info(
             f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
@@ -133,13 +137,10 @@ def handle_multi_factor_authentication(
     otp_input.send_keys(otp_code)
 
     # Click submit once it becomes clickable
-    log.info(f"Finding submit button element...")
-    submit: WebElement = wait_and_find_element(
-        driver, wait, (By.ID, "dom-otp-code-submit-button")
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
+    submit: WebElement = wait_and_find_click_element(
+        driver, wait, (By.XPATH, "//button[@id='dom-otp-code-submit-button']")
     )
-
-    log.info(f"Waiting for submit button element to be click-able...")
-    wait.until(EC.element_to_be_clickable((By.ID, "dom-otp-code-submit-button")))
 
     log.info(f"Clicking submit button element...")
     submit.click()
@@ -164,7 +165,7 @@ def logon(
     # Enter User
     log.info(f"Finding username element...")
     user: WebElement = wait_and_find_element(
-        driver, wait, (By.ID, "dom-username-input")
+        driver, wait, (By.XPATH, "//input[@id='dom-username-input']")
     )
 
     log.info(f"Sending info to username element...")
@@ -173,15 +174,17 @@ def logon(
 
     # Enter Password
     log.info(f"Finding password element...")
-    passwd: WebElement = wait_and_find_element(driver, wait, (By.ID, "dom-pswd-input"))
+    passwd: WebElement = wait_and_find_element(
+        driver, wait, (By.XPATH, "//input[@id='dom-pswd-input']")
+    )
 
     log.info(f"Sending info to password element...")
     passwd.send_keys(password)
 
     # Submit
-    log.info(f"Finding submit button element...")
-    submit: WebElement = wait_and_find_element(
-        driver, wait, (By.ID, "dom-login-button")
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
+    submit: WebElement = wait_and_find_click_element(
+        driver, wait, (By.XPATH, "//button[@id='dom-login-button']")
     )
 
     log.info(f"Clicking submit button element...")
@@ -197,11 +200,12 @@ def logon(
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
+def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> None:
     """
     Navigate the website and click download button for the accounts data
     :param driver: The Chrome browser application
     :param wait: WebDriverWait object for the driver
+    :param tmp_dir: An empty directory to use for processing the downloaded file
     """
     # Go to the accounts page
     log.info(f"Accessing: {DASHBOARD_PAGE}")
@@ -209,19 +213,18 @@ def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> None:
 
     # Wait for the downloads button to be clickable
     log.info(f"Finding download button element...")
-    download_btn: WebElement = wait.until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//button[@aria-label='Download Positions']")
-        )
+    download_btn: WebElement = wait_and_find_click_element(
+        driver, wait, (By.XPATH, "//button[@aria-label='Download Positions']")
     )
 
     # Click the button
     log.info(f"Clicking download button element...")
     download_btn.click()
 
-    # Sleep time to make sure the download completes
-    log.info(f"Sleeping for 3 seconds...")
-    sleep(3)
+    # Allow the download to process
+    while not glob.glob(os.path.join(tmp_dir, "Portfolio_Positions_*.csv")):
+        log.info(f"Waiting for file: {tmp_dir}/Portfolio_Positions_*.csv")
+        sleep(1)
 
 
 def parse_accounts_summary(full_path: str) -> pd.DataFrame:
@@ -248,7 +251,7 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def is_2fa_redirect(driver: Chrome) -> bool:
+def is_mfa_redirect(driver: Chrome) -> bool:
     """
     Checks and determines if the site is forcing MFA on the login attempt
     :param driver: The browser application
@@ -309,14 +312,14 @@ def get_accounts_info(
     logon(driver, wait, HOMEPAGE, username, password)
 
     # If 2FA...
-    if is_2fa_redirect(driver):
+    if is_mfa_redirect(driver):
         handle_multi_factor_authentication(driver, wait, mfa_auth)
 
     # Wait for redirect to landing page
     wait_for_landing_page(driver, wait)
 
     # Navigate the site and download the accounts data
-    seek_accounts_data(driver, wait)
+    seek_accounts_data(driver, wait, tmp_dir)
 
     file_name: str = os.listdir(tmp_dir)[0]
     try:
