@@ -6,8 +6,6 @@ import os
 
 NAME: str = "bank_scrapers"
 VERSION: str = "1.0.13"
-
-
 ROOT_DIR: str = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -19,5 +17,3 @@ def version() -> str:
 def print_version() -> None:
     """Prints the version number of this library"""
     print(version())
-
-# TODO: initial testing badge
