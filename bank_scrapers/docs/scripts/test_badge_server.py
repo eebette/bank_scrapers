@@ -41,9 +41,9 @@ def serve_badge() -> flask.Response:
     """Serve a badge image based on the request query string.
     :return: A flask response object with the requested badge
     """
-    b = BADGES[flask.request.args.get("name")]
+    b: BadgeStatus = BADGES[flask.request.args.get("name")]
 
-    badge = pybadges.badge(
+    badge: str = pybadges.badge(
         left_text=b.time,
         right_text=f"Test {'Passed' if b.status == 'pass' else 'Failed'}",
         right_color=f"{'green' if b.status == 'pass' else 'red'}",
