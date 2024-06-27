@@ -53,7 +53,11 @@ HOMEPAGE: str = "https://www.chase.com/personal/credit-cards/login-account-acces
 TIMEOUT: int = 60
 
 # Chrome config
+USER_AGENT: str = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36"
+)
 CHROME_OPTIONS: List[str] = [
+    f"user-agent={USER_AGENT}",
     "--no-sandbox",
     "--window-size=1920,1080",
     "--disable-gpu",
@@ -699,7 +703,7 @@ def get_accounts_info(
     # Wait to be redirected to the next stage of the login process
     wait_for_redirect(driver, wait)
 
-    # Handle 2FA if prompted, or quit if Chase catches us
+    # Handle MFA if prompted, or quit if Chase catches us
     if is_mfa_redirect(driver):
         handle_multi_factor_authentication(driver, wait, password, mfa_auth)
     elif is_mfa_redirect_alternate(driver):
