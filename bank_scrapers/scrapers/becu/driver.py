@@ -54,7 +54,7 @@ CHROME_OPTIONS: List[str] = [
     f"user-agent={USER_AGENT}",
     "--no-sandbox",
     "--window-size=1920,1080",
-    # "--headless",
+    "--headless",
     "--disable-gpu",
     "--allow-running-insecure-content",
 ]
