@@ -20,7 +20,12 @@ dependencies = [
     "undetected-chromedriver>=3.5.0",
     "lxml>=4.9.2",
     "setuptools>=69.5.1",
-    "lxml>=5.2.2"
+    "lxml>=5.2.2",
+    "yfinance>=0.2.40",
+    "web3>=7.0.0b6",
+    "PyVirtualDisplay>=3.0",
+    "pybadges>=3.0.1",
+    "prometheus_client>=0.20.0"
 
 ]
 
