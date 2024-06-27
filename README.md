@@ -247,6 +247,8 @@ experience/workflow as seen in the eyes of the website provider.
 
 ## BECU
 
+![test_badge](https://badges.basingse.top/bank_scrapers?name=becu)
+
 [Boeing Enterprises Credit Union](https://www.becu.org/)
 
 ### About
@@ -287,6 +289,8 @@ for t in tables:
 |    #### |         ####.## |            ##### | credit       | USD    |         1 |
 
 ## Chase
+
+![test_badge](https://badges.basingse.top/bank_scrapers?name=chase)
 
 [Chase Banking](https://www.chase.com/)
 
@@ -387,6 +391,8 @@ Provides int-ified values for each of the columns.
 
 ## Fidelity NetBenefits
 
+![test_badge](https://badges.basingse.top/bank_scrapers?name=fidelity_netbenefits)
+
 [Fidelity NetBenefits](https://nb.fidelity.com/)
 
 > ❗️This driver is designed to work on the webpage for Fidelity NetBenefits, which is Fidelity's net interface for
@@ -469,6 +475,8 @@ Note that Fidelity doesn't have any `otp_contact_option`.
 
 ## RoundPoint
 
+![test_badge](https://badges.basingse.top/bank_scrapers?name=roundpoint)
+
 [RoundPoint Mortgage](https://www.roundpointmortgage.com/)
 
 ### About
@@ -535,6 +543,8 @@ Enter OTP Code: {user_enters_otp_code}
 
 ## SMBC Prestia
 
+![test_badge](https://badges.basingse.top/bank_scrapers?name=smbc_prestia)
+
 [Sumitomo Mitsui Banking Corporation PRESTIA](https://www.smbctb.co.jp)
 
 ### About
@@ -571,6 +581,8 @@ for t in tables:
 |       ######## |                # | JPY    | deposit      | #.######## |
 
 ## UHFCU
+
+![test_badge](https://badges.basingse.top/bank_scrapers?name=uhfcu)
 
 [University of Hawaii Federal Credit Union](https://www.uhfcu.com//)
 
@@ -643,6 +655,8 @@ Enter OTP Code: {user_enters_otp_code}
 |               # | $#.##           | $#.##             | $##,###.##       | $##.##       | $#.##             | Not Available    | Jun ##, ####, #:##:## PM |         #### | USD    | credit       |         1 |
 
 ## Vanguard
+
+![test_badge](https://badges.basingse.top/bank_scrapers?name=vanguard)
 
 [The Vanguard Group](https://investor.vanguard.com/)
 
@@ -726,6 +740,8 @@ Enter OTP Code: {user_enters_otp_code}
 
 ## Zillow
 
+![test_badge](https://badges.basingse.top/bank_scrapers?name=zillow)
+
 [Zillow](https://www.zillow.com/)
 
 ### About
@@ -769,6 +785,8 @@ These are wrappers written around API endpoints provided by providers and are ge
 processes of getting accounts info cohesive across this library.
 
 ## Kraken
+
+![test_badge](https://badges.basingse.top/bank_scrapers?name=kraken)
 
 [Kraken](https://www.kraken.com/)
 
@@ -815,6 +833,8 @@ This library also contains a few handy functions for pulling the value of a give
 
 ## Bitcoin (BTC)
 
+![test_badge](https://badges.basingse.top/bank_scrapers?name=bitcoin)
+
 [Bitcoin](https://finance.yahoo.com/quote/BTC-USD/)
 
 ### About
@@ -857,6 +877,8 @@ for t in tables:
 
 
 ## Ethereum (ETH)
+
+![test_badge](https://badges.basingse.top/bank_scrapers?name=ethereum)
 
 [Ethereum](https://finance.yahoo.com/quote/ETH-USD/)
 
