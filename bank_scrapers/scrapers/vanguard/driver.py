@@ -34,7 +34,6 @@ import pandas as pd
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
 from undetected_chromedriver import Chrome, ChromeOptions
 from pyvirtualdisplay import Display
 
@@ -143,7 +142,7 @@ def handle_multi_factor_authentication(
                     10,
                     TIMEOUT,
                     True,
-                    delay=30,
+                    delay=15,
                 )
             )
 
@@ -389,8 +388,8 @@ def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    # display: Display = Display(visible=False, size=(800, 600))
-    # display.start()
+    display: Display = Display(visible=False, size=(800, 600))
+    display.start()
 
     # Get Driver config
     chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
