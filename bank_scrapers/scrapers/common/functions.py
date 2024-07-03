@@ -221,7 +221,7 @@ def screenshot_on_timeout(save_path: str):
                 log.error(traceback.format_exc())
                 log.warning(f"Saving screenshot to: {save_path}")
                 driver.save_screenshot(save_path)
-                exit(1)
+                raise
 
         return _screenshot_on_timeout
 
