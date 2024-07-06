@@ -281,10 +281,11 @@ async def parse_accounts_summary(table: Locator) -> pd.DataFrame:
     dt_list: List[Locator] = await table.locator("xpath=.//dt").all()
     dt: List[str] = list()
     for d in dt_list:
-        if len(await d.text_content()) == 0:
+        text_content: str = await d.text_content()
+        if len(text_content) == 0:
             dt.append(await d.locator("span[class='link__text']").text_content())
         else:
-            dt.append(await d.text_content())
+            dt.append(text_content)
 
     # Data
     dd: List[str] = await table.locator("xpath=.//dd").all_inner_texts()
