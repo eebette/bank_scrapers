@@ -55,22 +55,22 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
-    driver: Page, username: str, password: str, homepage: str = HOMEPAGE
+    page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
     Opens and signs on to an account
-    :param driver: The browser application
+    :param page: The browser application
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param homepage: The logon url to initially navigate
     """
     # Logon Page
     log.info(f"Accessing: {homepage}")
-    await driver.goto(homepage, timeout=TIMEOUT, wait_until="load")
+    await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
     # Navigate the login iframe
     log.info(f"Switching to iframe...")
-    iframe: Frame = driver.frame("routablecpologonbox")
+    iframe: Frame = page.frame("routablecpologonbox")
 
     # Username
     log.info(f"Finding username element...")
@@ -95,45 +95,45 @@ async def logon(
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def wait_for_redirect(driver: Page) -> None:
+async def wait_for_redirect(page: Page) -> None:
     """
     Wait for the page to redirect to the next stage of the login process
-    :param driver: The browser application
+    :param page: The browser application
     """
     # Wait for redirect to landing page or MFA
     log.info(f"Handling redirect...")
     current_url: str = str()
     while "/auth/" not in current_url and "/dashboard/" not in current_url:
         await asyncio.sleep(1)
-        current_url: str = driver.url
+        current_url: str = page.url
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def is_mfa_redirect(driver: Page) -> bool:
+async def is_mfa_redirect(page: Page) -> bool:
     """
     Checks and determines if the site is forcing MFA on the login attempt
-    :param driver: The Chrome browser application
+    :param page: The Chrome browser application
     :return: True if MFA is being enforced
     """
-    if "/auth/" in driver.url:
+    if "/auth/" in page.url:
         return True
     else:
         return False
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
+async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     """
     Navigates the MFA workflow for this website
     Note that this function only covers Email Me options for now.
-    :param driver: The Chrome driver/browser used for this function
+    :param page: The Chrome page/browser used for this function
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
     log.info(f"Redirected to multi-factor authentication page.")
 
     # Identify MFA options
     log.info(f"Finding contact options elements...")
-    contact_options_shadow_root: Locator = driver.locator("mds-list[id='optionsList']")
+    contact_options_shadow_root: Locator = page.locator("mds-list[id='optionsList']")
     await expect(contact_options_shadow_root).to_be_visible(timeout=TIMEOUT)
     contact_options: List[Locator] = await contact_options_shadow_root.locator(
         "li"
@@ -161,7 +161,7 @@ async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Open accounts dropdown
     log.info(f"Finding next button element...")
-    next_button_shadow_root: Locator = driver.locator("mds-button[id='next-content']")
+    next_button_shadow_root: Locator = page.locator("mds-button[id='next-content']")
     await expect(next_button_shadow_root).to_be_visible(timeout=TIMEOUT)
     next_button: Locator = next_button_shadow_root.locator("button")
 
@@ -170,7 +170,7 @@ async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
-    otp_input_shadow_root: Locator = driver.locator("mds-text-input-secure")
+    otp_input_shadow_root: Locator = page.locator("mds-text-input-secure")
     await expect(otp_input_shadow_root).to_be_visible(timeout=TIMEOUT)
     otp_input: Locator = otp_input_shadow_root.locator("input[id='otpInput-input']")
 
@@ -193,7 +193,7 @@ async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")
-    submit_button_shadow_root: Locator = driver.locator("mds-button[id='next-content']")
+    submit_button_shadow_root: Locator = page.locator("mds-button[id='next-content']")
     await expect(submit_button_shadow_root).to_be_visible(timeout=TIMEOUT)
     submit_button: Locator = submit_button_shadow_root.locator("button")
 
@@ -202,14 +202,14 @@ async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def seek_accounts_data(driver: Page) -> None:
+async def seek_accounts_data(page: Page) -> None:
     """
     Navigate the website and click download button for the accounts data
-    :param driver: The Chrome browser application
+    :param page: The Chrome browser application
     """
     # Navigate shadow root
     log.info(f"Finding shadow root for accounts dropdown element...")
-    dropdown_shadow_root: Locator = driver.locator("mds-button[text='More']")
+    dropdown_shadow_root: Locator = page.locator("mds-button[text='More']")
     await expect(dropdown_shadow_root).to_be_visible(timeout=TIMEOUT)
 
     # Open accounts dropdown
@@ -237,17 +237,17 @@ async def seek_accounts_data(driver: Page) -> None:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def get_account_number(driver: Page) -> str:
+async def get_account_number(page: Page) -> str:
     """
     Gets the account number from the credit card details page
-    :param driver: The browser application
+    :param page: The browser application
     :return: A string containing the account number
     """
     log.info(f"Finding account number element...")
     account_number_xpath: str = (
         "//h2[contains(@class, 'accountdetails')]/span[contains(@class, 'mask-number')]"
     )
-    account_number_element: Locator = driver.locator(f"xpath={account_number_xpath}")
+    account_number_element: Locator = page.locator(f"xpath={account_number_xpath}")
     account_number_text: str = await account_number_element.text_content()
 
     log.debug(f"Account number (raw): {account_number_text}")
@@ -257,14 +257,14 @@ async def get_account_number(driver: Page) -> str:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def get_detail_tables(driver: Page) -> List[Locator]:
+async def get_detail_tables(page: Page) -> List[Locator]:
     """
     Gets the web elements for the tables containing the account details for each account
-    :param driver: The browser application
+    :param page: The browser application
     :return: A list containing the web elements for the tables
     """
     log.info(f"Finding account details elements...")
-    tables: List[Locator] = await driver.locator(
+    tables: List[Locator] = await page.locator(
         "xpath=//dl[contains(@class, 'details-bar')]"
     ).all()
     return tables
@@ -334,28 +334,28 @@ async def run(
         args=["--disable-blink-features=AutomationControlled"],
     )
     context: BrowserContext = await AsyncNewContext(browser, fingerprint=fingerprint)
-    driver: Page = await context.new_page()
+    page: Page = await context.new_page()
 
     # Navigate to the logon page and submit credentials
-    await logon(driver, username, password)
+    await logon(page, username, password)
 
     # Wait to be redirected to the next stage of the login process
-    await wait_for_redirect(driver)
+    await wait_for_redirect(page)
 
     # Handle MFA if prompted
-    if await is_mfa_redirect(driver):
-        await handle_mfa_redirect(driver, mfa_auth)
+    if await is_mfa_redirect(page):
+        await handle_mfa_redirect(page, mfa_auth)
 
     # Navigate the site and download the accounts data
-    await seek_accounts_data(driver)
+    await seek_accounts_data(page)
 
     await asyncio.sleep(10)
 
     # Get the account number from the current page
-    account_number: str = await get_account_number(driver)
+    account_number: str = await get_account_number(page)
 
     # Process tables
-    tables: List[Locator] = await get_detail_tables(driver)
+    tables: List[Locator] = await get_detail_tables(page)
     return_tables: List = list()
     for t in tables:
         parsed_table: pd.DataFrame = await parse_accounts_summary(t)
@@ -367,8 +367,8 @@ async def run(
         return_tables.append(parsed_table)
 
     # Clean up
-    log.info("Closing driver instance...")
-    await driver.close()
+    log.info("Closing page instance...")
+    await page.close()
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
