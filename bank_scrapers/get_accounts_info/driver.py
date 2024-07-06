@@ -51,7 +51,7 @@ async def get_accounts_info(
     elif driver == "ethereum":
         return get_ethereum(*args, **kwargs)
     elif driver == "becu":
-        return get_becu(*args, **kwargs)
+        return await get_becu(*args, **kwargs)
     elif driver == "chase":
         return await get_chase(*args, **kwargs)
     elif driver == "fidelity_netbenefits":
