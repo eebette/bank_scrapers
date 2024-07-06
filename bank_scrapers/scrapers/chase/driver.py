@@ -352,8 +352,6 @@ async def run(
     # Navigate the site and download the accounts data
     await seek_accounts_data(page)
 
-    await asyncio.sleep(10)
-
     # Get the account number from the current page
     account_number: str = await get_account_number(page)
 
