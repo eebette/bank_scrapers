@@ -417,5 +417,9 @@ async def get_accounts_info(
     # Instantiate the virtual display
     display: Display = Display(visible=False, size=(1280, 720))
     display.start()
-    async with async_playwright() as playwright:
-        return await run(playwright, username, password, prometheus, mfa_auth)
+    try:
+        async with async_playwright() as playwright:
+            return await run(playwright, username, password, prometheus, mfa_auth)
+    except Exception:
+        display.stop()
+        raise
