@@ -328,11 +328,14 @@ async def run(
     """
     fingerprint: Fingerprint = FingerprintGenerator().generate(browser="chrome")
 
+    # Instantiate browser
     browser: Browser = await playwright.chromium.launch(
         channel="chrome",
         headless=False,
         args=["--disable-blink-features=AutomationControlled"],
     )
+
+    # Inject fingerprint
     context: BrowserContext = await AsyncNewContext(browser, fingerprint=fingerprint)
     page: Page = await context.new_page()
 
