@@ -53,53 +53,53 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
-    driver: Page, username: str, password: str, homepage: str = HOMEPAGE
+    page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
     Opens and signs on to an account
-    :param driver: The browser application
+    :param page: The browser application
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param homepage: The logon url to initially navigate
     """
     # Logon Page
     log.info(f"Accessing: {homepage}")
-    await driver.goto(homepage, timeout=TIMEOUT, wait_until="load")
+    await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
     # Enter User
     log.info(f"Finding username element...")
-    username_input: Locator = driver.locator("input[id='ctlSignon_txtUserID']")
+    username_input: Locator = page.locator("input[id='ctlSignon_txtUserID']")
 
     log.info(f"Sending info to username element...")
     await username_input.press_sequentially(username, delay=100)
 
     # Enter Password
     log.info(f"Finding password element...")
-    password_input: Locator = driver.locator("input[id='ctlSignon_txtPassword']")
+    password_input: Locator = page.locator("input[id='ctlSignon_txtPassword']")
 
     log.info(f"Sending info to password element...")
     await password_input.press_sequentially(password, delay=100)
 
     # Submit
     log.info(f"Finding submit button element...")
-    submit_button: Locator = driver.locator("input[id='ctlSignon_btnLogin']")
+    submit_button: Locator = page.locator("input[id='ctlSignon_btnLogin']")
 
     log.info(f"Clicking submit button element...")
     await submit_button.click()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def wait_for_redirect(driver: Page) -> None:
+async def wait_for_redirect(page: Page) -> None:
     """
     Waits until the page redirects to account home, marketing/offer page, or MFA page
-    :param driver: The browser application
+    :param page: The browser application
     """
     # Wait for redirect to landing page or marketing offer
     log.info(f"Handling redirect...")
     current_url: str = str()
     while "/Invitation/" not in current_url and "/Accounts/" not in current_url:
         await asyncio.sleep(1)
-        current_url: str = driver.url
+        current_url: str = page.url
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -145,15 +145,15 @@ async def wait_for_credit_details(page: Page) -> None:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def get_detail_tables(driver: Page) -> List[Locator]:
+async def get_detail_tables(page: Page) -> List[Locator]:
     """
     Gets the web elements for the tables containing the account details for each account
-    :param driver: The browser application
+    :param page: The browser application
     :return: A list containing the web elements for the tables
     """
     log.info(f"Finding accounts details elements...")
     tables_xpath: str = "//table[contains(@class, 'tablesaw-stack')]"
-    tables: List[Locator] = await driver.locator(f"xpath={tables_xpath}").all()
+    tables: List[Locator] = await page.locator(f"xpath={tables_xpath}").all()
     return tables
 
 
@@ -208,21 +208,21 @@ async def run(
 
     # Inject fingerprint
     context: BrowserContext = await AsyncNewContext(browser, fingerprint=fingerprint)
-    driver: Page = await context.new_page()
+    page: Page = await context.new_page()
 
     # Logon to the site
-    await logon(driver, username, password)
+    await logon(page, username, password)
 
     # Wait to be redirected to the next stage of the login process
-    await wait_for_redirect(driver)
+    await wait_for_redirect(page)
 
     # Handle marketing page if presented
-    if await is_marketing_redirect(driver):
-        await handle_marketing_redirect(driver)
+    if await is_marketing_redirect(page):
+        await handle_marketing_redirect(page)
 
     # Get data for account and credit cards
-    await wait_for_credit_details(driver)
-    tables: List[Locator] = await get_detail_tables(driver)
+    await wait_for_credit_details(page)
+    tables: List[Locator] = await get_detail_tables(page)
 
     # Process tables
     return_tables: List = list()
@@ -241,7 +241,7 @@ async def run(
 
     # Clean up
     log.info("Closing page instance...")
-    await driver.close()
+    await page.close()
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
