@@ -7,7 +7,6 @@ import os
 import shutil
 from pathlib import Path
 from typing import Tuple, List, Union
-import traceback
 
 # Non-standard Imports
 from selenium.webdriver.chrome.options import Options
@@ -16,8 +15,9 @@ from selenium.webdriver.remote.shadowroot import ShadowRoot
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
-from selenium.common.exceptions import TimeoutException
-from undetected_chromedriver import Chrome, ChromeOptions
+from undetected_chromedriver import ChromeOptions
+from selenium_driverless.webdriver import Chrome
+from undetected_playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 # Local Imports
 from bank_scrapers.common.log import log
@@ -209,18 +209,16 @@ def screenshot_on_timeout(save_path: str):
     Decorator function for saving a screenshot of the current page if the automation times out
     :param save_path: A path to which to save the screenshot of the webpage on timeout
     """
-
     def wrapper(func):
-        def _screenshot_on_timeout(*args, **kwargs):
-            driver: WebDriver = args[0]
+        async def _screenshot_on_timeout(*args, **kwargs):
+            driver: Chrome = args[0]
             nonlocal save_path
             try:
-                return func(*args, **kwargs)
-            except TimeoutException:
+                return await func(*args, **kwargs)
+            except PlaywrightTimeoutError:
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                log.error(traceback.format_exc())
                 log.warning(f"Saving screenshot to: {save_path}")
-                driver.save_screenshot(save_path)
+                await driver.save_screenshot(save_path)
                 raise
 
         return _screenshot_on_timeout

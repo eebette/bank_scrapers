@@ -38,7 +38,7 @@ DRIVERS: set[str] = {
 }
 
 
-def get_accounts_info(
+async def get_accounts_info(
     driver: str, *args, **kwargs
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     if driver not in DRIVERS:
@@ -53,7 +53,7 @@ def get_accounts_info(
     elif driver == "becu":
         return get_becu(*args, **kwargs)
     elif driver == "chase":
-        return get_chase(*args, **kwargs)
+        return await get_chase(*args, **kwargs)
     elif driver == "fidelity_netbenefits":
         return get_fidelity_nb(*args, **kwargs)
     elif driver == "roundpoint":
