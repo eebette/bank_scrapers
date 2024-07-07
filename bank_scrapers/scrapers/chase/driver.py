@@ -10,7 +10,6 @@ for t in tables:
 """
 
 # Standard Library Imports
-import asyncio
 from typing import List, Tuple, Dict, Union
 from datetime import datetime
 import re
@@ -86,8 +85,8 @@ async def logon(
     log.info(f"Finding submit button element...")
     await iframe.wait_for_selector("button[id='signin-button']")
     submit_button: Locator = iframe.locator("button[id='signin-button']")
-    log.info(f"Clicking submit button element...")
 
+    log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
         url=re.compile(r"/(auth|dashboard)/"), wait_until="load", timeout=TIMEOUT
     ):
