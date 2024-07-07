@@ -68,22 +68,22 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
-    driver: Page, username: str, password: str, homepage: str = HOMEPAGE
+    page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
     Opens and signs on to an account
-    :param driver: The browser application
+    :param page: The browser application
     :param homepage: The logon url to initially navigate
     :param username: Your username for logging in
     :param password: Your password for logging in
     """
     # Logon Page
     log.info(f"Accessing: {homepage}")
-    await driver.goto(homepage, timeout=TIMEOUT, wait_until="load")
+    await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
     # Enter User
     log.info(f"Finding username element...")
-    username_input: Locator = driver.locator("input[id='dom-username-input']")
+    username_input: Locator = page.locator("input[id='dom-username-input']")
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
@@ -91,15 +91,15 @@ async def logon(
 
     # Enter Password
     log.info(f"Finding password element...")
-    await driver.wait_for_selector("input[id='dom-pswd-input']")
-    password_input: Locator = driver.locator("input[id='dom-pswd-input']")
+    await page.wait_for_selector("input[id='dom-pswd-input']")
+    password_input: Locator = page.locator("input[id='dom-pswd-input']")
 
     log.info(f"Sending info to password element...")
     await password_input.press_sequentially(password, delay=100)
 
     # Submit
     log.info(f"Finding submit button element...")
-    submit_button: Locator = driver.locator("button[id='dom-login-button']")
+    submit_button: Locator = page.locator("button[id='dom-login-button']")
 
     log.info(f"Clicking submit button element...")
     await submit_button.click()
@@ -128,18 +128,18 @@ async def is_mfa_redirect(page: Page) -> bool:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
+async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     """
     Navigates the MFA workflow for this website
     Note that this function only covers Email Me options for now.
-    :param driver: The Chrome driver/browser used for this function
+    :param page: The Chrome page/browser used for this function
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
     log.info(f"Redirected to multi-factor authentication page.")
 
     log.info(f"Finding contact options elements...")
-    await driver.wait_for_selector("pvd-button")
-    contact_options: List[Locator] = await driver.locator("pvd-button").all()
+    await page.wait_for_selector("pvd-button")
+    contact_options: List[Locator] = await page.locator("pvd-button").all()
 
     contact_options_text: List[str] = []
     for contact_option in contact_options:
@@ -165,7 +165,7 @@ async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
-    otp_input: Locator = driver.locator("input[type='text']")
+    otp_input: Locator = page.locator("input[type='text']")
     await expect(otp_input).to_be_editable(timeout=TIMEOUT)
 
     # Prompt user input for MFA option
@@ -192,33 +192,33 @@ async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")
-    submit_button: Locator = driver.locator("button[id='dom-otp-code-submit-button']")
+    submit_button: Locator = page.locator("button[id='dom-otp-code-submit-button']")
 
     log.info(f"Clicking submit button element...")
-    async with driver.expect_navigation(
+    async with page.expect_navigation(
         url=re.compile(r"workplaceservices"), wait_until="load", timeout=TIMEOUT
     ):
         await submit_button.click(force=True)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def seek_accounts_data(driver: Page, tmp: str) -> None:
+async def seek_accounts_data(page: Page, tmp: str) -> None:
     """
     Navigate the website and click download button for the accounts data
-    :param driver: The Chrome browser application
+    :param page: The Chrome browser application
     :param tmp: An empty directory to use for processing the downloaded file
     """
     # Go to the accounts page
     log.info(f"Accessing: {DASHBOARD_PAGE}")
-    await driver.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
+    await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
 
     # Wait for the downloads button to be clickable
     log.info(f"Finding download button element...")
-    download_button: Locator = driver.locator("button[aria-label='Download Positions']")
+    download_button: Locator = page.locator("button[aria-label='Download Positions']")
 
     # Click the button
     log.info(f"Clicking download button element...")
-    async with driver.expect_download() as download_info:
+    async with page.expect_download() as download_info:
         await download_button.click()
     download: Download = await download_info.value
 
@@ -283,23 +283,23 @@ async def run(
         headless=False,
         args=["--disable-blink-features=AutomationControlled"],
     )
-    driver: Page = await browser.new_page()
+    page: Page = await browser.new_page()
 
     # Navigate to the logon page and submit credentials
-    await logon(driver, username, password)
+    await logon(page, username, password)
 
     # Wait for landing page or MFA
-    await wait_for_redirect(driver)
+    await wait_for_redirect(page)
 
     # Handle MFA if prompted
-    if await is_mfa_redirect(driver):
-        await handle_mfa_redirect(driver, mfa_auth)
+    if await is_mfa_redirect(page):
+        await handle_mfa_redirect(page, mfa_auth)
 
     with TemporaryDirectory() as tmp:
         log.info(f"Created temporary directory: {tmp}")
 
         # Navigate the site and download the accounts data
-        await seek_accounts_data(driver, tmp)
+        await seek_accounts_data(page, tmp)
         file_name: str = os.listdir(tmp)[0]
 
         # Process tables
