@@ -73,6 +73,7 @@ async def logon(
     username_input: Locator = iframe.locator("input[id='userId-text-input-field']")
 
     log.info(f"Sending info to username element...")
+    log.debug(f"Username: {username}")
     await username_input.press_sequentially(username, delay=100)
 
     # Password

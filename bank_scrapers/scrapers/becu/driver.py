@@ -65,6 +65,7 @@ async def logon(
 
     # Enter User
     log.info(f"Finding username element...")
+    log.debug(f"Username: {username}")
     username_input: Locator = page.locator("input[id='ctlSignon_txtUserID']")
 
     log.info(f"Sending info to username element...")
