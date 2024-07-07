@@ -78,7 +78,6 @@ async def logon(
 
     # Password
     log.info(f"Finding password element...")
-    await iframe.wait_for_selector("input[id='password-text-input-field']")
     password_input: Locator = iframe.locator("input[id='password-text-input-field']")
     log.info(f"Sending info to password element...")
     await password_input.press_sequentially(password, delay=100)
@@ -88,21 +87,11 @@ async def logon(
     await iframe.wait_for_selector("button[id='signin-button']")
     submit_button: Locator = iframe.locator("button[id='signin-button']")
     log.info(f"Clicking submit button element...")
-    await submit_button.click(force=True)
 
-
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def wait_for_redirect(page: Page) -> None:
-    """
-    Wait for the page to redirect to the next stage of the login process
-    :param page: The browser application
-    """
-    # Wait for redirect to landing page or MFA
-    log.info(f"Handling redirect...")
-    current_url: str = str()
-    while "/auth/" not in current_url and "/dashboard/" not in current_url:
-        await asyncio.sleep(1)
-        current_url: str = page.url
+    async with page.expect_navigation(
+        url=re.compile(r"/(auth|dashboard)/"), wait_until="load", timeout=TIMEOUT
+    ):
+        await submit_button.click(force=True)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -335,9 +324,6 @@ async def run(
     # Navigate to the logon page and submit credentials
     await logon(page, username, password)
 
-    # Wait to be redirected to the next stage of the login process
-    await wait_for_redirect(page)
-
     # Handle MFA if prompted
     if await is_mfa_redirect(page):
         await handle_mfa_redirect(page, mfa_auth)
@@ -408,11 +394,16 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    display: Display = Display(visible=False, size=(1280, 720))
+    display: Display = Display(visible=True, size=(1280, 720))
     display.start()
     try:
         async with async_playwright() as playwright:
-            return await run(playwright, username, password, prometheus, mfa_auth)
+            result: Union[
+                List[pd.DataFrame],
+                Tuple[List[PrometheusMetric], List[PrometheusMetric]],
+            ] = await run(playwright, username, password, prometheus, mfa_auth)
+            display.stop()
+            return result
     except Exception:
         display.stop()
         raise
