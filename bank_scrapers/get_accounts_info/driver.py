@@ -42,7 +42,7 @@ async def get_accounts_info(
     driver: str, *args, **kwargs
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     if driver not in DRIVERS:
-        raise ValueError(f"results: status must be one of {DRIVERS}.")
+        raise ValueError(f"Must be one of {DRIVERS}.")
 
     if driver == "kraken":
         return get_kraken(*args, **kwargs)
@@ -55,7 +55,7 @@ async def get_accounts_info(
     elif driver == "chase":
         return await get_chase(*args, **kwargs)
     elif driver == "fidelity_netbenefits":
-        return get_fidelity_nb(*args, **kwargs)
+        return await get_fidelity_nb(*args, **kwargs)
     elif driver == "roundpoint":
         return get_roundpoint(*args, **kwargs)
     elif driver == "smbc_prestia":
