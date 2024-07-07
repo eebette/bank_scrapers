@@ -25,10 +25,7 @@ from undetected_playwright.async_api import (
     Frame,
     expect,
     Browser,
-    BrowserContext,
 )
-from browserforge.fingerprints import FingerprintGenerator, Fingerprint
-from browserforge.injectors.undetected_playwright import AsyncNewContext
 from pyvirtualdisplay import Display
 
 # Local Imports
@@ -327,18 +324,13 @@ async def run(
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     :return: A list of pandas dataframes of accounts info tables
     """
-    fingerprint: Fingerprint = FingerprintGenerator().generate(browser="chrome")
-
     # Instantiate browser
     browser: Browser = await playwright.chromium.launch(
         channel="chrome",
         headless=False,
         args=["--disable-blink-features=AutomationControlled"],
     )
-
-    # Inject fingerprint
-    context: BrowserContext = await AsyncNewContext(browser, fingerprint=fingerprint)
-    page: Page = await context.new_page()
+    page: Page = await browser.new_page()
 
     # Navigate to the logon page and submit credentials
     await logon(page, username, password)

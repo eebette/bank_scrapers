@@ -24,10 +24,7 @@ from undetected_playwright.async_api import (
     Locator,
     expect,
     Browser,
-    BrowserContext,
 )
-from browserforge.fingerprints import FingerprintGenerator, Fingerprint
-from browserforge.injectors.undetected_playwright import AsyncNewContext
 from pyvirtualdisplay import Display
 
 # Local Imports
@@ -196,19 +193,13 @@ async def run(
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :return: A list of pandas dataframes of accounts info tables
     """
-    # Get fingerprint
-    fingerprint: Fingerprint = FingerprintGenerator().generate(browser="chrome")
-
     # Instantiate browser
     browser: Browser = await playwright.chromium.launch(
         channel="chrome",
         headless=False,
         args=["--disable-blink-features=AutomationControlled"],
     )
-
-    # Inject fingerprint
-    context: BrowserContext = await AsyncNewContext(browser, fingerprint=fingerprint)
-    page: Page = await context.new_page()
+    page: Page = await browser.new_page()
 
     # Logon to the site
     await logon(page, username, password)
