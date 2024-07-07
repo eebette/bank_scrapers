@@ -25,93 +25,148 @@ shutil.rmtree(tmp_dir)
 # Standard Library Imports
 from typing import List, Tuple, Union
 from datetime import datetime
-from time import sleep
+import re
 import os
-import glob
+from tempfile import TemporaryDirectory
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.common.by import By
-from undetected_chromedriver import Chrome, ChromeOptions
+from undetected_playwright.async_api import (
+    async_playwright,
+    Playwright,
+    Page,
+    Locator,
+    expect,
+    Browser,
+    Download,
+)
 from pyvirtualdisplay import Display
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
-from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
-from bank_scrapers.scrapers.common.functions import (
-    start_chromedriver,
-    get_chrome_options,
-    enable_downloads,
-    wait_and_find_element,
-    wait_and_find_click_element,
-    screenshot_on_timeout,
-)
-from bank_scrapers.scrapers.fidelity_netbenefits.mfa_auth import (
-    FidelityNetBenefitsMfaAuth,
-)
+from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
+from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
+from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
+
 
 # Institution info
 INSTITUTION: str = "Fidelity NetBenefits"
 SYMBOL: str = "USD"
 
 # Logon page
-HOMEPAGE: str = (
-    "https://login.fidelity.com/ftgw/Fas/Fidelity/NBPart/Login/Init?ISPBypass=true"
-)
+HOMEPAGE: str = "https://nb.fidelity.com/static/mybenefits/netbenefitslogin/#/login"
 DASHBOARD_PAGE: str = "https://digital.fidelity.com/ftgw/digital/portfolio/positions"
 
 # Timeout
-TIMEOUT: int = 60
-
-# Chrome config
-USER_AGENT: str = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36"
-)
-CHROME_OPTIONS: List[str] = [
-    f"user-agent={USER_AGENT}",
-    "--no-sandbox",
-    "--window-size=1920,1080",
-    "--disable-gpu",
-    "--allow-running-insecure-content",
-]
+TIMEOUT: int = 60 * 1000
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def handle_multi_factor_authentication(
-    driver: Chrome, wait: WebDriverWait, mfa_auth: FidelityNetBenefitsMfaAuth = None
+async def logon(
+    driver: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
+    """
+    Opens and signs on to an account
+    :param driver: The browser application
+    :param homepage: The logon url to initially navigate
+    :param username: Your username for logging in
+    :param password: Your password for logging in
+    """
+    # Logon Page
+    log.info(f"Accessing: {homepage}")
+    await driver.goto(homepage, timeout=TIMEOUT, wait_until="load")
+
+    # Enter User
+    log.info(f"Finding username element...")
+    username_input: Locator = driver.locator("input[id='dom-username-input']")
+
+    log.info(f"Sending info to username element...")
+    log.debug(f"Username: {username}")
+    await username_input.press_sequentially(username, delay=100)
+
+    # Enter Password
+    log.info(f"Finding password element...")
+    await driver.wait_for_selector("input[id='dom-pswd-input']")
+    password_input: Locator = driver.locator("input[id='dom-pswd-input']")
+
+    log.info(f"Sending info to password element...")
+    await password_input.press_sequentially(password, delay=100)
+
+    # Submit
+    log.info(f"Finding submit button element...")
+    submit_button: Locator = driver.locator("button[id='dom-login-button']")
+
+    log.info(f"Clicking submit button element...")
+    await submit_button.click()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def wait_for_redirect(page: Page) -> None:
+    """
+    Wait for the page to redirect to the next stage of the login process
+    :param page: The browser application
+    """
+    target_text: re.Pattern = re.compile(
+        r"(To verify it's you|Your accounts and benefits)"
+    )
+    await expect(page.get_by_text(target_text)).to_be_visible()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_mfa_redirect(page: Page) -> bool:
+    """
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param page: The browser application
+    :return: True if MFA is being enforced
+    """
+    return await page.get_by_text("To verify it's you").is_visible()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
     """
     Navigates the MFA workflow for this website
     Note that this function only covers Email Me options for now.
     :param driver: The Chrome driver/browser used for this function
-    :param wait: The wait object associated with the driver function above
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
-    log.info(f"Redirected to two-factor authentication page.")
+    log.info(f"Redirected to multi-factor authentication page.")
 
-    log.info(f"Finding Text Me button element...")
-    text_me_button_xpath: str = (
-        "//pvd-button[@pvd-id='dom-channel-list-primary-button']"
-    )
-    text_me_button: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, text_me_button_xpath)
-    )
+    log.info(f"Finding contact options elements...")
+    await driver.wait_for_selector("pvd-button")
+    contact_options: List[Locator] = await driver.locator("pvd-button").all()
 
-    log.info(f"Clicking Text Me button element...")
-    text_me_button.click()
+    contact_options_text: List[str] = []
+    for contact_option in contact_options:
+        contact_option_text_element: Locator = contact_option.get_by_text(
+            re.compile(r"(Text me|Call me)")
+        )
+        contact_options_text.append(await contact_option_text_element.text_content())
+
+    # Prompt user input for MFA option
+    if mfa_auth is None:
+        log.info(f"No automation info provided. Prompting user for contact option.")
+        for i, text in enumerate(contact_options_text):
+            print(f"{i + 1}: {text}")
+        option: str = input("Please select one: ")
+    else:
+        log.info(f"Contact option found in automation info.")
+        option: str = str(mfa_auth["otp_contact_option"])
+    option_index: int = int(option) - 1
+    log.debug(f"Contact option: {option_index}")
+
+    # Click based on user input
+    await contact_options[option_index].click()
 
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
-    otp_input: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//input[@id='dom-otp-code-input']")
-    )
+    otp_input: Locator = driver.locator("input[type='text']")
+    await expect(otp_input).to_be_editable(timeout=TIMEOUT)
 
     # Prompt user input for MFA option
     if mfa_auth is None:
@@ -125,106 +180,50 @@ def handle_multi_factor_authentication(
             search_files_for_int(
                 mfa_auth["otp_code_location"],
                 "NetBenefits",
-                ".txt",
                 6,
                 10,
                 TIMEOUT,
-                True,
+                reverse=True,
             )
         )
 
     log.info(f"Sending info to OTP input box element...")
-    otp_input.send_keys(otp_code)
+    await otp_input.press_sequentially(otp_code, delay=100)
 
     # Click submit once it becomes clickable
-    log.info(f"Finding submit button element and waiting for it to be clickable...")
-    submit: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//button[@id='dom-otp-code-submit-button']")
-    )
+    log.info(f"Finding submit button element...")
+    submit_button: Locator = driver.locator("button[id='dom-otp-code-submit-button']")
 
     log.info(f"Clicking submit button element...")
-    submit.click()
+    async with driver.expect_navigation(
+        url=re.compile(r"workplaceservices"), wait_until="load", timeout=TIMEOUT
+    ):
+        await submit_button.click(force=True)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def logon(
-    driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
-) -> None:
-    """
-    Opens and signs on to an account
-    :param driver: The browser application
-    :param wait: WebDriverWait object for the driver
-    :param homepage: The logon url to initially navigate
-    :param username: Your username for logging in
-    :param password: Your password for logging in
-    """
-    # Logon Page
-    log.info(f"Accessing: {homepage}")
-    driver.get(homepage)
-
-    # Enter User
-    log.info(f"Finding username element...")
-    user: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//input[@id='dom-username-input']")
-    )
-
-    log.info(f"Sending info to username element...")
-    log.debug(f"Username: {username}")
-    user.send_keys(username)
-
-    # Enter Password
-    log.info(f"Finding password element...")
-    passwd: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//input[@id='dom-pswd-input']")
-    )
-
-    log.info(f"Sending info to password element...")
-    passwd.send_keys(password)
-
-    # Submit
-    log.info(f"Finding submit button element and waiting for it to be clickable...")
-    submit: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//button[@id='dom-login-button']")
-    )
-
-    log.info(f"Clicking submit button element...")
-    submit.click()
-
-    # Wait for redirect to landing page or 2FA
-    log.info(f"Waiting for redirect...")
-    wait.until(
-        lambda _: "https://workplaceservices.fidelity.com/" in driver.current_url
-        or str("To verify it's you, we'll send a temporary code to your phone")
-        in driver.page_source
-    )
-
-
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> None:
+async def seek_accounts_data(driver: Page, tmp: str) -> None:
     """
     Navigate the website and click download button for the accounts data
     :param driver: The Chrome browser application
-    :param wait: WebDriverWait object for the driver
-    :param tmp_dir: An empty directory to use for processing the downloaded file
+    :param tmp: An empty directory to use for processing the downloaded file
     """
     # Go to the accounts page
     log.info(f"Accessing: {DASHBOARD_PAGE}")
-    driver.get(DASHBOARD_PAGE)
+    await driver.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
 
     # Wait for the downloads button to be clickable
     log.info(f"Finding download button element...")
-    download_btn: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//button[@aria-label='Download Positions']")
-    )
+    download_button: Locator = driver.locator("button[aria-label='Download Positions']")
 
     # Click the button
     log.info(f"Clicking download button element...")
-    download_btn.click()
+    async with driver.expect_download() as download_info:
+        await download_button.click()
+    download: Download = await download_info.value
 
-    # Allow the download to process
-    while not glob.glob(os.path.join(tmp_dir, "Portfolio_Positions_*.csv")):
-        log.info(f"Waiting for file: {tmp_dir}/Portfolio_Positions_*.csv")
-        sleep(1)
+    # Wait for the download process to complete and save the downloaded file
+    await download.save_as(f"{tmp}/{download.suggested_filename}")
 
 
 def parse_accounts_summary(full_path: str) -> pd.DataFrame:
@@ -233,7 +232,10 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
     :param full_path: The path to the file to parse
     :return: A pandas dataframe of the downloaded data
     """
+    log.info(f"Opening file: {full_path}")
     df: pd.DataFrame = pd.read_csv(f"{full_path}", on_bad_lines="skip")
+
+    log.info("Parsing data...")
     df: pd.DataFrame = df[df["Account Name"].notna()]
 
     df["Quantity"]: pd.DataFrame = df["Quantity"].fillna(df["Current Value"])
@@ -250,97 +252,63 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
     return df
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def is_mfa_redirect(driver: Chrome) -> bool:
+def get_account_type(row: pd.Series) -> str:
     """
-    Checks and determines if the site is forcing MFA on the login attempt
-    :param driver: The browser application
-    :return: True if MFA is being enforced
+    Returns whether the NetBenefits account number belongs to a deposit or retirement account
+    :param row: The Pandas series containing the account number
+    :return: String 'deposit' or 'retirement'
     """
-    if (
-        str("To verify it's you, we'll send a temporary code to your phone")
-        in driver.page_source
-    ):
-        return True
-    else:
-        return False
+    return "deposit" if row["Account Number"].startswith("Z") else "retirement"
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
-    """
-    Wait for landing page after handling 2FA
-    :param driver: The browser application
-    :param wait: WebDriverWait object for the driver
-    """
-    log.info(f"Waiting for landing page...")
-    wait.until(
-        lambda _: "https://workplaceservices.fidelity.com/" in driver.current_url
-    )
-
-
-def get_accounts_info(
+async def run(
+    playwright: Playwright,
     username: str,
     password: str,
-    tmp_dir: str,
     prometheus: bool = False,
-    mfa_auth: FidelityNetBenefitsMfaAuth = None,
+    mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param playwright: The playwright object for running this script
     :param username: Your username for logging in
     :param password: Your password for logging in
-    :param tmp_dir: An empty directory to use for processing the downloaded file
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     :return: A list of pandas dataframes of accounts info tables
     """
-    # Instantiate the virtual display
-    display: Display = Display(visible=False, size=(800, 600))
-    display.start()
-
-    # Get Driver config
-    options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
-
-    # Instantiating the Driver
-    driver: Chrome = start_chromedriver(options)
-    wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
-
-    enable_downloads(driver, downloads_dir=tmp_dir)
+    # Instantiate browser
+    browser: Browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=False,
+        args=["--disable-blink-features=AutomationControlled"],
+    )
+    driver: Page = await browser.new_page()
 
     # Navigate to the logon page and submit credentials
-    logon(driver, wait, HOMEPAGE, username, password)
+    await logon(driver, username, password)
 
-    # If 2FA...
-    if is_mfa_redirect(driver):
-        handle_multi_factor_authentication(driver, wait, mfa_auth)
+    # Wait for landing page or MFA
+    await wait_for_redirect(driver)
 
-    # Wait for redirect to landing page
-    wait_for_landing_page(driver, wait)
+    # Handle MFA if prompted
+    if await is_mfa_redirect(driver):
+        await handle_mfa_redirect(driver, mfa_auth)
 
-    # Navigate the site and download the accounts data
-    seek_accounts_data(driver, wait, tmp_dir)
+    with TemporaryDirectory() as tmp:
+        log.info(f"Created temporary directory: {tmp}")
 
-    file_name: str = os.listdir(tmp_dir)[0]
-    try:
+        # Navigate the site and download the accounts data
+        await seek_accounts_data(driver, tmp)
+        file_name: str = os.listdir(tmp)[0]
+
         # Process tables
         return_tables: List[pd.DataFrame] = [
-            parse_accounts_summary(f"{tmp_dir}/{file_name}")
+            parse_accounts_summary(f"{tmp}/{file_name}")
         ]
-        for t in return_tables:
-            t["account_type"] = t.apply(
-                lambda row: (
-                    "deposit" if row["Account Number"].startswith("Z") else "retirement"
-                ),
-                axis=1,
-            )
-    except Exception as e:
-        log.error(e)
-        exit(1)
-    finally:
-        # Clean up
-        driver.quit()
-        os.remove(f"{tmp_dir}/{file_name}")
+
+    for t in return_tables:
+        t["account_type"] = t.apply(lambda row: get_account_type(row), axis=1)
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
@@ -369,3 +337,23 @@ def get_accounts_info(
 
     # Return list of pandas df
     return return_tables
+
+
+async def get_accounts_info(
+    username: str,
+    password: str,
+    prometheus: bool = False,
+    mfa_auth: MfaAuth = None,
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
+    """
+    Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param username: Your username for logging in
+    :param password: Your password for logging in
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
+    :return: A list of pandas dataframes of accounts info tables
+    """
+    # Instantiate the virtual display
+    with Display(visible=True, size=(1280, 720)):
+        async with async_playwright() as playwright:
+            return await run(playwright, username, password, prometheus, mfa_auth)

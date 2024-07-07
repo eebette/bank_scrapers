@@ -146,10 +146,10 @@ def wait_for_files_in_dir(filepath: str, timeout: int) -> None:
 def search_files_for_int(
     filepath: str,
     match_string: str,
-    file_ext: str,
     min_length: int,
     max_length: int,
     timeout: int,
+    file_ext: str = ".txt",
     reverse: bool = False,
     delay=10,
 ) -> int:
@@ -157,10 +157,10 @@ def search_files_for_int(
     Searches files in a directory for an integer of specific length, and returns the integer
     :param filepath: The file path at which a file containing the string (for which to search) will exist
     :param match_string: A substring to match in the file before searching the file for the int
-    :param file_ext: Extension of files to search in the target directory
     :param min_length: Minimum length of the returned integer
     :param max_length: Maximum length of the returned integer
     :param timeout: Timeout parameter that will throw a TimeoutError if path doesn't exist
+    :param file_ext: Extension of files to search in the target directory
     :param reverse: Set to True to search the files in reverse-alphabetical order
     :param delay: Optional delay parameter to use before starting to recurse the files in the file path
     """
