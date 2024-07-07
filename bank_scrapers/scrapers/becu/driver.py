@@ -65,7 +65,6 @@ async def logon(
 
     # Enter User
     log.info(f"Finding username element...")
-    await page.wait_for_selector("input[id='ctlSignon_txtUserID']")
     username_input: Locator = page.locator("input[id='ctlSignon_txtUserID']")
 
     log.info(f"Sending info to username element...")
@@ -73,7 +72,6 @@ async def logon(
 
     # Enter Password
     log.info(f"Finding password element...")
-    await page.wait_for_selector("input[id='ctlSignon_txtPassword']")
     password_input: Locator = page.locator("input[id='ctlSignon_txtPassword']")
 
     log.info(f"Sending info to password element...")
@@ -81,7 +79,6 @@ async def logon(
 
     # Submit
     log.info(f"Finding submit button element...")
-    await page.wait_for_selector("input[id='ctlSignon_btnLogin']")
     submit_button: Locator = page.locator("input[id='ctlSignon_btnLogin']")
 
     log.info(f"Clicking submit button element...")
@@ -114,7 +111,6 @@ async def handle_marketing_redirect(page: Page) -> None:
 
     # Decline offer
     log.info(f"Finding decline button element...")
-    await page.wait_for_selector("button[name='ctlWorkflow$decline']")
     decline_button: Locator = page.locator("button[name='ctlWorkflow$decline']")
 
     log.info(f"Clicking decline button element...")
@@ -128,7 +124,6 @@ async def wait_for_credit_details(page: Page) -> None:
     :param page: The Chrome page/browser used for this function
     """
     log.info(f"Waiting for credit details to render...")
-    await page.wait_for_selector("xpath=//tbody[@id='visaTable']/tr[@class='item']")
     credit_details: Locator = page.locator(
         "xpath=//tbody[@id='visaTable']/tr[@class='item']"
     )
@@ -144,7 +139,6 @@ async def get_detail_tables(page: Page) -> List[Locator]:
     """
     log.info(f"Finding accounts details elements...")
     tables_xpath: str = "//table[contains(@class, 'tablesaw-stack')]"
-    await page.wait_for_selector(f"xpath={tables_xpath}")
     tables: List[Locator] = await page.locator(f"xpath={tables_xpath}").all()
     return tables
 
@@ -268,16 +262,6 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    display: Display = Display(visible=True, size=(1280, 720))
-    display.start()
-    try:
+    with Display(visible=True, size=(1280, 720)):
         async with async_playwright() as playwright:
-            result: Union[
-                List[pd.DataFrame],
-                Tuple[List[PrometheusMetric], List[PrometheusMetric]],
-            ] = await run(playwright, username, password, prometheus)
-            display.stop()
-            return result
-    except Exception:
-        display.stop()
-        raise
+            return await run(playwright, username, password, prometheus, mfa_auth)

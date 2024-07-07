@@ -70,20 +70,20 @@ async def logon(
 
     # Username
     log.info(f"Finding username element...")
-    await iframe.wait_for_selector("input[id='userId-text-input-field']")
     username_input: Locator = iframe.locator("input[id='userId-text-input-field']")
+
     log.info(f"Sending info to username element...")
     await username_input.press_sequentially(username, delay=100)
 
     # Password
     log.info(f"Finding password element...")
     password_input: Locator = iframe.locator("input[id='password-text-input-field']")
+
     log.info(f"Sending info to password element...")
     await password_input.press_sequentially(password, delay=100)
 
     # Submit
     log.info(f"Finding submit button element...")
-    await iframe.wait_for_selector("button[id='signin-button']")
     submit_button: Locator = iframe.locator("button[id='signin-button']")
 
     log.info(f"Clicking submit button element...")
@@ -147,7 +147,6 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     # Open accounts dropdown
     log.info(f"Finding next button element...")
     next_button_shadow_root: Locator = page.locator("mds-button[id='next-content']")
-    await expect(next_button_shadow_root).to_be_visible(timeout=TIMEOUT)
     next_button: Locator = next_button_shadow_root.locator("button")
 
     log.info(f"Clicking next button element...")
@@ -156,7 +155,6 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
     otp_input_shadow_root: Locator = page.locator("mds-text-input-secure")
-    await expect(otp_input_shadow_root).to_be_visible(timeout=TIMEOUT)
     otp_input: Locator = otp_input_shadow_root.locator("input[id='otpInput-input']")
 
     # Prompt user input for MFA option
@@ -169,7 +167,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
         )
         otp_code: str = str(
             search_files_for_int(
-                mfa_auth["otp_code_location"], INSTITUTION, ".txt", 6, 10, TIMEOUT, True
+                mfa_auth["otp_code_location"], INSTITUTION, 6, 10, TIMEOUT, reverse=True
             )
         )
 
@@ -179,7 +177,6 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")
     submit_button_shadow_root: Locator = page.locator("mds-button[id='next-content']")
-    await expect(submit_button_shadow_root).to_be_visible(timeout=TIMEOUT)
     submit_button: Locator = submit_button_shadow_root.locator("button")
 
     log.info(f"Clicking submit button element...")
@@ -195,7 +192,6 @@ async def seek_accounts_data(page: Page) -> None:
     # Navigate shadow root
     log.info(f"Finding shadow root for accounts dropdown element...")
     dropdown_shadow_root: Locator = page.locator("mds-button[text='More']")
-    await expect(dropdown_shadow_root).to_be_visible(timeout=TIMEOUT)
 
     # Open accounts dropdown
     log.info(f"Finding accounts dropdown element...")
@@ -215,7 +211,6 @@ async def seek_accounts_data(page: Page) -> None:
     account_details_button: Locator = account_details_shadow_root.locator(
         "button[aria-label='Account details']"
     )
-    await expect(account_details_button).to_be_visible(timeout=TIMEOUT)
 
     log.info(f"Clicking button for account details element...")
     await account_details_button.click()
@@ -393,16 +388,6 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    display: Display = Display(visible=True, size=(1280, 720))
-    display.start()
-    try:
+    with Display(visible=True, size=(1280, 720)):
         async with async_playwright() as playwright:
-            result: Union[
-                List[pd.DataFrame],
-                Tuple[List[PrometheusMetric], List[PrometheusMetric]],
-            ] = await run(playwright, username, password, prometheus, mfa_auth)
-            display.stop()
-            return result
-    except Exception:
-        display.stop()
-        raise
+            return await run(playwright, username, password, prometheus, mfa_auth)
