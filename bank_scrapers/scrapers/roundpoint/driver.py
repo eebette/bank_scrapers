@@ -55,25 +55,25 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
-    driver: Page,
+    page: Page,
     username: str,
     password: str,
     homepage: str = HOMEPAGE,
 ) -> None:
     """
     Opens and signs on to an account
-    :param driver: The browser application
+    :param page: The browser application
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param homepage: The logon url to initially navigate
     """
     # Logon Page
     log.info(f"Accessing: {homepage}")
-    await driver.goto(homepage, timeout=TIMEOUT, wait_until="load")
+    await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
     # Enter User
     log.info(f"Finding username element...")
-    username_input: Locator = driver.locator("input[id='username']")
+    username_input: Locator = page.locator("input[id='username']")
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
@@ -81,7 +81,7 @@ async def logon(
 
     # Enter Password
     log.info(f"Finding password element...")
-    password_input: Locator = driver.locator("input[id='password']")
+    password_input: Locator = page.locator("input[id='password']")
 
     log.info(f"Sending info to password element...")
     await password_input.press_sequentially(password, delay=100)
@@ -90,14 +90,14 @@ async def logon(
     log.info(f"Finding TOS element...")
 
     # Waiting for clickable doesn't trigger here
-    tos: Locator = driver.locator("input[id='agreeToTerms-input']")
+    tos: Locator = page.locator("input[id='agreeToTerms-input']")
 
     log.info(f"Clicking TOS element...")
     await tos.click()
 
     # Submit credentials
     log.info(f"Finding submit button element...")
-    submit_button: Locator = driver.locator("button[type='submit']")
+    submit_button: Locator = page.locator("button[type='submit']")
 
     log.info(f"Clicking submit button element...")
     await submit_button.click()
@@ -113,32 +113,32 @@ async def wait_for_redirect(page: Page) -> None:
     await expect(page.get_by_text(target_text).first).to_be_visible()
 
 
-async def is_mfa_redirect(driver: Page) -> bool:
+async def is_mfa_redirect(page: Page) -> bool:
     """
     Checks and determines if the site is forcing MFA on the login attempt
-    :param driver: The browser application
+    :param page: The browser application
     :return: True if MFA is being enforced
     """
-    return await driver.get_by_text("Verify your account").is_visible()
+    return await page.get_by_text("Verify your account").is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
+async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     """
     Navigates the MFA workflow for this website
-    :param driver: The Chrome driver/browser used for this function
+    :param page: The Chrome page/browser used for this function
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
     log.info(f"Redirected to multi-factor authentication page.")
 
     # Identify MFA options
     log.info(f"Finding contact options elements...")
-    contact_options: List[Locator] = await driver.locator(
+    contact_options: List[Locator] = await page.locator(
         "div[id='otpOption'] input[type='radio']"
     ).all()
 
     log.info(f"Finding labels for contact options elements...")
-    contact_options_text: List[Locator] = await driver.locator(
+    contact_options_text: List[Locator] = await page.locator(
         "div[id='otpOption'] label[class='mdc-label']"
     ).all()
 
@@ -160,7 +160,7 @@ async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")
-    next_button: Locator = driver.locator(
+    next_button: Locator = page.locator(
         "bki-one-time-pin-verify button[type='submit']"
     )
 
@@ -169,7 +169,7 @@ async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
-    otp_input: Locator = driver.locator(
+    otp_input: Locator = page.locator(
         "bki-one-time-pin-verify input[name='otpInput']"
     )
 
@@ -196,7 +196,7 @@ async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")
-    submit_button: Locator = driver.locator(
+    submit_button: Locator = page.locator(
         "bki-one-time-pin-verify button[type='submit']"
     )
 
@@ -204,25 +204,25 @@ async def handle_mfa_redirect(driver: Page, mfa_auth: MfaAuth = None) -> None:
     await submit_button.click()
 
     log.info(f"Finding close prompt button element...")
-    close_button: Locator = driver.locator(
+    close_button: Locator = page.locator(
         "bki-one-time-pin-verify button[type='submit']"
     )
 
     log.info(f"Clicking close prompt button element...")
-    async with driver.expect_navigation(
+    async with page.expect_navigation(
         url=re.compile(r"/(dashboard)"), wait_until="load", timeout=TIMEOUT
     ):
         await close_button.click(force=True)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def seek_accounts_data(driver: Page) -> str:
+async def seek_accounts_data(page: Page) -> str:
     """
     Navigate the website and click download button for the accounts data
-    :param driver: The Chrome browser application
+    :param page: The Chrome browser application
     """
     log.info(f"Finding loan amount element...")
-    amount: str = await driver.locator(".amount").text_content()
+    amount: str = await page.locator(".amount").text_content()
     return amount
 
 
@@ -246,18 +246,18 @@ def parse_accounts_summary(amount: str) -> pd.DataFrame:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def seek_other_data(driver: Page) -> Tuple[List[Locator], List[Locator]]:
+async def seek_other_data(page: Page) -> Tuple[List[Locator], List[Locator]]:
     """
     Navigate the website and click download button for the accounts data
-    :param driver: The Chrome browser application
+    :param page: The Chrome browser application
     """
     log.info(f"Finding column headers elements...")
-    keys: List[Locator] = await driver.locator(
+    keys: List[Locator] = await page.locator(
         "bki-dashboard-payment div[class='col']"
     ).all()
 
     log.info(f"Finding column values elements...")
-    values: List[Locator] = await driver.locator(
+    values: List[Locator] = await page.locator(
         "bki-dashboard-payment div[class='col strong']"
     ).all()
 
@@ -294,17 +294,17 @@ async def parse_other_data(keys: List[Locator], values: List[Locator]) -> pd.Dat
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def get_loan_number(driver: Page) -> str:
+async def get_loan_number(page: Page) -> str:
     """
     Gets the full loan number from the My Loan page on the RoundPoint website
-    :param driver: The Chrome browser application
+    :param page: The Chrome browser application
     :return: The full loan number as a string
     """
     # Navigate to the My Loan page
     log.info(
         f"Accessing: https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/my-loan"
     )
-    await driver.goto(
+    await page.goto(
         "https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/my-loan",
         timeout=TIMEOUT,
         wait_until="load",
@@ -312,7 +312,7 @@ async def get_loan_number(driver: Page) -> str:
 
     # Find the element for the loan number
     log.info(f"Finding loan number element...")
-    loan_number_element: Locator = driver.locator(
+    loan_number_element: Locator = page.locator(
         "bki-myloan-balance a[class='card-link'][role='button']"
     )
 
@@ -322,7 +322,7 @@ async def get_loan_number(driver: Page) -> str:
 
     # Get the loan number
     log.info(f"Finding full loan number element...")
-    loan_number: str = await driver.locator(
+    loan_number: str = await page.locator(
         "bki-myloan-balance span[isolate='']"
     ).text_content()
 
@@ -331,31 +331,31 @@ async def get_loan_number(driver: Page) -> str:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def scrape_loan_data(driver: Page) -> List[pd.DataFrame]:
+async def scrape_loan_data(page: Page) -> List[pd.DataFrame]:
     """
     Iterates through the account's loans and processes the data into a list of Pandas DataFrames
-    :param driver: The Chrome browser application
+    :param page: The Chrome browser application
     :return: A list of Pandas DataFrames containing the loans data
     """
     # Find and expand the dropdown list containing the account's loans
     log.info(
         f"Finding loans button dropdown element..."
     )
-    loans_button: Locator = driver.locator("div[class='secondary-header-top'] button")
+    loans_button: Locator = page.locator("div[class='secondary-header-top'] button")
 
     log.info(f"Clicking loans button dropdown element...")
     await loans_button.click()
 
     # Get the list of loans in the dropdown list
     log.info(f"Finding loans button elements...")
-    loans: List[Locator] = await driver.locator("div[id='loanMenuId'] div.cursor").all()
+    loans: List[Locator] = await page.locator("div[id='loanMenuId'] div.cursor").all()
 
     return_tables: List = list()
     for loan in loans:
         # Go back to dashboard page if not there already
-        if driver.url != DASHBOARD_PAGE:
+        if page.url != DASHBOARD_PAGE:
             log.info(f"Accessing: {DASHBOARD_PAGE}")
-            await driver.goto(DASHBOARD_PAGE, timeout=TIMEOUT, wait_until="load")
+            await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT, wait_until="load")
 
         # Clicking to expand list...
         log.info(f"Clicking loans button dropdown element...")
@@ -368,19 +368,19 @@ async def scrape_loan_data(driver: Page) -> List[pd.DataFrame]:
         await loan.click()
 
         # Navigate the site and get the loan amount
-        amount: str = await seek_accounts_data(driver)
+        amount: str = await seek_accounts_data(page)
         amount_df: pd.DataFrame = parse_accounts_summary(amount)
 
         # Get other details/info about the loan
         other_data_keys: List[Locator]
         other_data_values: List[Locator]
-        other_data_keys, other_data_values = await seek_other_data(driver)
+        other_data_keys, other_data_values = await seek_other_data(page)
         other_data_df: pd.DataFrame = await parse_other_data(
             other_data_keys, other_data_values
         )
 
         # Get the loan number
-        loan_number: str = await get_loan_number(driver)
+        loan_number: str = await get_loan_number(page)
 
         # Merge the loan amount and the other details
         return_table = pd.merge(
@@ -424,20 +424,20 @@ async def run(
         headless=False,
         args=["--disable-blink-features=AutomationControlled"],
     )
-    driver: Page = await browser.new_page()
+    page: Page = await browser.new_page()
 
     # Navigate to the logon page and submit credentials
-    await logon(driver, username, password)
+    await logon(page, username, password)
 
     # Wait for landing page or MFA
-    await wait_for_redirect(driver)
+    await wait_for_redirect(page)
 
     # Handle MFA if prompted, or quit if Chase catches us
-    if await is_mfa_redirect(driver):
-        await handle_mfa_redirect(driver, mfa_auth)
+    if await is_mfa_redirect(page):
+        await handle_mfa_redirect(page, mfa_auth)
 
     # Scrape the loan data ready for output
-    return_tables: List[pd.DataFrame] = await scrape_loan_data(driver)
+    return_tables: List[pd.DataFrame] = await scrape_loan_data(page)
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
