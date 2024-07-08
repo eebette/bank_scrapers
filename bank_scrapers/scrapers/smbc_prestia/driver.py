@@ -11,29 +11,27 @@ for t in tables:
 
 # Standard Library Imports
 from typing import List, Tuple, Union
-from io import StringIO
 from datetime import datetime
+import re
+from io import StringIO
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.common.by import By
-from undetected_chromedriver import Chrome, ChromeOptions
+from undetected_playwright.async_api import (
+    async_playwright,
+    Playwright,
+    Page,
+    Locator,
+    Browser,
+)
+from pyvirtualdisplay import Display
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
-from bank_scrapers.scrapers.common.functions import (
-    start_chromedriver,
-    get_chrome_options,
-    wait_and_find_element,
-    wait_and_find_elements,
-    wait_and_find_click_element,
-    screenshot_on_timeout,
-)
+from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 
 # Institution info
 INSTITUTION: str = "SMBC Prestia"
@@ -44,97 +42,84 @@ HOMEPAGE: str = (
 )
 
 # Timeout
-TIMEOUT: int = 60
-
-# Chrome config
-CHROME_OPTIONS: List[str] = [
-    "--no-sandbox",
-    "--window-size=1920,1080",
-    "--headless",
-    "--disable-gpu",
-    "--allow-running-insecure-content",
-]
+TIMEOUT: int = 60 * 1000
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def logon(
-    driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
+async def logon(
+    page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
     Opens and signs on to an account
-    :param driver: The browser application
-    :param wait: WebDriverWait object for the driver
-    :param homepage: The logon url to initially navigate
+    :param page: The browser application
     :param username: Your username for logging in
     :param password: Your password for logging in
+    :param homepage: The logon url to initially navigate
     """
     # Logon Page
     log.info(f"Accessing: {homepage}")
-    driver.get(homepage)
+    await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
     # Enter User
     log.info(f"Finding username element...")
-    user: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//input[@id='dispuserId']")
-    )
+    username_input: Locator = page.locator("input[id='dispuserId']")
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
-    user.send_keys(username)
+    await username_input.press_sequentially(username, delay=100)
 
     # Enter Password
     log.info(f"Finding password element...")
-    passwd: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//input[@id='disppassword']")
-    )
+    password_input: Locator = page.locator("input[id='disppassword']")
 
     log.info(f"Sending info to password element...")
-    passwd.send_keys(password)
+    await password_input.press_sequentially(password, delay=100)
 
     # Submit credentials
     log.info(f"Finding submit button element...")
-    submit: WebElement = wait_and_find_element(driver, wait, (By.LINK_TEXT, "Sign On"))
+    submit_button: Locator = page.get_by_role("link", name="Sign On")
 
     log.info(f"Clicking submit button element...")
-    submit.click()
+    async with page.expect_navigation(
+        url=re.compile(r"online."), wait_until="load", timeout=TIMEOUT
+    ):
+        await submit_button.click()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def seek_accounts_data(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
+async def seek_accounts_data(page: Page) -> List[Locator]:
     """
     Navigate the website and find the accounts data for the user
-    :param driver: The Chrome browser application
-    :param wait: WebDriverWait object for the driver
+    :param page: The Chrome browser application
     :return: The list of web elements of the accounts data
     """
     log.info(f"Finding accounts button element...")
-    accounts_btn: WebElement = wait_and_find_click_element(
-        driver, wait, (By.LINK_TEXT, "Accounts")
-    )
+    accounts_button: Locator = page.get_by_role("link", name="Accounts", exact=True)
 
     log.info(f"Clicking accounts button element...")
-    accounts_btn.click()
+    await accounts_button.click()
 
     log.info(f"Finding balance button element...")
-    balance_btn: WebElement = wait_and_find_click_element(
-        driver, wait, (By.LINK_TEXT, "Balance Summary")
+    balance_button: Locator = page.get_by_role(
+        "link", name="Balance Summary", exact=True
     )
 
     log.info(f"Clicking balance button element...")
-    balance_btn.click()
+    async with page.expect_navigation(
+        url=re.compile(r"kozazandaka"), wait_until="load", timeout=TIMEOUT
+    ):
+        await balance_button.click()
 
     log.info(f"Finding account info table element...")
-    tables: List[WebElement] = wait_and_find_elements(
-        driver, wait, (By.XPATH, "//table[contains(@class, 'table-normal')]")
-    )
+    tables: List[Locator] = await page.locator("table.table-normal").all()
 
     return tables
 
 
-def parse_accounts_summary(tables: List[WebElement]) -> pd.DataFrame:
+async def parse_accounts_summary(tables: List[Locator]) -> pd.DataFrame:
     """
     Post-processing of the table html
     :param tables: The WebElement inputs of the accounts data from the site
@@ -143,7 +128,7 @@ def parse_accounts_summary(tables: List[WebElement]) -> pd.DataFrame:
     table_dfs: List[pd.DataFrame] = list()
     for table in tables:
         # Create a simple dataframe from the input amount
-        html: str = table.get_attribute("outerHTML")
+        html: str = await table.evaluate("el => el.outerHTML")
         df: pd.DataFrame = pd.read_html(StringIO(str(html)))[0]
 
         # Remove non-numeric, non-decimal characters
@@ -179,35 +164,34 @@ def parse_accounts_summary(tables: List[WebElement]) -> pd.DataFrame:
     return return_df
 
 
-def get_accounts_info(
-    username: str, password: str, prometheus: bool = False
+async def run(
+    playwright: Playwright, username: str, password: str, prometheus: bool = False
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param playwright: The playwright object for running this script
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :return: A list of pandas dataframes of accounts info tables
     """
-    # Get Driver config
-    chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
-
-    # Instantiating the Driver
-    driver: Chrome = start_chromedriver(chrome_options)
-    wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
+    # Instantiate browser
+    browser: Browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=False,
+        args=["--disable-blink-features=AutomationControlled"],
+    )
+    page: Page = await browser.new_page()
 
     # Navigate to the logon page and submit credentials
-    logon(driver, wait, HOMEPAGE, username, password)
+    await logon(page, username, password)
 
     # Navigate the site and download the accounts data
-    accounts_data: List[WebElement] = seek_accounts_data(driver, wait)
-    accounts_data_df: pd.DataFrame = parse_accounts_summary(accounts_data)
+    accounts_data: List[Locator] = await seek_accounts_data(page)
+    accounts_data_df: pd.DataFrame = await parse_accounts_summary(accounts_data)
 
     # Process tables
     return_tables: List[pd.DataFrame] = [accounts_data_df]
-
-    # Clean up
-    driver.quit()
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
@@ -236,3 +220,19 @@ def get_accounts_info(
 
     # Return list of pandas df
     return return_tables
+
+
+async def get_accounts_info(
+    username: str, password: str, prometheus: bool = False
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
+    """
+    Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param username: Your username for logging in
+    :param password: Your password for logging in
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
+    :return: A list of pandas dataframes of accounts info tables
+    """
+    # Instantiate the virtual display
+    with Display(visible=True, size=(1280, 720)):
+        async with async_playwright() as playwright:
+            return await run(playwright, username, password, prometheus)
