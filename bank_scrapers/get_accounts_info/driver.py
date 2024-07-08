@@ -59,7 +59,7 @@ async def get_accounts_info(
     elif driver == "roundpoint":
         return await get_roundpoint(*args, **kwargs)
     elif driver == "smbc_prestia":
-        return get_smbc_prestia(*args, **kwargs)
+        return await get_smbc_prestia(*args, **kwargs)
     elif driver == "uhfcu":
         return get_uhfcu(*args, **kwargs)
     elif driver == "vanguard":
