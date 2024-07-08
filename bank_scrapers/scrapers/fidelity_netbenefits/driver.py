@@ -73,9 +73,9 @@ async def logon(
     """
     Opens and signs on to an account
     :param page: The browser application
-    :param homepage: The logon url to initially navigate
     :param username: Your username for logging in
     :param password: Your password for logging in
+    :param homepage: The logon url to initially navigate
     """
     # Logon Page
     log.info(f"Accessing: {homepage}")

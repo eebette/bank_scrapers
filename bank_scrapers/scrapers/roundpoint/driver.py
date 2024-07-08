@@ -110,6 +110,7 @@ async def wait_for_redirect(page: Page) -> None:
     await expect(page.get_by_text(target_text).first).to_be_visible()
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def is_mfa_redirect(page: Page) -> bool:
     """
     Checks and determines if the site is forcing MFA on the login attempt
