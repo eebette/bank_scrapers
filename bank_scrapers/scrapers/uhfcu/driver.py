@@ -12,28 +12,27 @@ for t in tables:
 # Standard Library Imports
 from typing import List, Tuple, Dict, Union
 from datetime import datetime
+import re
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from undetected_chromedriver import Chrome, ChromeOptions
+from undetected_playwright.async_api import (
+    async_playwright,
+    Playwright,
+    Page,
+    Locator,
+    expect,
+    Browser,
+    BrowserContext,
+)
+from pyvirtualdisplay import Display
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
-from bank_scrapers.scrapers.common.functions import (
-    start_chromedriver,
-    get_chrome_options,
-    wait_and_find_element,
-    wait_and_find_elements,
-    wait_and_find_click_element,
-    screenshot_on_timeout,
-)
+from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
 
 
@@ -45,92 +44,120 @@ SYMBOL: str = "USD"
 HOMEPAGE: str = "https://online.uhfcu.com/sign-in?user=&SubmitNext=Sign%20On"
 
 # Timeout
-TIMEOUT: int = 60
-
-# Chrome config
-CHROME_OPTIONS: List[str] = [
-    "--no-sandbox",
-    "--window-size=1920,1080",
-    "--headless",
-    "--disable-gpu",
-    "--allow-running-insecure-content",
-]
+TIMEOUT: int = 60 * 1000
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def is_mfa_redirect(driver: Chrome) -> bool:
+async def logon(
+    page: Page, username: str, password: str, homepage: str = HOMEPAGE
+) -> None:
     """
-    Checks and determines if the site is forcing MFA on the login attempt
-    :param driver: The browser application
-    :return: True if MFA is being enforced
+    Opens and signs on to an account
+    :param page: The browser application
+    :param homepage: The logon url to initially navigate
+    :param username: Your username for logging in
+    :param password: Your password for logging in
     """
-    if "Security Checks" in driver.page_source:
-        return True
-    else:
-        return False
+    # Logon Page
+    log.info(f"Accessing: {homepage}")
+    await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
+
+    # Enter User
+    log.info(f"Finding username element...")
+    username_input: Locator = page.locator("input[id='username']")
+
+    log.info(f"Sending info to username element...")
+    log.debug(f"Username: {username}")
+    await username_input.press_sequentially(username, delay=100)
+
+    # Enter Password
+    log.info(f"Finding password element...")
+    password_input: Locator = page.locator("input[id='password']")
+
+    log.info(f"Sending info to password element...")
+    await password_input.press_sequentially(password, delay=100)
+
+    # Submit will sometimes stay inactive unless interacted with
+    log.info(f"Finding submit button element...")
+    submit_button: Locator = page.locator("button[type='submit']")
+
+    log.info(f"Clicking submit button element...")
+    await submit_button.click()
+
+    # Wait for redirect to landing page or MFA
+    log.info(f"Waiting for redirect...")
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def handle_multi_factor_authentication(
-    driver: Chrome, wait: WebDriverWait, mfa_auth: MfaAuth = None
-) -> None:
+async def wait_for_redirect(page: Page) -> None:
+    """
+    Wait for the page to redirect to the next stage of the login process
+    :param page: The browser application
+    """
+    target_text: re.Pattern = re.compile(r"(Security Checks|Dashboard)")
+    await expect(page.get_by_text(target_text).first).to_be_visible(timeout=TIMEOUT)
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_mfa_redirect(page: Page) -> bool:
+    """
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param page: The browser application
+    :return: True if MFA is being enforced
+    """
+    return await page.get_by_text("Security Checks").is_visible(timeout=TIMEOUT)
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     """
     Navigates the MFA workflow for this website
-    :param driver: The Chrome driver/browser used for this function
-    :param wait: The wait object associated with the driver function above
+    :param page: The Chrome page/browser used for this function
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
-    log.info(f"Redirected to two-factor authentication page.")
+    log.info(f"Redirected to multi-factor authentication page.")
 
-    # Find the MFA options presented by the app
-    log.info(f"Finding MFA options elements...")
-    options_buttons: List[WebElement] = wait_and_find_elements(
-        driver,
-        wait,
-        (
-            By.XPATH,
-            "//h2[contains(text(), 'Security Checks')]/../button[not(@disabled)]",
-        ),
+    # Identify MFA options
+    log.info(f"Finding contact options elements...")
+    contact_options: List[Locator] = (
+        await page.get_by_text("Security Checks")
+        .locator("..")
+        .locator(":enabled")
+        .all()
     )
 
     # Prompt user input for MFA option
     if mfa_auth is None:
-        for i, l in enumerate(options_buttons):
+        for i, l in enumerate(contact_options):
             log.info(f"No automation info provided. Prompting user for contact option.")
-            print(f"{i+1}: {l.text}")
+            print(f"{i + 1}: {await l.text_content()}")
         option: str = input("Please select one: ")
     else:
         log.info(f"Contact option found in automation info.")
         option: str = str(mfa_auth["otp_contact_option"])
-    l_index: int = int(option) - 1
-    log.debug(f"Contact option: {l_index}")
+    option_index: int = int(option) - 1
+    log.debug(f"Contact option: {option_index}")
 
     # Click based on user input
-    log.info(f"Waiting for element for user selected contact option to be clickable...")
-    mfa_option: WebElement = wait.until(
-        EC.element_to_be_clickable(options_buttons[l_index])
-    )
-
     log.info(f"Clicking element for user selected contact option...")
-    mfa_option.click()
+    await contact_options[option_index].click()
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element and waiting for it to be clickable...")
-    submit: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//button[contains(text(), 'Get Code')]")
-    )
+    next_button: Locator = page.get_by_text("Get Code")
 
     log.info(f"Clicking submit button element...")
-    submit.click()
+    await next_button.click()
 
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
-    otp_input: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//h2[contains(text(), 'Security Checks')]/..//input")
+    otp_input: Locator = (
+        page.get_by_text("Security Checks").locator("..").locator("input")
     )
+
     if mfa_auth is None:
         log.info(f"No automation info provided. Prompting user for OTP.")
         otp_code: str = input("Enter OTP Code: ")
@@ -142,194 +169,146 @@ def handle_multi_factor_authentication(
             search_files_for_int(
                 mfa_auth["otp_code_location"],
                 "University of Hawaii Federal Credit Union",
-                ".txt",
                 6,
                 10,
                 TIMEOUT,
-                True,
+                reverse=True,
             )
         )
 
     log.info(f"Sending info to OTP input box element...")
-    otp_input.send_keys(otp_code)
+    await otp_input.press_sequentially(otp_code, delay=100)
 
     # Click submit once it becomes clickable
-    log.info(f"Finding submit button element and waiting for it to be clickable...")
-    submit: WebElement = wait_and_find_click_element(
-        driver,
-        wait,
-        (By.XPATH, "//mat-dialog-container//button[contains(text(), 'Sign In')]"),
-    )
-
-    log.info(f"Clicking submit button element...")
-    submit.click()
-
-
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def logon(
-    driver: Chrome,
-    wait: WebDriverWait,
-    homepage: str,
-    username: str,
-    password: str,
-) -> None:
-    """
-    Opens and signs on to an account
-    :param driver: The browser application
-    :param wait: WebDriverWait object for the driver
-    :param homepage: The logon url to initially navigate
-    :param username: Your username for logging in
-    :param password: Your password for logging in
-    """
-    # Logon Page
-    log.info(f"Accessing: {homepage}")
-    driver.get(homepage)
-
-    # Enter User
-    log.info(f"Finding username element...")
-    user: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//input[@id='username']")
-    )
-
-    log.info(f"Sending info to username element...")
-    log.debug(f"Username: {username}")
-    user.send_keys(username)
-
-    # Enter Password
-    log.info(f"Finding password element...")
-    passwd: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//input[@id='password']")
-    )
-
-    log.info(f"Sending info to password element...")
-    passwd.send_keys(password)
-
-    # log.info(f"Sleeping for 2 seconds....")
-    # sleep(2)
-
-    # Submit will sometimes stay inactive unless interacted with
     log.info(f"Finding submit button element...")
-    submit: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//button[@type='submit']")
-    )
+    submit_button: Locator = page.locator("button").get_by_text("Sign In")
 
     log.info(f"Clicking submit button element...")
-    submit.click()
-
-    # Wait for redirect to landing page or MFA
-    log.info(f"Waiting for redirect...")
-    wait.until(
-        lambda _: "https://online.uhfcu.com/consumer/main/dashboard"
-        in driver.current_url
-        or is_mfa_redirect(driver)
-    )
+    async with page.expect_navigation(
+        url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
+    ):
+        await submit_button.click(force=True)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def seek_credit_accounts_data(
-    driver: Chrome, wait: WebDriverWait, table: WebElement
-) -> None:
+async def get_accounts_tables(page: Page) -> List[Locator]:
     """
-    Navigate the website to get to the credit accounts details subpage
-    :param driver: The Chrome browser application
-    :param wait: WebDriverWait object for the driver
-    :param table: The table on the dashboard which is being navigated for info
+    Gets a WebElement for each account
+    :param page: The browser application
     """
-    # Click into the credit card table
-    log.info(f"Clicking into the credit card table...")
-    table.click()
+    # Process tables
+    log.info(f"Finding accounts tables...")
 
-    # Navigate to the Manage Cards button on the page and click it
-    log.info(f"Finding the Manage Cards button element...")
-    manage_cards_btn: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//app-manage-cards//button")
-    )
+    log.info("Waiting for accounts_tables to be visible...")
+    table_locator: Locator = page.locator("app-sub-accounts-tiles app-sub-account-card")
+    await expect(table_locator.first).to_be_visible(timeout=TIMEOUT)
 
-    log.info(f"Clicking the Manage Cards button element...")
-    manage_cards_btn.click()
-
-    # Wait for the new window or tab
-    log.info(f"Waiting for new window...")
-    wait.until(EC.number_of_windows_to_be(2))
-
-    # Switch to the new window
-    log.info(f"Switching to the Manage Cards window...")
-    driver.switch_to.window(driver.window_handles[1])
+    return await table_locator.all()
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def parse_credit_card_info(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
-    """
-    Parses the info on the credit card accounts screen into a pandas df
-    :param driver: The Chrome browser application
-    :param wait: WebDriverWait object for the driver
-    :return: A pandas dataframe of the credit card accounts data on the page
-    """
-    # Identify the account info rows on the screen
-    log.info(f"Finding the credit card details table...")
-    data_tbl: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//div[@class='module module-condensed'][1]")
-    )
-
-    # Pull each row as a newline separated kv pair
-    data: List[WebElement] = wait_and_find_elements(
-        data_tbl, wait, (By.XPATH, "//*[@class='text-underlined grid']")
-    )
-    data_txt: List[str] = list(i.text for i in data)
-
-    # Split the kv pairs and enter into a dict
-    data_dict: Dict = {}
-    for d in data_txt:
-        data_row = d.split("\n")
-        data_dict[data_row[0]] = [data_row[-1]]
-
-    # Make a df from the dict
-    df: pd.DataFrame = pd.DataFrame(data=data_dict)
-
-    account_details: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//li/span[text()='Account Details']/..")
-    )
-    account_details.click()
-
-    account_number: str = wait_and_find_element(
-        driver, wait, (By.XPATH, "//p[@id='AccountNumber']/span")
-    ).text
-
-    df["Account Desc"]: pd.DataFrame = account_number
-
-    return df
-
-
-def parse_accounts_summary(table: WebElement) -> pd.DataFrame:
+async def parse_accounts_summary(table: Locator) -> pd.DataFrame:
     """
     Takes a table as a web element from the UHFCU accounts overview page and turns it into a pandas df
     :param table: The table as a web element
     :return: A pandas dataframe of the table
     """
-    # Get a list of the card text
-    account_info: List[str] = table.text.split(sep="\n")
-
-    # Remove the first element (Share Account title)
-    account_info.pop(0)
-
     # Data
-    account_type: str = account_info.pop(0)
-    account_desc: str = account_info.pop(0)
+    account_type: str = await table.locator("h4").text_content()
+    account_desc: str = await table.get_by_text(re.compile("XXX")).text_content()
 
-    # The remaining elements are alternating kv pairs as list elements, so split and zip
-    balance_infos: zip = zip(
-        list(e for i, e in enumerate(account_info) if i % 2 == 0),
-        list(e for i, e in enumerate(account_info) if i % 2 != 0),
+    # The remaining elements
+    balance_infos: List[Locator] = (
+        await table.locator("div.flex.flex-col")
+        .locator("span.amount")
+        .locator("..")
+        .all()
     )
 
     # Data
-    balance_dict: Dict = {"Account Type": account_type, "Account Desc": account_desc}
+    balance_dict: Dict = {
+        "Account Type": account_type.strip(),
+        "Account Desc": account_desc.strip(),
+    }
     for info in balance_infos:
-        # Append balance_dict with the tuple values zipped above
-        balance_dict[info[0]] = [info[1]]
+        # Append balance_dict
+        key: str = await info.locator("span.text-xs").text_content()
+        value: str = await info.locator("span.amount").text_content()
+        balance_dict[key.strip()] = [value.strip()]
 
     # Make a df from the dict
     df: pd.DataFrame = pd.DataFrame(data=balance_dict)
+
+    return df
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def navigate_to_credit_accounts_data(
+    context: BrowserContext, page: Page, table: Locator
+) -> Page:
+    """
+    Navigate the website to get to the credit accounts details subpage
+    :param context: The Chrome browser application's context
+    :param page: The Chrome browser page
+    :param table: The table on the dashboard which is being navigated for info
+    :return: A Page at the credit card info page
+    """
+    # Click into the credit card table
+    log.info(f"Clicking into the credit card table...")
+    await table.click()
+
+    # Navigate to the Manage Cards button on the page and click it
+    log.info(f"Finding the Manage Cards button element...")
+    manage_cards_button: Locator = page.locator("app-manage-cards button")
+
+    # Wait for the new window or tab
+    async with context.expect_page() as credit_card_page:
+        log.info(f"Clicking the Manage Cards button element...")
+        await manage_cards_button.click()
+
+    return await credit_card_page.value
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def parse_credit_card_info(page: Page) -> pd.DataFrame:
+    """
+    Parses the info on the credit card accounts screen into a pandas df
+    :param page: The Chrome browser application
+    :return: A pandas dataframe of the credit card accounts data on the page
+    """
+    # Identify the account info rows on the screen
+    log.info(f"Finding the credit card details table...")
+    await expect(
+        page.locator("div[id='CurrentBalance'] div.module.module-condensed")
+    ).to_be_visible(timeout=TIMEOUT)
+    data_table: Locator = page.locator(
+        "div[id='CurrentBalance'] div.module.module-condensed"
+    )
+
+    # Pull each row as a newline separated kv pair
+    data: List[Locator] = await data_table.locator(".text-underlined.grid").all()
+
+    # Split the kv pairs and enter into a dict
+    data_dict: Dict = dict()
+    for d in data:
+        text_content: str = await d.text_content()
+        value: str = await d.locator("span.always-right").text_content()
+
+        label: str = re.sub(r"(\s*)" + re.escape(value), "", text_content)
+        label: str = re.sub(r"Go to(.*)$", "", label)
+
+        data_dict[label.strip()] = [value.strip()]
+
+    # Make a df from the dict
+    df: pd.DataFrame = pd.DataFrame(data=data_dict)
+
+    account_details: Locator = page.get_by_text("Account Details").locator("..")
+    await account_details.click()
+
+    account_number: str = await page.locator(
+        "p[id='AccountNumber'] span"
+    ).text_content()
+
+    df["Account Desc"]: pd.DataFrame = account_number
 
     return df
 
@@ -343,28 +322,22 @@ def post_process_tables(
     :param credit_table: The Pandas dataframe parsed from the credit accounts data
     :return: A tuple containing the cleaned up dataframes for both deposit and credit accounts
     """
-    deposit_table["symbol"]: pd.DataFrame = SYMBOL
-    deposit_table["account_type"]: pd.DataFrame = "deposit"
-    deposit_table["usd_value"]: pd.DataFrame = 1.0
-    deposit_table["Current Balance"]: pd.DataFrame = deposit_table[
-        "Current Balance"
-    ].replace(to_replace=r"[^0-9\.]+", value="", regex=True)
-    deposit_table["Current Balance"]: pd.DataFrame = pd.to_numeric(
-        deposit_table["Current Balance"]
-    )
+    for table in [deposit_table, credit_table]:
+        table["symbol"]: pd.DataFrame = SYMBOL
+        table["account_type"]: pd.DataFrame = "deposit"
+        table["usd_value"]: pd.DataFrame = 1.0
+
+        for col in ["Current Balance", "Pending Balance", "Available"]:
+            if col in table.columns:
+                table[col]: pd.DataFrame = table[col].replace(
+                    to_replace=r"[^0-9\.]+", value="", regex=True
+                )
+                table[col]: pd.DataFrame = pd.to_numeric(table[col])
+
     deposit_table["Account Desc"]: pd.DataFrame = deposit_table["Account Desc"].replace(
         to_replace=r".* - ", value="", regex=True
     )
 
-    credit_table["symbol"]: pd.DataFrame = SYMBOL
-    credit_table["account_type"]: pd.DataFrame = "credit"
-    credit_table["usd_value"]: pd.DataFrame = 1.0
-    credit_table["Current Balance"]: pd.DataFrame = credit_table[
-        "Current Balance"
-    ].replace(to_replace=r"[^0-9\.]+", value="", regex=True)
-    credit_table["Current Balance"]: pd.DataFrame = pd.to_numeric(
-        credit_table["Current Balance"]
-    )
     credit_table["Account Desc"]: pd.DataFrame = credit_table["Account Desc"].replace(
         to_replace=r"[^0-9]+", value="", regex=True
     )
@@ -372,73 +345,53 @@ def post_process_tables(
     return deposit_table, credit_table
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
-    """
-    Wait for landing page after handling MFA
-    :param driver: The browser application
-    :param wait: WebDriverWait object for the driver
-    """
-    log.info(f"Waiting for landing page...")
-    wait.until(
-        lambda _: "https://online.uhfcu.com/consumer/main/dashboard"
-        in driver.current_url
-    )
-
-
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def get_accounts_tables(driver: Chrome, wait: WebDriverWait) -> List[WebElement]:
-    """
-    Gets a WebElement for each account
-    :param driver: The browser application
-    :param wait: WebDriverWait object for the driver
-    """
-    # Process tables
-    log.info(f"Finding accounts tables...")
-    tables: List[WebElement] = wait_and_find_elements(
-        driver, wait, (By.XPATH, "//app-sub-accounts-tiles//app-sub-account-card")
-    )
-    return tables
-
-
-def get_accounts_info(
-    username: str, password: str, prometheus: bool = False, mfa_auth: MfaAuth = None
+async def run(
+    playwright: Playwright,
+    username: str,
+    password: str,
+    prometheus: bool = False,
+    mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param playwright: The playwright object for running this script
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     :return: A list of pandas dataframes of accounts info tables
     """
-    # Get Driver config
-    chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
-
-    # Instantiating the Driver
-    driver: Chrome = start_chromedriver(chrome_options)
-    wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
+    # Instantiate browser
+    browser: Browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=False,
+        args=["--disable-blink-features=AutomationControlled"],
+    )
+    context: BrowserContext = await browser.new_context()
+    page: Page = await context.new_page()
 
     # Navigate to the logon page and submit credentials
-    logon(driver, wait, HOMEPAGE, username, password)
+    await logon(page, username, password)
+
+    # Wait for landing page or MFA
+    await wait_for_redirect(page)
 
     # Handle MFA if prompted, or quit if Chase catches us
-    if is_mfa_redirect(driver):
-        handle_multi_factor_authentication(driver, wait, mfa_auth)
-
-    # Wait for landing page after handling MFA
-    wait_for_landing_page(driver, wait)
+    if await is_mfa_redirect(page):
+        await handle_mfa_redirect(page, mfa_auth)
 
     # Process tables
-    tables: List[WebElement] = get_accounts_tables(driver, wait)
+    tables: List[Locator] = await get_accounts_tables(page)
     deposit_tables: List = list()
     credit_tables: List = list()
     for t in tables:
-        if "Share Account" in t.text:
-            deposit_tables.append(parse_accounts_summary(t))
-        if "Loan Account" in t.text:
-            seek_credit_accounts_data(driver, wait, t)
-            credit_tables.append(parse_credit_card_info(driver, wait))
+        if "Share Account" in await t.text_content():
+            deposit_tables.append(await parse_accounts_summary(t))
+        elif "Loan Account" in await t.text_content():
+            credit_card_page: Page = await navigate_to_credit_accounts_data(
+                context, page, t
+            )
+            credit_tables.append(await parse_credit_card_info(credit_card_page))
 
     deposit_table: pd.DataFrame = pd.concat(deposit_tables)
     credit_table: pd.DataFrame = pd.concat(credit_tables)
@@ -446,9 +399,6 @@ def get_accounts_info(
     deposit_table, credit_table = post_process_tables(deposit_table, credit_table)
 
     return_tables: List[pd.DataFrame] = [deposit_table, credit_table]
-
-    # Clean up
-    driver.quit()
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
@@ -477,3 +427,23 @@ def get_accounts_info(
 
     # Return list of pandas df
     return return_tables
+
+
+async def get_accounts_info(
+    username: str,
+    password: str,
+    prometheus: bool = False,
+    mfa_auth: MfaAuth = None,
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
+    """
+    Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param username: Your username for logging in
+    :param password: Your password for logging in
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
+    :return: A list of pandas dataframes of accounts info tables
+    """
+    # Instantiate the virtual display
+    with Display(visible=False, size=(1280, 720)):
+        async with async_playwright() as playwright:
+            return await run(playwright, username, password, prometheus, mfa_auth)
