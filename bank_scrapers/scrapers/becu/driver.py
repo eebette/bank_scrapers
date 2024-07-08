@@ -126,9 +126,7 @@ async def wait_for_credit_details(page: Page) -> None:
     :param page: The Chrome page/browser used for this function
     """
     log.info(f"Waiting for credit details to render...")
-    credit_details: Locator = page.locator(
-        "xpath=//tbody[@id='visaTable']/tr[@class='item']"
-    )
+    credit_details: Locator = page.locator("tbody[id='visaTable'] tr[class='item']")
     await expect(credit_details).to_be_visible(timeout=TIMEOUT)
 
 
@@ -140,8 +138,7 @@ async def get_detail_tables(page: Page) -> List[Locator]:
     :return: A list containing the web elements for the tables
     """
     log.info(f"Finding accounts details elements...")
-    tables_xpath: str = "//table[contains(@class, 'tablesaw-stack')]"
-    tables: List[Locator] = await page.locator(f"xpath={tables_xpath}").all()
+    tables: List[Locator] = await page.locator("table.tablesaw-stack").all()
     return tables
 
 
