@@ -161,6 +161,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     log.debug(f"Contact option: {option_index}")
 
     # Click based on user input
+    log.info(f"Clicking element for user selected contact option...")
     await contact_options[option_index].click()
 
     # Prompt user for OTP code and enter onto the page

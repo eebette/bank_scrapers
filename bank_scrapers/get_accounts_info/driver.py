@@ -57,7 +57,7 @@ async def get_accounts_info(
     elif driver == "fidelity_netbenefits":
         return await get_fidelity_nb(*args, **kwargs)
     elif driver == "roundpoint":
-        return get_roundpoint(*args, **kwargs)
+        return await get_roundpoint(*args, **kwargs)
     elif driver == "smbc_prestia":
         return get_smbc_prestia(*args, **kwargs)
     elif driver == "uhfcu":
