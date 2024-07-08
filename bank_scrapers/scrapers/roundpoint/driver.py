@@ -55,10 +55,7 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
-    page: Page,
-    username: str,
-    password: str,
-    homepage: str = HOMEPAGE,
+    page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
     Opens and signs on to an account
@@ -160,18 +157,14 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")
-    next_button: Locator = page.locator(
-        "bki-one-time-pin-verify button[type='submit']"
-    )
+    next_button: Locator = page.locator("bki-one-time-pin-verify button[type='submit']")
 
     log.info(f"Clicking submit button element...")
     await next_button.click()
 
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
-    otp_input: Locator = page.locator(
-        "bki-one-time-pin-verify input[name='otpInput']"
-    )
+    otp_input: Locator = page.locator("bki-one-time-pin-verify input[name='otpInput']")
 
     if mfa_auth is None:
         log.info(f"No automation info provided. Prompting user for OTP.")
@@ -338,9 +331,7 @@ async def scrape_loan_data(page: Page) -> List[pd.DataFrame]:
     :return: A list of Pandas DataFrames containing the loans data
     """
     # Find and expand the dropdown list containing the account's loans
-    log.info(
-        f"Finding loans button dropdown element..."
-    )
+    log.info(f"Finding loans button dropdown element...")
     loans_button: Locator = page.locator("div[class='secondary-header-top'] button")
 
     log.info(f"Clicking loans button dropdown element...")

@@ -69,6 +69,7 @@ async def logon(
     username_input: Locator = page.locator("input[id='ctlSignon_txtUserID']")
 
     log.info(f"Sending info to username element...")
+    log.debug(f"Username: {username}")
     await username_input.press_sequentially(username, delay=100)
 
     # Enter Password
