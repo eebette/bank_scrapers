@@ -61,7 +61,7 @@ async def get_accounts_info(
     elif driver == "smbc_prestia":
         return await get_smbc_prestia(*args, **kwargs)
     elif driver == "uhfcu":
-        return get_uhfcu(*args, **kwargs)
+        return await get_uhfcu(*args, **kwargs)
     elif driver == "vanguard":
         return get_vanguard(*args, **kwargs)
     elif driver == "zillow":
