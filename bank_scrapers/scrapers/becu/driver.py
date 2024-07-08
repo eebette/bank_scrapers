@@ -251,9 +251,7 @@ async def run(
 
 
 async def get_accounts_info(
-    username: str,
-    password: str,
-    prometheus: bool = False,
+    username: str, password: str, prometheus: bool = False
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
