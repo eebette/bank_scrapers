@@ -47,7 +47,7 @@ async def get_accounts_info(
     if driver == "kraken":
         return get_kraken(*args, **kwargs)
     elif driver == "bitcoin":
-        return get_bitcoin(*args, **kwargs)
+        return await get_bitcoin(*args, **kwargs)
     elif driver == "ethereum":
         return get_ethereum(*args, **kwargs)
     elif driver == "becu":
