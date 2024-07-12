@@ -217,7 +217,7 @@ def screenshot_on_timeout(save_path: str):
             nonlocal save_path
             try:
                 return await func(*args, **kwargs)
-            except PlaywrightTimeoutError:
+            except (PlaywrightTimeoutError, AssertionError):
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
                 log.warning(f"Saving screenshot to: {save_path}")
                 await driver.screenshot(path=save_path)
