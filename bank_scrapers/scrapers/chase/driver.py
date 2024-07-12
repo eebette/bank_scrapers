@@ -33,7 +33,7 @@ from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
-from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
+from bank_scrapers.scrapers.chase.mfa_auth import ChaseMfaAuth
 
 # Institution info
 INSTITUTION: str = "Chase"
@@ -95,20 +95,40 @@ async def logon(
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def is_mfa_redirect(page: Page) -> bool:
+async def wait_for_redirect(page: Page) -> None:
     """
-    Checks and determines if the site is forcing MFA on the login attempt
-    :param page: The Chrome browser application
-    :return: True if MFA is being enforced
+    Wait for the page to redirect to the next stage of the login process
+    :param page: The browser application
     """
-    if "/auth/" in page.url:
-        return True
-    else:
-        return False
+    log.info("Waiting for auth page...")
+    target_text: re.Pattern = re.compile(
+        r"(Let's make sure it's you|We don't recognize this device)"
+    )
+    await expect(page.get_by_text(target_text)).to_be_visible(timeout=TIMEOUT)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
+async def is_mfa_redirect(page: Page) -> bool:
+    """
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param page: The browser application
+    :return: True if MFA is being enforced
+    """
+    return await page.get_by_text("Let's make sure it's you").is_visible()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_mfa_redirect_alternate(page: Page) -> bool:
+    """
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param page: The browser application
+    :return: True if MFA is being enforced
+    """
+    return await page.get_by_text("We don't recognize this device").is_visible()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None:
     """
     Navigates the MFA workflow for this website
     Note that this function only covers Email Me options for now.
@@ -183,6 +203,127 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     log.info(f"Clicking submit button element...")
     await submit_button.click()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_mfa_redirect_alternate(
+    page: Page, password: str, mfa_auth: ChaseMfaAuth = None
+) -> None:
+    """
+    Navigates the MFA workflow for this website
+    Note that this function only covers Email Me options for now.
+    :param page: The Chrome page/browser used for this function
+    :param password: User's password to enter along with OTP
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP Typed Dict with MFA inputs for automation
+    """
+    log.info(f"Redirected to traditional multi-factor authentication page.")
+
+    # Wait for the expand option to become clickable or else can lead to bugs where the list doesn't expand correctly
+    log.info(
+        f"Finding list expand button element and waiting for it to be clickable..."
+    )
+    expand_button: Locator = page.locator(
+        "input[id='header-simplerAuth-dropdownoptions-styledselect']"
+    )
+
+    # Then click it
+    log.info(f"Clicking list expand button element...")
+    await expand_button.click()
+
+    dropdown_locator: Locator = page.locator(
+        "ul[id=ul-list-container-simplerAuth-dropdownoptions-styledselect]"
+    )
+
+    # Identify MFA options
+    log.info(f"Waiting for contact options elements to be visible...")
+    contact_options_locator: Locator = dropdown_locator.locator(
+        "a.option:not([aria-disabled]):not([rel='Call'])"
+    )
+
+    await expect(contact_options_locator.first).to_be_visible(timeout=TIMEOUT)
+    log.info("Getting contact options from dropdown...")
+    contact_options_locators: List[Locator] = await contact_options_locator.all()
+    contact_options: List[Tuple[Locator, str]] = list()
+    for contact_option in contact_options_locators:
+        contact_option_label_locator: Locator = contact_option.locator(
+            "xpath=preceding::a[contains(@class, 'groupLabelContainer')][1]"
+        )
+        contact_option_text: str = await contact_option.text_content()
+        contact_option_text: str = contact_option_text.strip()
+
+        contact_option_label_text: str = (
+            await contact_option_label_locator.text_content()
+        )
+        contact_option_label_text: str = contact_option_label_text.strip()
+
+        contact_options.append(
+            (contact_option, f"{contact_option_label_text}: {contact_option_text}")
+        )
+
+    # Prompt user input for MFA option
+    if mfa_auth is None:
+        log.info(f"No automation info provided. Prompting user for contact option.")
+        for i, l in enumerate(contact_options):
+            print(f"{i + 1}: {l[1]}")
+        option: str = input("Please select one: ")
+    else:
+        log.info(f"Contact option found in automation info.")
+        option: str = str(mfa_auth["otp_contact_option_alternate"])
+    option_index: int = int(option) - 1
+    log.debug(f"Contact option: {option_index}")
+
+    # Click based on user input
+    log.info(f"Clicking list expand button element...")
+    if not await page.get_by_text(re.compile(r"(TEXT|CALL) ME")).first.is_visible():
+        await expand_button.click()
+
+    log.info(f"Clicking element for user selected contact option...")
+    await contact_options[option_index][0].click()
+
+    # Click submit once it becomes clickable
+    log.info(f"Finding submit button element and waiting for it to be clickable...")
+    next_button: Locator = page.locator("button[id='requestIdentificationCode-sm']")
+
+    log.info(f"Clicking submit button element...")
+    await next_button.click()
+
+    # Prompt user for OTP code and enter onto the page
+    log.info(f"Finding input box element for OTP...")
+    otp_input: Locator = page.locator("input[id='otpcode_input-input-field']")
+
+    # Prompt user input for MFA option
+    if mfa_auth is None:
+        log.info(f"No automation info provided. Prompting user for OTP.")
+        otp_code: str = input("Enter OTP Code: ")
+    else:
+        log.info(
+            f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
+        )
+        otp_code: str = str(
+            search_files_for_int(
+                mfa_auth["otp_code_location"], INSTITUTION, 6, 10, TIMEOUT, reverse=True
+            )
+        )
+
+    log.info(f"Sending info to OTP input box element...")
+    await otp_input.press_sequentially(otp_code, delay=100)
+
+    # Re-enter the password on the OTP page
+    log.info(f"Finding password element...")
+    password_input: Locator = page.locator("input[id='password_input-input-field']")
+
+    log.info(f"Sending info to password element...")
+    await password_input.press_sequentially(password, delay=100)
+
+    # Click submit once it becomes clickable
+    log.info(f"Finding submit button element...")
+    submit_button: Locator = page.locator("button[id='log_on_to_landing_page-sm']")
+
+    log.info(f"Clicking submit button element...")
+    async with page.expect_navigation(
+        url=re.compile(r"/dashboard/"), wait_until="load", timeout=TIMEOUT
+    ):
+        await submit_button.click()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -298,7 +439,7 @@ async def run(
     username: str,
     password: str,
     prometheus: bool = False,
-    mfa_auth: MfaAuth = None,
+    mfa_auth: ChaseMfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
@@ -320,9 +461,16 @@ async def run(
     # Navigate to the logon page and submit credentials
     await logon(page, username, password)
 
+    if "auth" in page.url:
+        await wait_for_redirect(page)
+
     # Handle MFA if prompted
     if await is_mfa_redirect(page):
         await handle_mfa_redirect(page, mfa_auth)
+
+    # Handle MFA if prompted
+    if await is_mfa_redirect_alternate(page):
+        await handle_mfa_redirect_alternate(page, password, mfa_auth)
 
     # Navigate the site and download the accounts data
     await seek_accounts_data(page)
@@ -379,7 +527,7 @@ async def get_accounts_info(
     username: str,
     password: str,
     prometheus: bool = False,
-    mfa_auth: MfaAuth = None,
+    mfa_auth: ChaseMfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
@@ -390,6 +538,6 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    with Display(visible=False, size=(1280, 720)):
+    with Display(visible=True, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
