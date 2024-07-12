@@ -214,7 +214,7 @@ async def handle_mfa_redirect_alternate(
     Note that this function only covers Email Me options for now.
     :param page: The Chrome page/browser used for this function
     :param password: User's password to enter along with OTP
-    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP Typed Dict with MFA inputs for automation
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
     log.info(f"Redirected to traditional multi-factor authentication page.")
 
@@ -538,6 +538,6 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    with Display(visible=True, size=(1280, 720)):
+    with Display(visible=False, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
