@@ -3,38 +3,30 @@ This file provides the get_accounts_info() function for Vanguard (https://www.va
 
 Example Usage:
 ```
-from pathlib import Path
-import random
-r = list(str(r) for r in range(20))
-random.shuffle(r)
-seq = "".join(r)
-
-tmp_dir = f"{Path.home()}/temp/bank_scraper_{seq}"
-os.mkdir(tmp_dir)
-tables = get_accounts_info(
-    username="{username}", password="{password}", tmp_dir=tmp_dir
-)
+tables = get_accounts_info(username="{username}", password="{password}")
 for t in tables:
     print(t.to_string())
-
-import shutil
-shutil.rmtree(tmp_dir)
 ```
 """
 
 # Standard Library Imports
 from typing import List, Tuple, Dict, Union
 from datetime import datetime
-from time import sleep
-from random import randint
+import re
 import os
+from tempfile import TemporaryDirectory
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.common.by import By
-from undetected_chromedriver import Chrome, ChromeOptions
+from undetected_playwright.async_api import (
+    async_playwright,
+    Playwright,
+    Page,
+    Locator,
+    expect,
+    Browser,
+    Download,
+)
 from pyvirtualdisplay import Display
 
 # Local Imports
@@ -42,15 +34,7 @@ from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
-from bank_scrapers.scrapers.common.functions import (
-    start_chromedriver,
-    get_chrome_options,
-    enable_downloads,
-    wait_and_find_element,
-    wait_and_find_elements,
-    wait_and_find_click_element,
-    screenshot_on_timeout,
-)
+from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
 
 # Institution info
@@ -58,74 +42,135 @@ INSTITUTION: str = "Vanguard"
 SYMBOL: str = "USD"
 
 # Logon page
-HOMEPAGE = "https://logon.vanguard.com/logon"
+HOMEPAGE: str = "https://logon.vanguard.com/logon"
+DASHBOARD_PAGE: str = (
+    "https://personal1.vanguard.com/ofu-open-fin-exchange-webapp/ofx-welcome"
+)
 
 # Timeout
-TIMEOUT: int = 60
-
-# Chrome config
-CHROME_OPTIONS: List[str] = [
-    "--no-sandbox",
-    "--window-size=1920,1080",
-    "--disable-gpu",
-    "--allow-running-insecure-content",
-]
+TIMEOUT: int = 60 * 1000
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def handle_multi_factor_authentication(
-    driver: Chrome, wait: WebDriverWait, mfa_auth: MfaAuth = None
+async def logon(
+    page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
+    Opens and signs on to an account
+    :param page: The browser application
+    :param username: Your username for logging in
+    :param password: Your password for logging in
+    :param homepage: The logon url to initially navigate
+    """
+    # Logon Page
+    log.info(f"Accessing: {homepage}")
+    await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
+
+    # Enter User
+    log.info(f"Finding username element...")
+    username_input: Locator = page.locator("input[id='USER']")
+
+    log.info(f"Sending info to username element...")
+    log.debug(f"Username: {username}")
+    await username_input.press_sequentially(username, delay=100)
+
+    # Enter Password
+    log.info(f"Finding password element...")
+    password_input: Locator = page.locator("input[id='PASSWORD-blocked']")
+
+    log.info(f"Sending info to password element...")
+    await password_input.press_sequentially(password, delay=100)
+
+    # Submit credentials
+    log.info(f"Finding submit button element...")
+    submit_button: Locator = page.locator("button[id='username-password-submit-btn-1']")
+
+    log.info(f"Clicking submit button element...")
+    await submit_button.click()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def wait_for_redirect(page: Page) -> None:
+    """
+    Wait for the page to redirect to the next stage of the login process
+    :param page: The browser application
+    """
+    target_text: re.Pattern = re.compile(r"(We need to verify it's you|Welcome back,)")
+    await expect(page.get_by_text(target_text)).to_be_visible(timeout=TIMEOUT)
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_mfa_redirect(page: Page) -> bool:
+    """
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param page: The browser application
+    :return: True if MFA is being enforced
+    """
+    return await page.get_by_text("We need to verify it's you").is_visible(
+        timeout=TIMEOUT
+    )
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
+    """
     Navigates the MFA workflow for this website
-    :param driver: The Chrome driver/browser used for this function
-    :param wait: The wait object associated with the driver function above
+    :param page: The Chrome page/browser used for this function
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
-    log.info(f"Redirected to two-factor authentication page.")
+    log.info(f"Redirected to multi-factor authentication page.")
 
     # Select the mobile app MFA option
     log.info(f"Finding contact options elements...")
-    mfa_buttons: List[WebElement] = wait_and_find_elements(
-        driver, wait, (By.XPATH, "//lgn-auth-selection//button")
-    )
+    contact_options: List[Locator] = await page.locator(
+        "lgn-auth-selection button"
+    ).all()
+
+    contact_options_text: List[str] = []
+    for contact_option in contact_options:
+        contact_options_text.append(
+            await contact_option.get_by_text("Verify with").text_content()
+        )
 
     # Prompt user input for MFA option
     if mfa_auth is None:
-        for i, l in enumerate(mfa_buttons):
-            log.info(f"No automation info provided. Prompting user for contact option.")
-            print(f"{i + 1}: {l.text}")
-        o_index: int = int(input("Please select one: ")) - 1
+        log.info(f"No automation info provided. Prompting user for contact option.")
+        for i, text in enumerate(contact_options_text):
+            print(f"{i + 1}: {text}")
+        option: str = input("Please select one: ")
     else:
         log.info(f"Contact option found in automation info.")
-        o_index: int = mfa_auth["otp_contact_option"] - 1
-    log.debug(f"Contact option: {o_index}")
+        option: str = str(mfa_auth["otp_contact_option"])
+    option_index: int = int(option) - 1
+    log.debug(f"Contact option: {option_index}")
 
-    mfa_option: WebElement = mfa_buttons[o_index]
-    mfa_option_text: str = mfa_buttons[o_index].text
+    mfa_option_text: str = await contact_options[option_index].text_content()
 
+    # Click based on user input
     log.info(f"Clicking element for user selected contact option...")
-    mfa_option.click()
+    await contact_options[option_index].click()
 
     # Prompt user for MFA
     if "app" in mfa_option_text:
-        print("Waiting for MFA...")
+        async with page.expect_navigation(
+            url=re.compile(r"dashboard.web.vanguard.com"),
+            wait_until="load",
+            timeout=TIMEOUT,
+        ):
+            print("Waiting for MFA...")
+            await contact_options[option_index].click()
     else:
-        log.info(f"Finding element for user selected contact option...")
-        sms_button: WebElement = wait_and_find_element(
-            driver, wait, (By.XPATH, "//lgn-phone-now-selection//button")
-        )
+        log.info(f"Finding element for send SMS...")
+        sms_button: Locator = page.locator("lgn-phone-now-selection button")
 
-        log.info(f"Clicking element for user selected contact option...")
-        sms_button.click()
+        log.info(f"Clicking element for send SMS...")
+        await sms_button.click()
 
         log.info(f"Finding input box element for OTP...")
-        otp: WebElement = wait_and_find_element(
-            driver, wait, (By.XPATH, "//input[@id='CODE']")
-        )
+        otp_input: Locator = page.locator("input[id='CODE']")
         if mfa_auth is None:
             log.info(f"No automation info provided. Prompting user for OTP.")
             otp_code: str = input("Enter OTP Code: ")
@@ -137,208 +182,49 @@ def handle_multi_factor_authentication(
                 search_files_for_int(
                     mfa_auth["otp_code_location"],
                     "Vanguard",
-                    ".txt",
                     6,
                     10,
                     TIMEOUT,
-                    True,
-                    delay=15,
+                    reverse=True,
                 )
             )
 
         log.info(f"Sending info to OTP input box element...")
-        otp.send_keys(otp_code)
+        await otp_input.press_sequentially(otp_code, delay=100)
 
-    log.info(f"Finding submit button element...")
-    submit_button: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//button[@type='submit']")
-    )
+        log.info(f"Finding submit button element...")
+        submit_button: Locator = page.locator("button[type='submit']")
 
-    log.info(f"Clicking submit button element...")
-    submit_button.click()
-
-
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def is_mfa_redirect(driver: Chrome) -> bool:
-    """
-    Checks and determines if the site is forcing MFA on the login attempt
-    :param driver: The browser application
-    :return: True if MFA is being enforced
-    """
-    if (
-        driver.current_url == "https://logon.vanguard.com/logon"
-        and str("We need to verify it's you") in driver.page_source
-    ):
-        return True
-    else:
-        return False
+        log.info(f"Clicking submit button element...")
+        async with page.expect_navigation(
+            url=re.compile(r"dashboard.web.vanguard.com"),
+            wait_until="load",
+            timeout=TIMEOUT,
+        ):
+            await submit_button.click()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def logon(
-    driver: Chrome, wait: WebDriverWait, homepage: str, username: str, password: str
-) -> None:
-    """
-    Opens and signs on to an account
-    :param driver: The browser application
-    :param wait: WebDriverWait object for the driver
-    :param homepage: The logon url to initially navigate
-    :param username: Your username for logging in
-    :param password: Your password for logging in
-    """
-    # Logon Page
-    log.info(f"Accessing: {homepage}")
-    driver.get(homepage)
-
-    # Enter User
-    sleep(randint(1, 5))
-    log.info(f"Finding username element...")
-    user: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//input[@id='USER']")
-    )
-
-    log.info(f"Sending info to username element...")
-    log.debug(f"Username: {username}")
-    user.send_keys(username)
-
-    # Enter Password
-    sleep(randint(1, 5))
-    log.info(f"Finding password element...")
-    passwd: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//input[@id='PASSWORD-blocked']")
-    )
-
-    log.info(f"Sending info to password element...")
-    passwd.send_keys(password)
-
-    # Submit credentials
-    sleep(randint(1, 5))
-    log.info(f"Finding submit button element and waiting for it to be clickable...")
-    submit: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//button[@id='username-password-submit-btn-1']")
-    )
-
-    log.info(f"Clicking submit button element...")
-    submit.click()
-
-    log.info(f"Waiting for redirect...")
-    wait.until(
-        lambda _: "https://dashboard.web.vanguard.com/" in driver.current_url
-        or "https://challenges.web.vanguard.com/" in driver.current_url
-        or is_mfa_redirect(driver)
-    )
-
-
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def seek_accounts_data(driver: Chrome, wait: WebDriverWait, tmp_dir: str) -> None:
-    """
-    Navigate the website and click download button for the accounts data
-    :param driver: The Chrome browser application
-    :param wait: WebDriverWait object for the driver
-    :param tmp_dir: An empty directory to use for processing the downloaded file
-    """
-    # Go to Downloads Center
-    log.info(
-        f"Accessing: https://personal1.vanguard.com/ofu-open-fin-exchange-webapp/ofx-welcome"
-    )
-    driver.get(
-        "https://personal1.vanguard.com/ofu-open-fin-exchange-webapp/ofx-welcome"
-    )
-
-    # Select CSV option for download formats
-    log.info(f"Finding download options element and waiting for it to be clickable...")
-    download_option: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//vui-select[@id='optionSelect']")
-    )
-
-    log.info(f"Clicking download button...")
-    download_option.click()
-
-    log.info(f"Finding CSV option button element and waiting for it to be clickable...")
-    vui_option: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//vui-option/span[text()[contains(.,'CSV')]]/..")
-    )
-
-    log.info(f"Clicking CSV option button...")
-    vui_option.click()
-
-    # Select last 18 months for date range
-    log.info(
-        f"Finding date range options dropdown button element and waiting for it to be clickable..."
-    )
-    date_range: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//vui-select[@id='dateSelect']")
-    )
-
-    log.info(f"Clicking date range options dropdown button...")
-    date_range.click()
-
-    log.info(
-        f"Finding '18 months' option button element and waiting for it to be clickable..."
-    )
-    vui_option_: WebElement = wait_and_find_click_element(
-        driver,
-        wait,
-        (By.XPATH, "//vui-option/span[text()[contains(.,'18 months')]]/.."),
-    )
-
-    log.info(f"Clicking '18 months' option button...")
-    vui_option_.click()
-
-    # Select for all accounts
-    log.info(f"Finding accounts checkbox element and waiting for it to be clickable...")
-    mat_checkbox = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//input[@id='mat-checkbox-1-input']")
-    )
-
-    log.info(f"Clicking accounts checkbox element...")
-    mat_checkbox.click()
-
-    # Submit download request
-    log.info(f"Finding submit button element and waiting for it to be clickable...")
-    submit: WebElement = wait_and_find_click_element(
-        driver, wait, (By.XPATH, "//vui-button[@id='submitOFXDownload']")
-    )
-
-    log.info(f"Clicking submit button element...")
-    submit.click()
-
-    # Allow the download to process
-    while not os.path.exists(f"{tmp_dir}/OfxDownload.csv"):
-        log.info(f"Waiting for file: {tmp_dir}/OfxDownload.csv")
-        sleep(1)
-
-
-def parse_accounts_summary(full_path: str) -> pd.DataFrame:
-    """
-    Post-processing of the downloaded file removing disclaimers and other irrelevant mumbo jumbo
-    :param full_path: The path to the file to parse
-    :return: A pandas dataframe of the downloaded data
-    """
-    df: pd.DataFrame = pd.read_csv(f"{full_path}", on_bad_lines="skip")
-    df: pd.DataFrame = df.dropna(axis=1, how="all")
-    df["Share Price"]: pd.DataFrame = pd.to_numeric(df["Share Price"])
-    df["Shares"]: pd.DataFrame = pd.to_numeric(df["Shares"])
-    return df
-
-
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def get_account_types(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
+async def get_account_types(page: Page) -> pd.DataFrame:
     """
     Gets the account numbers and types for each account
-    :param driver: The Chrome browser application
-    :param wait: WebDriverWait object for the driver
+    :param page: The Chrome browser application
     :return: A Pandas DataFrame containing the account numbers and types
     """
     log.info(f"Finding account type elements...")
-    account_labels: List[str] = list(
-        e.text
-        for e in wait_and_find_elements(
-            driver, wait, (By.XPATH, "//a[@data-cy='account-name']/span")
-        )
-    )
 
-    accounts: Dict[str, str] = {}
+    log.info("Waiting for accounts tables to be visible...")
+    account_label_locator: Locator = page.locator("a.account-holdings-link")
+    await expect(account_label_locator.first).to_be_visible(timeout=TIMEOUT)
+
+    account_label_elements: List[Locator] = await account_label_locator.all()
+
+    account_labels: List[str] = list()
+    for account_label_element in account_label_elements:
+        account_label_text_content: str = await account_label_element.text_content()
+        account_labels.append(account_label_text_content.strip())
+
+    accounts: Dict[str, str] = dict()
     for account in account_labels:
         account_split: List[str] = account.split(sep=" — ")[1:]
         accounts[account_split[1]] = (
@@ -358,75 +244,129 @@ def get_account_types(driver: Chrome, wait: WebDriverWait) -> pd.DataFrame:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def wait_for_landing_page(driver: Chrome, wait: WebDriverWait) -> None:
+async def seek_accounts_data(page: Page, tmp: str) -> None:
     """
-    Wait for landing page after handling MFA
-    :param driver: The browser application
-    :param wait: WebDriverWait object for the driver
+    Navigate the website and click download button for the accounts data
+    :param page: The Chrome browser application
+    :param tmp: An empty directory to use for processing the downloaded file
     """
-    log.info(f"Waiting for landing page...")
-    wait.until(
-        lambda _: "https://dashboard.web.vanguard.com/" in driver.current_url
-        or "https://challenges.web.vanguard.com/" in driver.current_url
+    # Go to Downloads Center
+    log.info(f"Accessing: {DASHBOARD_PAGE}")
+    await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
+
+    # Select CSV option for download formats
+    log.info(f"Finding download options element...")
+    download_option: Locator = page.locator("vui-select[id='optionSelect']")
+
+    log.info(f"Clicking download button...")
+    await download_option.click()
+
+    log.info(f"Finding CSV option button element...")
+    vui_format_option: Locator = (
+        page.locator("vui-option").get_by_text("CSV").locator("..")
     )
 
+    log.info(f"Clicking CSV option button...")
+    await vui_format_option.click()
 
-def get_accounts_info(
+    # Select last 18 months for date range
+    log.info(f"Finding date range options dropdown button element...")
+    date_range: Locator = page.locator("vui-select[id='dateSelect']")
+
+    log.info(f"Clicking date range options dropdown button...")
+    await date_range.click()
+
+    log.info(f"Finding '18 months' option button element...")
+    vui_date_option: Locator = (
+        page.locator("vui-option").get_by_text("18 months").locator("..")
+    )
+
+    log.info(f"Clicking '18 months' option button...")
+    await vui_date_option.click()
+
+    # Select for all accounts
+    log.info(f"Finding accounts checkbox element...")
+    accounts_checkbox: Locator = page.locator("input[id='mat-checkbox-1-input']")
+
+    log.info(f"Clicking accounts checkbox element...")
+    await accounts_checkbox.click()
+
+    # Submit download request
+    log.info(f"Finding submit button element...")
+    submit_button: Locator = page.locator("vui-button[id='submitOFXDownload']")
+
+    log.info(f"Clicking submit button element...")
+    await submit_button.click()
+
+    async with page.expect_download() as download_info:
+        await submit_button.click()
+    download: Download = await download_info.value
+
+    # Wait for the download process to complete and save the downloaded file
+    await download.save_as(f"{tmp}/{download.suggested_filename}")
+
+
+def parse_accounts_summary(full_path: str) -> pd.DataFrame:
+    """
+    Post-processing of the downloaded file removing disclaimers and other irrelevant mumbo jumbo
+    :param full_path: The path to the file to parse
+    :return: A pandas dataframe of the downloaded data
+    """
+    df: pd.DataFrame = pd.read_csv(f"{full_path}", on_bad_lines="skip")
+    df: pd.DataFrame = df.dropna(axis=1, how="all")
+    df["Share Price"]: pd.DataFrame = pd.to_numeric(df["Share Price"])
+    df["Shares"]: pd.DataFrame = pd.to_numeric(df["Shares"])
+    return df
+
+
+async def run(
+    playwright: Playwright,
     username: str,
     password: str,
-    tmp_dir: str,
     prometheus: bool = False,
     mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param playwright: The playwright object for running this script
     :param username: Your username for logging in
     :param password: Your password for logging in
-    :param tmp_dir: An empty directory to use for processing the downloaded file
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     :return: A list of pandas dataframes of accounts info tables
     """
-    # Instantiate the virtual display
-    display: Display = Display(visible=False, size=(800, 600))
-    display.start()
-
-    # Get Driver config
-    chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
-
-    # Instantiating the Driver
-    driver: Chrome = start_chromedriver(chrome_options)
-    enable_downloads(driver, downloads_dir=tmp_dir)
-    wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
+    # Instantiate browser
+    browser: Browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=False,
+        args=["--disable-blink-features=AutomationControlled"],
+    )
+    page: Page = await browser.new_page()
 
     # Navigate to the logon page and submit credentials
-    logon(driver, wait, HOMEPAGE, username, password)
+    await logon(page, username, password)
 
-    # Handle MFA if prompted, or quit if Chase catches us
-    if is_mfa_redirect(driver):
-        handle_multi_factor_authentication(driver, wait, mfa_auth)
+    # Wait for landing page or MFA
+    await wait_for_redirect(page)
 
-    # Wait for landing page after handling MFA
-    wait_for_landing_page(driver, wait)
+    # Handle MFA if prompted
+    if await is_mfa_redirect(page):
+        await handle_mfa_redirect(page, mfa_auth)
 
     # Get the account types while on the dashboard screen
-    accounts_df: pd.DataFrame = get_account_types(driver, wait)
+    accounts_df: pd.DataFrame = await get_account_types(page)
 
-    # Navigate the site and download the accounts data
-    seek_accounts_data(driver, wait, tmp_dir)
+    with TemporaryDirectory() as tmp:
+        log.info(f"Created temporary directory: {tmp}")
 
-    file_name: str = os.listdir(tmp_dir)[0]
-    try:
+        # Navigate the site and download the accounts data
+        await seek_accounts_data(page, tmp)
+        file_name: str = os.listdir(tmp)[0]
+
         # Process tables
-        accounts_data: pd.DataFrame = parse_accounts_summary(f"{tmp_dir}/{file_name}")
+        accounts_data: pd.DataFrame = parse_accounts_summary(f"{tmp}/{file_name}")
+
         return_tables: List[pd.DataFrame] = [pd.merge(accounts_df, accounts_data)]
-    except Exception as e:
-        log.error(e)
-        exit(1)
-    finally:
-        # Clean up
-        driver.quit()
-        os.remove(f"{tmp_dir}/{file_name}")
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
@@ -455,3 +395,23 @@ def get_accounts_info(
 
     # Return list of pandas df
     return return_tables
+
+
+async def get_accounts_info(
+    username: str,
+    password: str,
+    prometheus: bool = False,
+    mfa_auth: MfaAuth = None,
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
+    """
+    Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param username: Your username for logging in
+    :param password: Your password for logging in
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
+    :return: A list of pandas dataframes of accounts info tables
+    """
+    # Instantiate the virtual display
+    with Display(visible=False, size=(1280, 720)):
+        async with async_playwright() as playwright:
+            return await run(playwright, username, password, prometheus, mfa_auth)
