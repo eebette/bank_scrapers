@@ -39,8 +39,8 @@ def get_usd_rate_crypto(symbol: str) -> float:
         log.info(f"Getting value of {symbol.upper()}-USD from YFinance...")
         return yf.download(
             f"{symbol.upper()}-USD",
-            date.today() - timedelta(days=1),
-            date.today(),
+            date.today() - timedelta(days=2),
+            date.today() - timedelta(),
             progress=False,
         )["Close"].values[0]
     except IndexError:

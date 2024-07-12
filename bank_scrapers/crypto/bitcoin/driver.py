@@ -15,22 +15,22 @@ from datetime import datetime
 import pandas as pd
 
 # Non-Standard Imports
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.common.by import By
-from undetected_chromedriver import Chrome, ChromeOptions
+from undetected_playwright.async_api import (
+    async_playwright,
+    Playwright,
+    Page,
+    Locator,
+    expect,
+    Browser,
+)
+from pyvirtualdisplay import Display
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
-from bank_scrapers.scrapers.common.functions import (
-    start_chromedriver,
-    get_chrome_options,
-    wait_and_find_element,
-    screenshot_on_timeout,
-)
 from bank_scrapers.common.log import log
-from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate_crypto
 from bank_scrapers.common.types import PrometheusMetric
+from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate_crypto
+from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 
 # Institution info
 INSTITUTION: str = "BITCOIN"
@@ -40,49 +40,42 @@ SYMBOL: str = "BTC"
 HOMEPAGE: str = "https://blockpath.com/search/addr?q="
 
 # Timeout
-TIMEOUT: int = 60
-
-# Chrome config
-USER_AGENT: str = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36"
-)
-CHROME_OPTIONS: List[str] = [
-    f"user-agent={USER_AGENT}",
-    "--no-sandbox",
-    "--window-size=1920,1080",
-    "--disable-gpu",
-    "--headless",
-    "--allow-running-insecure-content",
-]
-
+TIMEOUT: int = 60 * 1000
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def get_account_balance(driver: Chrome, wait: WebDriverWait) -> float:
+async def get_account_balance(page: Page) -> float:
     """
     Gets the account/wallet balance from the webpage
-    :param driver: The browser application
-    :param wait: WebDriverWait object for the driver
+    :param page: The browser application
     :return: A float containing the account/wallet balance
     """
     log.info(f"Getting account balance from page...")
-    prefix: WebElement = wait_and_find_element(
-        driver,
-        wait,
-        (By.XPATH, "//div[@id='addressFinalBalance' and string-length(text()) > 0]"),
-    )
-    suffix: WebElement = wait_and_find_element(
-        driver,
-        wait,
-        (
-            By.XPATH,
-            "//div[@id='addressFinalBalanceDecimal' and string-length(text()) > 0]",
-        ),
-    )
-    log.info(f"Got account balance from page!")
-    return float(prefix.text + suffix.text)
+
+    log.info("Waiting for account balance to be visible...")
+    prefix_locator: Locator = page.locator("div[id='addressFinalBalance']")
+    await expect(prefix_locator.first).to_be_visible(timeout=TIMEOUT)
+
+    prefixes: List[Locator] = await prefix_locator.all()
+    dollars: str = str()
+    for prefix in prefixes:
+        prefix_text_content: str = await prefix.text_content()
+        if len(prefix_text_content) > 0:
+            dollars: str = prefix_text_content
+
+    suffix_locator: Locator = page.locator("div[id='addressFinalBalanceDecimal']")
+    await expect(suffix_locator.first).to_be_visible(timeout=TIMEOUT)
+
+    suffixes: List[Locator] = await suffix_locator.all()
+    cents: str = str()
+    for suffix in suffixes:
+        suffix_text_content: str = await suffix.text_content()
+        if len(suffix_text_content) > 0:
+            cents: str = suffix_text_content
+
+    return float(dollars + cents)
 
 
 def parse_accounts_summary(zpub: str, balance: float) -> pd.DataFrame:
@@ -107,29 +100,30 @@ def parse_accounts_summary(zpub: str, balance: float) -> pd.DataFrame:
     return df
 
 
-def get_accounts_info(
-    zpub: str, prometheus: bool = False
+async def run(
+    playwright: Playwright, zpub: str, prometheus: bool = False
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param playwright: The playwright object for running this script
     :param zpub: Your wallet's zpub address
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :return: A list of pandas dataframes of accounts info tables
     """
-    # Get Driver config
-    chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
-    driver: Chrome = start_chromedriver(chrome_options)
-    wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
+    # Instantiate browser
+    browser: Browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=False,
+        args=["--disable-blink-features=AutomationControlled"],
+    )
+    page: Page = await browser.new_page()
 
     # Access the site with the given zpub as a search parameter
     log.info(f"Accessing {HOMEPAGE}{zpub}...")
-    driver.get(f"{HOMEPAGE}{zpub}")
+    await page.goto(f"{HOMEPAGE}{zpub}", timeout=TIMEOUT, wait_until="load")
 
     # Get the account balance
-    account_balance: float = get_account_balance(driver, wait)
-
-    # Clean up
-    driver.quit()
+    account_balance: float = await get_account_balance(page)
 
     return_tables: List[pd.DataFrame] = [parse_accounts_summary(zpub, account_balance)]
 
@@ -159,3 +153,19 @@ def get_accounts_info(
         )
 
     return return_tables
+
+
+async def get_accounts_info(
+    zpub: str,
+    prometheus: bool = False,
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
+    """
+    Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param zpub: Your wallet's zpub address
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
+    :return: A list of pandas dataframes of accounts info tables
+    """
+    # Instantiate the virtual display
+    with Display(visible=False, size=(1280, 720)):
+        async with async_playwright() as playwright:
+            return await run(playwright, zpub, prometheus)
