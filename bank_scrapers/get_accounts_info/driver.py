@@ -63,6 +63,6 @@ async def get_accounts_info(
     elif driver == "uhfcu":
         return await get_uhfcu(*args, **kwargs)
     elif driver == "vanguard":
-        return get_vanguard(*args, **kwargs)
+        return await get_vanguard(*args, **kwargs)
     elif driver == "zillow":
-        return get_zillow(*args, **kwargs)
+        return await get_zillow(*args, **kwargs)
