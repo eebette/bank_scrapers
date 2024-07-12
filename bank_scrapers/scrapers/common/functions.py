@@ -17,7 +17,6 @@ def screenshot_on_timeout(save_path: str):
     Decorator function for saving a screenshot of the current page if the automation times out
     :param save_path: A path to which to save the screenshot of the webpage on timeout
     """
-
     def wrapper(func):
         async def _screenshot_on_timeout(*args, **kwargs):
             driver: Page = args[0]
