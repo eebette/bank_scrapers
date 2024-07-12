@@ -15,20 +15,18 @@ from datetime import datetime
 
 # Non-Standard Imports
 import pandas as pd
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.common.by import By
-from undetected_chromedriver import Chrome, ChromeOptions
+from undetected_playwright.async_api import (
+    async_playwright,
+    Playwright,
+    Page,
+    Locator,
+    Browser,
+)
 from pyvirtualdisplay import Display
 
 # Local Imports
 from bank_scrapers import ROOT_DIR
-from bank_scrapers.scrapers.common.functions import (
-    start_chromedriver,
-    get_chrome_options,
-    wait_and_find_element,
-    screenshot_on_timeout,
-)
+from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 from bank_scrapers.common.functions import convert_to_prometheus
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
@@ -41,60 +39,46 @@ SYMBOL: str = "USD"
 HOMEPAGE = "https://www.zillow.com/homedetails/"
 
 # Timeout
-TIMEOUT: int = 15
-
-# Chrome config
-CHROME_OPTIONS: List[str] = [
-    "--no-sandbox",
-    "--window-size=1920,1080",
-    "--disable-gpu",
-    "--allow-running-insecure-content",
-]
+TIMEOUT: int = 60 * 1000
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def logon(driver: Chrome, homepage: str, suffix: str) -> None:
+async def logon(page: Page, homepage: str, suffix: str) -> None:
     """
     Opens and signs on to an account
-    :param driver: The browser application
+    :param page: The browser application
     :param homepage: The logon url to initially navigate
     :param suffix: The URL suffix after 'https://www.zillow.com/homedetails/' to use to identify the property
     """
     # Property Page
     log.info(f"Accessing: {homepage + suffix}")
-    driver.get(homepage + suffix)
+    await page.goto(homepage + suffix, timeout=TIMEOUT, wait_until="load")
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-def seek_accounts_data(
-    driver: Chrome, wait: WebDriverWait
-) -> Tuple[WebElement, WebElement]:
+async def seek_accounts_data(page: Page) -> Tuple[str, str]:
     """
     Navigate the website and find the accounts data for the user
-    :param driver: The Chrome browser application
-    :param wait: WebDriverWait object for the driver
+    :param page: The Chrome browser application
     :return: The web element of the accounts data
     """
     log.info(f"Finding zestimate element...")
-    zestimate_xpath: str = (
-        "//p/button[contains(text(),'Zestimate')]/../../h3[contains(text(),'$')]"
+    zestimate_element: Locator = (
+        page.locator("span[data-testid='zestimate-text']").get_by_text("$").first
     )
-    zestimate: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, zestimate_xpath)
-    )
+    zestimate: str = await zestimate_element.text_content()
 
     log.info(f"Finding address element...")
-    address: WebElement = wait_and_find_element(
-        driver, wait, (By.XPATH, "//div[@class='summary-container']//h1")
-    )
+    address_element: Locator = page.locator("div[class='summary-container'] h1")
+    address: str = await address_element.text_content()
 
     return address, zestimate
 
 
-def parse_accounts_summary(address: WebElement, zestimate: WebElement) -> pd.DataFrame:
+def parse_accounts_summary(address: str, zestimate: str) -> pd.DataFrame:
     """
     Post-processing of the table data
     :param address: The web element containing the address for this property
@@ -104,8 +88,8 @@ def parse_accounts_summary(address: WebElement, zestimate: WebElement) -> pd.Dat
     # Create a simple dataframe from the input amount
     df: pd.DataFrame = pd.DataFrame(
         data={
-            "address": [address.text],
-            "zestimate": [zestimate.text],
+            "address": [address],
+            "zestimate": [zestimate],
             "symbol": [SYMBOL],
             "account_type": ["real_estate"],
             "usd_value": [1.0],
@@ -122,40 +106,35 @@ def parse_accounts_summary(address: WebElement, zestimate: WebElement) -> pd.Dat
     return df
 
 
-def get_accounts_info(
-    suffix: str, prometheus: bool = False
+async def run(
+    playwright: Playwright, suffix: str, prometheus: bool = False
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param playwright: The playwright object for running this script
     :param suffix: The URL suffix after 'https://www.zillow.com/homedetails/' to use to identify the property
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :return: A list of pandas dataframes of accounts info tables
     """
-    # Instantiate the virtual display
-    display: Display = Display(visible=False, size=(800, 600))
-    display.start()
-
-    # Get Driver config
-    chrome_options: ChromeOptions = get_chrome_options(CHROME_OPTIONS)
-
-    # Instantiating the Driver
-    driver: Chrome = start_chromedriver(chrome_options)
-    wait: WebDriverWait = WebDriverWait(driver, TIMEOUT)
+    # Instantiate browser
+    browser: Browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=False,
+        args=["--disable-blink-features=AutomationControlled"],
+    )
+    page: Page = await browser.new_page()
 
     # Navigate to the logon page and submit credentials
-    logon(driver, HOMEPAGE, suffix)
+    await logon(page, HOMEPAGE, suffix)
 
     # Navigate the site and download the accounts data
-    address: WebElement
-    zestimate: WebElement
-    address, zestimate = seek_accounts_data(driver, wait)
+    address: str
+    zestimate: str
+    address, zestimate = await seek_accounts_data(page)
     accounts_data_df: pd.DataFrame = parse_accounts_summary(address, zestimate)
 
     # Process tables
     return_tables: List[pd.DataFrame] = [accounts_data_df]
-
-    # Clean up
-    driver.quit()
 
     # Convert to Prometheus exposition if flag is set
     if prometheus:
@@ -184,3 +163,18 @@ def get_accounts_info(
 
     # Return list of pandas df
     return return_tables
+
+
+async def get_accounts_info(
+    suffix: str, prometheus: bool = False
+) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
+    """
+    Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param suffix: The URL suffix after 'https://www.zillow.com/homedetails/' to use to identify the property
+    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
+    :return: A list of pandas dataframes of accounts info tables
+    """
+    # Instantiate the virtual display
+    with Display(visible=False, size=(1280, 720)):
+        async with async_playwright() as playwright:
+            return await run(playwright, suffix, prometheus)
