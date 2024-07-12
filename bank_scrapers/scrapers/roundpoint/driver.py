@@ -94,7 +94,7 @@ async def logon(
 
     # Submit credentials
     log.info(f"Finding submit button element...")
-    submit_button: Locator = page.locator("button[type='submit']")
+    submit_button: Locator = page.locator("button")
 
     log.info(f"Clicking submit button element...")
     await submit_button.click()
@@ -204,9 +204,9 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     log.info(f"Clicking close prompt button element...")
     async with page.expect_navigation(
-        url=re.compile(r"/(dashboard)"), wait_until="load", timeout=TIMEOUT
+        url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
     ):
-        await close_button.click(force=True)
+        await close_button.click()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")

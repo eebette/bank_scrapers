@@ -74,7 +74,7 @@ async def logon(
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
-    await username_input.press_sequentially(username, delay=100)
+    await username_input.fill(username)
 
     # Enter Password
     log.info(f"Finding password element...")
@@ -82,7 +82,7 @@ async def logon(
     password_input: Locator = page.locator("input[id='dom-pswd-input']")
 
     log.info(f"Sending info to password element...")
-    await password_input.press_sequentially(password, delay=100)
+    await password_input.fill(password)
 
     # Submit
     log.info(f"Finding submit button element...")

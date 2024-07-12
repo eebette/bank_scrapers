@@ -240,6 +240,10 @@ async def handle_mfa_redirect_alternate(
         "a.option:not([aria-disabled]):not([rel='Call'])"
     )
 
+    # Click again if necessary
+    while not await contact_options_locator.first.is_visible():
+        await expand_button.click()
+
     await expect(contact_options_locator.first).to_be_visible(timeout=TIMEOUT)
     log.info("Getting contact options from dropdown...")
     contact_options_locators: List[Locator] = await contact_options_locator.all()

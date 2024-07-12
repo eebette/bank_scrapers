@@ -177,7 +177,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
         )
 
     log.info(f"Sending info to OTP input box element...")
-    await otp_input.press_sequentially(otp_code, delay=100)
+    await otp_input.fill(otp_code)
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")

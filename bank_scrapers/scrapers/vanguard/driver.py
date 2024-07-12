@@ -15,6 +15,8 @@ from datetime import datetime
 import re
 import os
 from tempfile import TemporaryDirectory
+from time import sleep
+from random import randint
 
 # Non-Standard Imports
 import pandas as pd
@@ -75,20 +77,23 @@ async def logon(
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
-    await username_input.press_sequentially(username, delay=100)
+    sleep(randint(1, 5))
+    await username_input.press_sequentially(username, delay=randint(100, 500))
 
     # Enter Password
     log.info(f"Finding password element...")
     password_input: Locator = page.locator("input[id='PASSWORD-blocked']")
 
     log.info(f"Sending info to password element...")
-    await password_input.press_sequentially(password, delay=100)
+    sleep(randint(1, 5))
+    await password_input.press_sequentially(password, delay=randint(100, 500))
 
     # Submit credentials
     log.info(f"Finding submit button element...")
     submit_button: Locator = page.locator("button[id='username-password-submit-btn-1']")
 
     log.info(f"Clicking submit button element...")
+    sleep(randint(1, 5))
     await submit_button.click()
 
 
