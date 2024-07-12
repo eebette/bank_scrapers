@@ -199,7 +199,7 @@ async def get_accounts_tables(page: Page) -> List[Locator]:
     # Process tables
     log.info(f"Finding accounts tables...")
 
-    log.info("Waiting for accounts_tables to be visible...")
+    log.info("Waiting for accounts tables to be visible...")
     table_locator: Locator = page.locator("app-sub-accounts-tiles app-sub-account-card")
     await expect(table_locator.first).to_be_visible(timeout=TIMEOUT)
 
