@@ -14,7 +14,6 @@ license = { file = "LICENSE" }
 dynamic = ["version"]
 
 dependencies = [
-    "beautifulsoup4>=4.12.2",
     "pandas>=2.0.2",
     "setuptools>=69.5.1",
     "lxml>=5.2.2",
@@ -24,8 +23,7 @@ dependencies = [
     "pybadges>=3.0.1",
     "prometheus_client>=0.20.0",
     "CurrencyConverter>=0.17.23",
-    "undetected-playwright-patch>=1.40.0.post1700587210000",
-    "browserforge>=1.1.2"
+    "undetected-playwright-patch>=1.40.0.post1700587210000"
 ]
 
 [project.urls]
