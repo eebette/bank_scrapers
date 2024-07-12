@@ -184,7 +184,13 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
                 f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
             )
             otp_code: str = search_files_for_int(
-                mfa_auth["otp_code_location"], "Vanguard", 6, 10, TIMEOUT, reverse=True
+                mfa_auth["otp_code_location"],
+                "Vanguard",
+                6,
+                10,
+                TIMEOUT,
+                delay=20,
+                reverse=True,
             )
 
         log.info(f"Sending info to OTP input box element...")
