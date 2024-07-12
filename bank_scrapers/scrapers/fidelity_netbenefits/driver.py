@@ -111,7 +111,7 @@ async def is_mfa_redirect(page: Page) -> bool:
     :param page: The browser application
     :return: True if MFA is being enforced
     """
-    return await page.get_by_text("To verify it's you").is_visible(timeout=TIMEOUT)
+    return await page.get_by_text("To verify it's you").is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")

@@ -98,7 +98,7 @@ async def wait_for_redirect(page: Page) -> None:
     :param page: The browser application
     """
     target_text: re.Pattern = re.compile(r"(Security Checks|Dashboard)")
-    await expect(page.get_by_text(target_text).first).to_be_visible(timeout=TIMEOUT)
+    await expect(page.get_by_text(target_text).first).to_be_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -108,7 +108,7 @@ async def is_mfa_redirect(page: Page) -> bool:
     :param page: The browser application
     :return: True if MFA is being enforced
     """
-    return await page.get_by_text("Security Checks").is_visible(timeout=TIMEOUT)
+    return await page.get_by_text("Security Checks").is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
