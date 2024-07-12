@@ -165,15 +165,13 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
         log.info(
             f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
         )
-        otp_code: str = str(
-            search_files_for_int(
-                mfa_auth["otp_code_location"],
-                "University of Hawaii Federal Credit Union",
-                6,
-                10,
-                TIMEOUT,
-                reverse=True,
-            )
+        otp_code: str = search_files_for_int(
+            mfa_auth["otp_code_location"],
+            "University of Hawaii Federal Credit Union",
+            6,
+            10,
+            TIMEOUT,
+            reverse=True,
         )
 
     log.info(f"Sending info to OTP input box element...")
