@@ -10,22 +10,22 @@
 - [Quick Start](#quick-start)
 - [Introduction](#introduction)
 - [Getting Started](#getting-started)
-  - [Installation](#installation)
-  - [Usage](#usage)
+    - [Installation](#installation)
+    - [Usage](#usage)
 - [Drivers](#drivers)
-  - [BECU](#becu)
-  - [Chase](#chase)
-  - [Fidelity NetBenefits](#fidelity-netbenefits)
-  - [RoundPoint](#roundpoint)
-  - [SMBC Prestia](#smbc-prestia)
-  - [UHFCU](#uhfcu)
-  - [Vanguard](#vanguard)
-  - [Zillow](#zillow)
+    - [BECU](#becu)
+    - [Chase](#chase)
+    - [Fidelity NetBenefits](#fidelity-netbenefits)
+    - [RoundPoint](#roundpoint)
+    - [SMBC Prestia](#smbc-prestia)
+    - [UHFCU](#uhfcu)
+    - [Vanguard](#vanguard)
+    - [Zillow](#zillow)
 - [API Wrappers](#api-wrappers)
-  - [Kraken](#kraken)
+    - [Kraken](#kraken)
 - [Crypto](#crypto)
-  - [Bitcoin (BTC)](#bitcoin-btc)
-  - [Ethereum (ETH)](#ethereum-eth)
+    - [Bitcoin (BTC)](#bitcoin-btc)
+    - [Ethereum (ETH)](#ethereum-eth)
 - [Disclaimer](#disclaimer)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -87,28 +87,10 @@ API results are returned as a Python list of pandas dataframes, containing relev
 driver's section for info on what is in that driver's return tables.
 
 ```python
+import asyncio
 from bank_scrapers.scrapers.becu.driver import get_accounts_info
 
-tables = get_accounts_info(username="{username}", password="{password}")
-for t in tables:
-    print(t.to_string())
-```
-
-#### Drivers that need a tmp directory
-
-Some drivers download the accounts data and process the downloaded file. This requires the use of a temp directory to
-use as Chromium's downloads folder, and **the location of this folder must be specified in `get_accounts_info()`**.
-
-> ❗️Selenium often has issues writing to `/tmp/` in Linux distributions, hence this requirement in the code.
-
-> ❗️`tmp_dir` MUST be empty for this function to work
-
-```python
-from bank_scrapers.scrapers.fidelity_netbenefits.driver import get_accounts_info
-
-tables = get_accounts_info(
-    username="{username}", password="{password}", tmp_dir="/tmp"
-)
+tables = asyncio.run(get_accounts_info(username="{username}", password="{password}"))
 for t in tables:
     print(t.to_string())
 
@@ -123,9 +105,10 @@ institution's required arguments after that.
 **Example**
 
 ```python
+import asyncio
 from bank_scrapers.get_accounts_info import get_accounts_info
 
-accounts_info = get_accounts_info("chase", "{username}", "{password}")
+accounts_info = asyncio.run(get_accounts_info("chase", "{username}", "{password}"))
 
 for table in accounts_info:
     print(table)
@@ -156,10 +139,11 @@ The metric comes back in the following format:
 This functionality is meant to make these metrics easily ingest-able into a Prometheus server.
 
 ```python
+import asyncio
 from bank_scrapers.scrapers.vanguard.driver import get_accounts_info
 
-prometheus_output = get_accounts_info(
-    "{username}", "{password}", "/tmp/directory", prometheus=True
+prometheus_output = asyncio.run(
+    get_accounts_info("{username}", "{password}", prometheus=True)
 )
 
 print((prometheus_output[0][0], prometheus_output[1][0]))
@@ -199,12 +183,12 @@ for metric in prometheus_output[0]:
 As of version 1.1, it is possible to automate the Multi-Factor Authentication workflows in both the API and the CLI by
 providing a Python dict (or JSON file in the case of the CLI) with the following:
 
-#. `otp_contact_option`: The list option which you would like to use for MFA Authentication (e.g. when a site asks if
-you'd like to be
-contacted via **#** Phone or **#** SMS)
-#. `otp_code_location`: The file directory location to look for a file containing the One-Time Password (OTP).
-See `OTP File Requirements`
-below
+1. `otp_contact_option`: The list option which you would like to use for MFA Authentication (e.g. when a site asks if
+   you'd like to be
+   contacted via **#** Phone or **#** SMS)
+2. `otp_code_location`: The file directory location to look for a file containing the One-Time Password (OTP).
+   See `OTP File Requirements`
+   below
 
 **Example**
 
@@ -236,7 +220,7 @@ bank-scrape roundpoint $LOGIN_USER $LOGIN_PASS --json_file ~/roundpoint_mfa.json
   correct institution). These values for can be found in each scraper's documentation below.
 * The scraper will NOT delete the file once it is done. Maintaining this directory is up to you.
 
-> While automating getting SMS messages with OTP codes from your phone to .txt files on your PC is outside the scope of
+> Automating getting SMS messages with OTP codes from your phone to .txt files on your PC is outside the scope of
 > this project, [SMS to URL Forwarder](https://f-droid.org/packages/tech.bogomolov.incomingsmsgateway/) and
 > [webhook](https://github.com/adnanh/webhook) is a good place to start.
 
@@ -268,9 +252,10 @@ bank-scrape becu $LOGIN_USER $LOGIN_PASS
 #### API
 
 ```python
+import asyncio
 from bank_scrapers.scrapers.becu.driver import get_accounts_info
 
-tables = get_accounts_info(username="{username}", password="{password}")
+tables = asyncio.run(get_accounts_info(username="{username}", password="{password}"))
 for t in tables:
     print(t.to_markdown(index=False))
 
@@ -315,9 +300,10 @@ bank-scrape chase $LOGIN_USER $LOGIN_PASS
 #### API
 
 ```python
+import asyncio
 from bank_scrapers.scrapers.chase.driver import get_accounts_info
 
-tables = get_accounts_info(username="{username}", password="{password}")
+tables = asyncio.run(get_accounts_info(username="{username}", password="{password}"))
 for t in tables:
     print(t.to_markdown(index=False))
 
@@ -404,7 +390,7 @@ Provides int-ified values for each of the columns.
 
 ### About
 
-This is a Selenium driver that logs in using provided credentials, navigates #FA, navigates to the detail account info
+This is a Selenium driver that logs in using provided credentials, navigates MFA, navigates to the detail account info
 from the landing page for Fidelity NetBenefits.
 
 Instead of scraping the user's account info from the page, this driver will navigate to the user's positions summary and
@@ -420,23 +406,19 @@ download the accounts info provided by Fidelity using a folder of the user's cho
 bank-scrape fidelity-nb $LOGIN_USER $LOGIN_PASS
 ```
 
-> 💡 The CLI backend handles the creation of a tmp directory in the user's home directory by default. The API doesn't
-> have this functionality
+> 💡 The API and CLI backends handle the creation of a tmp directory in the user's home directory by default.
 
 #### API
 
 ```python
+import asyncio
 from bank_scrapers.scrapers.fidelity_netbenefits.driver import get_accounts_info
 
-tables = get_accounts_info(
-    username="{username}", password="{password}", tmp_dir="/tmp"
-)
+tables = asyncio.run(get_accounts_info(username="{username}", password="{password}"))
 for t in tables:
     print(t.to_markdown(index=False))
 
 ```
-
-> ❗️**NOTE** `tmp_dir` MUST be empty for this function to work
 
 #### MFA
 
@@ -444,7 +426,10 @@ for t in tables:
 
 ```console
 >>> # Example MFA workflow
->>> tables = get_accounts_info(username="{username}", password="{password}", tmp_dir="{tmp_dir})
+>>> tables = get_accounts_info(username="{username}", password="{password}")
+1: Text me the code
+2: Call me with the code
+Please select one: {user_choose_mfa_option}
 Enter OTP Code: {user_enters_otp_code}
 ```
 
@@ -468,10 +453,10 @@ Note that Fidelity doesn't have any `otp_contact_option`.
 |:---------------|:-------------------|:-------------------|:---------------------|---------:|-----------:|:------------------|:--------------|:-------------------------|:--------------------------|:-----------------------|:------------------------|:-------------------|:-----------------|:-------------------|:-----|:-------------|
 | Z########      | Individual - TOD   | USD                | HELD IN FCASH        |    ##.## |          # | nan               | $##.##        | nan                      | nan                       | nan                    | nan                     | #.##%              | nan              | nan                | Cash | deposit      |
 | Z########      | Individual - TOD   | AMZN               | AMAZON.COM INC       |      ### |      ###.# | +$#.##            | $#####.##     | +$###.##                 | +#.##%                    | +$####.##              | +##.##%                 | ##.##%             | $#####.##        | $###.##            | Cash | deposit      |
-| #####          | AMAZON ###(K) PLAN | SSGA LG CAP GROWTH | SSGA LG CAP GROWTH   |  ####.## |      ##.## | -$#.##            | $#####.##     | -$###.##                 | -#.##%                    | +$#####.##             | +##.##%                 | ##.##%             | $#####.##        | $##.##             | nan  | retirement   |
-| #####          | AMAZON ###(K) PLAN | #####N###          | VANGUARD TARGET #### |  ###.### |     ###.## | -$#.##            | $#####.##     | -$##.##                  | -#.##%                    | +$####.##              | +##.##%                 | #.##%              | $#####.##        | $###.##            | nan  | retirement   |
-| #####          | AMAZON ###(K) PLAN | AMZN               | AMAZON.COM STOCK     |   ##.### |      ###.# | +$#.##            | $#####.##     | +$###.##                 | +#.##%                    | +$####.##              | +##.##%                 | #.##%              | $#####.##        | $###.##            | nan  | retirement   |
-| #####          | AMAZON ###(K) PLAN | VFTNX              | VANG FTSE SOC IDX IS |  ####.## |      ##.## | -$#.##            | $#####.##     | -$###.##                 | -#.##%                    | +$#####.##             | +##.##%                 | ##.##%             | $#####.##        | $##.##             | nan  | retirement   |
+| #####          | ###### ###(K) PLAN | SSGA LG CAP GROWTH | SSGA LG CAP GROWTH   |  ####.## |      ##.## | -$#.##            | $#####.##     | -$###.##                 | -#.##%                    | +$#####.##             | +##.##%                 | ##.##%             | $#####.##        | $##.##             | nan  | retirement   |
+| #####          | ###### ###(K) PLAN | #####N###          | VANGUARD TARGET #### |  ###.### |     ###.## | -$#.##            | $#####.##     | -$##.##                  | -#.##%                    | +$####.##              | +##.##%                 | #.##%              | $#####.##        | $###.##            | nan  | retirement   |
+| #####          | ###### ###(K) PLAN | AMZN               | AMAZON.COM STOCK     |   ##.### |      ###.# | +$#.##            | $#####.##     | +$###.##                 | +#.##%                    | +$####.##              | +##.##%                 | #.##%              | $#####.##        | $###.##            | nan  | retirement   |
+| #####          | ###### ###(K) PLAN | VFTNX              | VANG FTSE SOC IDX IS |  ####.## |      ##.## | -$#.##            | $#####.##     | -$###.##                 | -#.##%                    | +$#####.##             | +##.##%                 | ##.##%             | $#####.##        | $##.##             | nan  | retirement   |
 
 ## RoundPoint
 
@@ -497,9 +482,10 @@ bank-scrape roundpoint $LOGIN_USER $LOGIN_PASS
 #### API
 
 ```python
+import asyncio
 from bank_scrapers.scrapers.roundpoint.driver import get_accounts_info
 
-tables = get_accounts_info(username="{username}", password="{password}")
+tables = asyncio.run(get_accounts_info(username="{username}", password="{password}"))
 for t in tables:
     print(t.to_markdown(index=False))
 
@@ -565,9 +551,10 @@ bank-scrape smbc-prestia $LOGIN_USER $LOGIN_PASS
 #### API
 
 ```python
+import asyncio
 from bank_scrapers.scrapers.smbc_prestia.driver import get_accounts_info
 
-tables = get_accounts_info(username="{username}", password="{password}")
+tables = asyncio.run(get_accounts_info(username="{username}", password="{password}"))
 for t in tables:
     print(t.to_markdown(index=False))
 
@@ -605,9 +592,10 @@ bank-scrape uhfcu $LOGIN_USER $LOGIN_PASS
 #### API
 
 ```python
+import asyncio
 from bank_scrapers.scrapers.uhfcu.driver import get_accounts_info
 
-tables = get_accounts_info(username="{username}", password="{password}")
+tables = asyncio.run(get_accounts_info(username="{username}", password="{password}"))
 for t in tables:
     print(t.to_markdown(index=False))
 
@@ -681,23 +669,19 @@ download the accounts info provided by Vanguard using a folder of the user's cho
 bank-scrape vanguard $LOGIN_USER $LOGIN_PASS
 ```
 
-> 💡 The CLI backend handles the creation of a tmp directory in the user's home directory by default. The API doesn't
-> have this functionality
+> 💡 The API and CLI backends handle the creation of a tmp directory in the user's home directory by default
 
 #### API
 
 ```python
+import asyncio
 from bank_scrapers.scrapers.vanguard.driver import get_accounts_info
 
-tables = get_accounts_info(
-    username="{username}", password="{password}", tmp_dir="/tmp/"
-)
+tables = asyncio.run(get_accounts_info(username="{username}", password="{password}"))
 for t in tables:
     print(t.to_markdown(index=False))
 
 ```
-
-> ❗️**NOTE** `tmp_dir` MUST be empty for this function to work
 
 #### MFA
 
@@ -706,10 +690,8 @@ for t in tables:
 ```console
 >>> # Example MFA workflow
 >>> tables = get_accounts_info(username="{username}", password="{password}")
-1: New
-Verify with the app Click to verify with the Vanguard App
-(Recommended)
-2: Verify with a code Click to verify with security code
+1: Click to verify with the Vanguard App
+2: Click to verify with security code
 Please select one: {user_choose_mfa_option}
 Enter OTP Code: {user_enters_otp_code}
 ```
@@ -765,9 +747,10 @@ bank-scrape zillow $URL_SUFFIX_FOR_PROPERTY
 #### API
 
 ```python
+import asyncio
 from bank_scrapers.scrapers.zillow.driver import get_accounts_info
 
-tables = get_accounts_info(suffix="########_zpid")
+tables = asyncio.run(get_accounts_info(suffix="########_zpid"))
 for t in tables:
     print(t.to_markdown(index=False))
 
@@ -859,10 +842,11 @@ bank-scrape bitcoin $BITCOIN_ZPUB
 #### API
 
 ```python
+import asyncio
 from bank_scrapers.crypto.bitcoin.driver import get_accounts_info
 
-tables = get_accounts_info(
-    zpub="*****************/**************************************",
+tables = asyncio.run(
+    get_accounts_info(zpub="*****************/**************************************")
 )
 for t in tables:
     print(t.to_markdown(index=False))
@@ -871,10 +855,9 @@ for t in tables:
 
 #### Example Result
 
-| zpub                                                                                                            |   balance | symbol   | account_type   |   usd_value |
-|:----------------------------------------------------------------------------------------------------------------|----------:|:---------|:---------------|------------:|
-| zpub########################################################################################################### |  #.###### | BTC      | cryptocurrency |     #####.# |
-
+| zpub                                                                                                            |  balance | symbol | account_type   | usd_value |
+|:----------------------------------------------------------------------------------------------------------------|---------:|:-------|:---------------|----------:|
+| zpub########################################################################################################### | #.###### | BTC    | cryptocurrency |   #####.# |
 
 ## Ethereum (ETH)
 
@@ -900,18 +883,18 @@ bank-scrape ethereum $ETHEREUM_ADDRESS
 from bank_scrapers.crypto.ethereum.driver import get_accounts_info
 
 tables = get_accounts_info(
-  address="0x########################################",
+    address="0x########################################",
 )
 for t in tables:
-  print(t.to_markdown(index=False))
+    print(t.to_markdown(index=False))
 
 ```
 
 #### Example Result
 
-| address                                    |   balance | symbol   | account_type   |   usd_value |
-|:-------------------------------------------|----------:|:---------|:---------------|------------:|
-| #x######################################## |   #.##### | ETH      | cryptocurrency |     ####.## |
+| address                                    | balance | symbol | account_type   | usd_value |
+|:-------------------------------------------|--------:|:-------|:---------------|----------:|
+| #x######################################## | #.##### | ETH    | cryptocurrency |   ####.## |
 
 # Disclaimer
 
