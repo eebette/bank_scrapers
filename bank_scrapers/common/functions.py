@@ -152,7 +152,7 @@ def search_files_for_int(
     file_ext: str = ".txt",
     reverse: bool = False,
     delay=10,
-) -> int:
+) -> str:
     """
     Searches files in a directory for an integer of specific length, and returns the integer
     :param filepath: The file path at which a file containing the string (for which to search) will exist
@@ -177,13 +177,13 @@ def search_files_for_int(
                 text_content: str = text.read().replace("\n", "")
 
             if re.compile(r"^.*{}(\s+|:\s).*".format(match_string)).match(text_content):
-                return_int: int = re.findall(
+                code: str = re.findall(
                     rf"\d{{{min_length},{max_length}}}", text_content
                 )[0]
 
                 log.info(f"OTP found.")
-                log.debug(f"OTP: {return_int}")
-                return int(return_int)
+                log.debug(f"OTP: {code}")
+                return code
 
     raise Exception(
         f"No integers between {min_length} and {max_length} characters found in any files!"
