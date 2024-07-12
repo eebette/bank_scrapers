@@ -3,22 +3,9 @@ This file provides the get_accounts_info() function for Fidelity Net Benefits (h
 
 Example Usage:
 ```
-from pathlib import Path
-import random
-r = list(str(r) for r in range(20))
-random.shuffle(r)
-seq = "".join(r)
-
-tmp_dir = f"{Path.home()}/temp/bank_scraper_{seq}"
-os.mkdir(tmp_dir)
-tables = get_accounts_info(
-    username="{username}", password="{password}", tmp_dir=tmp_dir
-)
+tables = get_accounts_info(username="{username}", password="{password}")
 for t in tables:
     print(t.to_string())
-
-import shutil
-shutil.rmtree(tmp_dir)
 ```
 """
 
