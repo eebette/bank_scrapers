@@ -103,7 +103,7 @@ async def seek_accounts_data(page: Page) -> List[Locator]:
     await accounts_button.click()
 
     log.info(f"Finding balance button element...")
-    balance_button: Locator = page.get_by_role(
+    balance_button: Locator = page.get_by_label("Accounts").get_by_role(
         "link", name="Balance Summary", exact=True
     )
 
@@ -233,6 +233,6 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    with Display(visible=False, size=(1280, 720)):
+    with Display(visible=True, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus)
