@@ -214,7 +214,10 @@ async def seek_accounts_data(page: Page) -> str:
     :param page: The Chrome browser application
     """
     log.info(f"Finding loan amount element...")
-    amount: str = await page.locator(".amount").text_content()
+    amount_locator: Locator = page.get_by_role("heading", name="Loan balance").locator(
+        ".amount"
+    )
+    amount: str = await amount_locator.text_content()
     return amount
 
 
