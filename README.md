@@ -45,7 +45,7 @@ bank-scrape {subcommand} $LOGIN_USER $LOGIN_PASS
 `bank_scrapers` is a library containing drivers for scraping account information from various financial websites.
 
 Since most traditional financial institutions don't provide an API for accessing one's account data, most of these
-drivers utilize `Selenium` to impersonate the user using the provided credentials.
+drivers utilize `Playwright` to impersonate the user using the provided credentials.
 
 # Getting Started
 
@@ -60,8 +60,8 @@ Unfortunately, undetected-playwright will only start consistently while using Ch
 ```shell
 wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
 sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' && \
-apt update && \
-apt install -y google-chrome-stable
+sudo apt update && \
+sudo apt install -y google-chrome-stable
 ```
 
 ####  xvfb
@@ -206,7 +206,7 @@ providing a Python dict (or JSON file in the case of the CLI) with the following
 
 1. `otp_contact_option`: The list option which you would like to use for MFA Authentication (e.g. when a site asks if
    you'd like to be
-   contacted via **#** Phone or **#** SMS)
+   contacted via **1** Phone or **2** SMS)
 2. `otp_code_location`: The file directory location to look for a file containing the One-Time Password (OTP).
    See `OTP File Requirements`
    below
@@ -247,7 +247,7 @@ bank-scrape roundpoint $LOGIN_USER $LOGIN_PASS --json_file ~/roundpoint_mfa.json
 
 # Drivers
 
-These are all written in Python using the Selenium driver and, for the most part, try to simulate the real user
+These are all written in Python using the Playwright driver and, for the most part, try to simulate the real user
 experience/workflow as seen in the eyes of the website provider.
 
 ## BECU
@@ -258,7 +258,7 @@ experience/workflow as seen in the eyes of the website provider.
 
 ### About
 
-This is a Selenium driver that logs in using provided credentials and reads account info from the landing page.
+This is a Playwright driver that logs in using provided credentials and reads account info from the landing page.
 
 > ❗️Driver does NOT currently support MFA
 
@@ -302,7 +302,7 @@ for t in tables:
 
 ### About
 
-This is a Selenium driver that logs in using provided credentials, navigates MFA, navigates to the detail account info
+This is a Playwright driver that logs in using provided credentials, navigates MFA, navigates to the detail account info
 from the landing page, and reads the account info from the page.
 
 > ✔️ Driver supports handling of MFA
@@ -345,9 +345,9 @@ Enter OTP Code: {user_enters_otp_code}
 
 ##### Example Automation JSON
 
-Note that Chase has # MFA workflows. `otp_contact_option_alternate` refers to the (now) more common one with a binary
-Call Me/Text Me choice. `otp_contact_option` refers to the traditional workflow with a list of numbers and contact
-options in a dropdown list.
+Note that Chase has 2 MFA workflows. `otp_contact_option` refers to the (now) more common one with a binary Call Me/Text
+Me choice. `otp_contact_option_alternate` refers to the traditional workflow with a list of numbers and contact options
+in a dropdown list.
 
 ```json
 {
@@ -411,13 +411,13 @@ Provides int-ified values for each of the columns.
 
 ### About
 
-This is a Selenium driver that logs in using provided credentials, navigates MFA, navigates to the detail account info
+This is a Playwright driver that logs in using provided credentials, navigates MFA, navigates to the detail account info
 from the landing page for Fidelity NetBenefits.
 
 Instead of scraping the user's account info from the page, this driver will navigate to the user's positions summary and
 download the accounts info provided by Fidelity using a folder of the user's choice
 
-> ✔️ Driver supports handling of #FA
+> ✔️ Driver supports handling of MFA
 
 ### Example Usage
 
@@ -487,10 +487,10 @@ Note that Fidelity doesn't have any `otp_contact_option`.
 
 ### About
 
-This is a Selenium driver that logs in using provided credentials, navigates #FA, navigates to the detail account info
+This is a Playwright driver that logs in using provided credentials, navigates MFA, navigates to the detail account info
 from the landing page for a mortgage serviced by RoundPoint Mortgage.
 
-> ✔️ Driver supports handling of #FA
+> ✔️ Driver supports handling of MFA
 
 ### Example Usage
 
@@ -556,7 +556,7 @@ Enter OTP Code: {user_enters_otp_code}
 
 ### About
 
-This is a Selenium driver that logs in using provided credentials, navigates to the detail account info and scrapes
+This is a Playwright driver that logs in using provided credentials, navigates to the detail account info and scrapes
 account info for a member account of SMBC Prestia.
 
 > ❗️Driver does NOT currently support MFA
@@ -596,11 +596,11 @@ for t in tables:
 
 ### About
 
-This is a Selenium driver that logs in using provided credentials, navigates MFA, navigates to the detail account info
+This is a Playwright driver that logs in using provided credentials, navigates MFA, navigates to the detail account info
 from the landing page for UHFCU account. It will also navigate to the credit card management system used by UHFCU and
 pull info for each credit card on the dashboard
 
-> ✔️ Driver supports handling of #FA
+> ✔️ Driver supports handling of MFA
 
 ### Example Usage
 
@@ -674,13 +674,13 @@ Enter OTP Code: {user_enters_otp_code}
 
 ### About
 
-This is a Selenium driver that logs in using provided credentials, navigates #FA, navigates to the detail account info
+This is a Playwright driver that logs in using provided credentials, navigates MFA, navigates to the detail account info
 in the Downloads Center from the landing page.
 
 Instead of scraping the user's account info from the page, this driver will navigate to the user's positions summary and
 download the accounts info provided by Vanguard using a folder of the user's choice
 
-> ➖️ Driver has limited support for #FA (only supports mobile app touch authentication)
+> ➖️ Driver has limited support for MFA (only supports mobile app touch authentication)
 
 ### Example Usage
 
@@ -749,7 +749,7 @@ Enter OTP Code: {user_enters_otp_code}
 
 ### About
 
-This is a Selenium driver that finds a property's Zestimate from a user-provided url suffix (the part after
+This is a Playwright driver that finds a property's Zestimate from a user-provided url suffix (the part after
 `https://www.zillow.com/homedetails/`).
 
 ### Example Usage
@@ -845,7 +845,7 @@ This library also contains a few handy functions for pulling the value of a give
 
 This is an API wrapper for pulling a Bitcoin wallet's holdings using the Bitcoin wallet's xpub or zpub.
 
-Under the hood, this is just another Selenium-based scraper that uses [Blockpath](https://blockpath.com) to do the
+Under the hood, this is just another Playwright-based scraper that uses [Blockpath](https://blockpath.com) to do the
 dirty work of getting the wallet balance. Unfortunately, there isn't a publicly available, non-registration API
 available for doing this programmatically.
 
