@@ -4,13 +4,11 @@ This module provides a command line interface (CLI) for pulling data using the b
 
 # Standard Library Imports
 import argparse
-import sys
-import tempfile
 import textwrap
 import traceback
-from pathlib import Path
 from typing import Dict, List, Union
 import json
+import asyncio
 
 # Non-standard Library Imports
 import pandas as pd
@@ -48,19 +46,19 @@ def _get_version(args: argparse.Namespace) -> None:
     print_version()
 
 
-def _get_becu(args: argparse.Namespace) -> None:
+async def _get_becu(args: argparse.Namespace) -> None:
     """
     A wrapper function for printing the Pandas response from the base function for CLI functionality
     :param args: The argparse namespace containing args required by this function
     """
-    tables: List[pd.DataFrame] = get_becu(
+    tables: List[pd.DataFrame] = await get_becu(
         username=args.username, password=args.password
     )
     for t in tables:
         print(t.to_string(index=False))
 
 
-def _get_chase(args: argparse.Namespace) -> None:
+async def _get_chase(args: argparse.Namespace) -> None:
     """
     A wrapper function for printing the Pandas response from the base function for CLI functionality
     :param args: The argparse namespace containing args required by this function
@@ -71,38 +69,14 @@ def _get_chase(args: argparse.Namespace) -> None:
     else:
         mfa_auth: Union[Dict, None] = None
 
-    tables: List[pd.DataFrame] = get_chase(
+    tables: List[pd.DataFrame] = await get_chase(
         username=args.username, password=args.password, mfa_auth=mfa_auth
     )
     for t in tables:
         print(t.to_string(index=False))
 
 
-def _get_fidelity_netbenefits(args: argparse.Namespace) -> None:
-    """
-    A wrapper function for printing the Pandas response from the base function for CLI functionality
-    :param args: The argparse namespace containing args required by this function
-    """
-    tempfile.tempdir = f"{Path.home()}"
-
-    if args.json_file is not None:
-        with open(args.json_file[0]) as f:
-            mfa_auth: Union[Dict, None] = json.load(f)
-    else:
-        mfa_auth: Union[Dict, None] = None
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tables: List[pd.DataFrame] = get_fidelity_nb(
-            username=args.username,
-            password=args.password,
-            tmp_dir=tmp_dir,
-            mfa_auth=mfa_auth,
-        )
-        for t in tables:
-            print(t.to_string(index=False))
-
-
-def _get_roundpoint(args: argparse.Namespace) -> None:
+async def _get_fidelity_netbenefits(args: argparse.Namespace) -> None:
     """
     A wrapper function for printing the Pandas response from the base function for CLI functionality
     :param args: The argparse namespace containing args required by this function
@@ -113,26 +87,44 @@ def _get_roundpoint(args: argparse.Namespace) -> None:
     else:
         mfa_auth: Union[Dict, None] = None
 
-    tables: List[pd.DataFrame] = get_roundpoint(
+    tables: List[pd.DataFrame] = await get_fidelity_nb(
         username=args.username, password=args.password, mfa_auth=mfa_auth
     )
     for t in tables:
         print(t.to_string(index=False))
 
 
-def _get_smbc_prestia(args: argparse.Namespace) -> None:
+async def _get_roundpoint(args: argparse.Namespace) -> None:
     """
     A wrapper function for printing the Pandas response from the base function for CLI functionality
     :param args: The argparse namespace containing args required by this function
     """
-    tables: List[pd.DataFrame] = get_smbc_prestia(
+    if args.json_file is not None:
+        with open(args.json_file[0]) as f:
+            mfa_auth: Union[Dict, None] = json.load(f)
+    else:
+        mfa_auth: Union[Dict, None] = None
+
+    tables: List[pd.DataFrame] = await get_roundpoint(
+        username=args.username, password=args.password, mfa_auth=mfa_auth
+    )
+    for t in tables:
+        print(t.to_string(index=False))
+
+
+async def _get_smbc_prestia(args: argparse.Namespace) -> None:
+    """
+    A wrapper function for printing the Pandas response from the base function for CLI functionality
+    :param args: The argparse namespace containing args required by this function
+    """
+    tables: List[pd.DataFrame] = await get_smbc_prestia(
         username=args.username, password=args.password
     )
     for t in tables:
         print(t.to_string(index=False))
 
 
-def _get_uhfcu(args: argparse.Namespace) -> None:
+async def _get_uhfcu(args: argparse.Namespace) -> None:
     """
     A wrapper function for printing the Pandas response from the base function for CLI functionality
     :param args: The argparse namespace containing args required by this function
@@ -143,43 +135,37 @@ def _get_uhfcu(args: argparse.Namespace) -> None:
     else:
         mfa_auth: Union[Dict, None] = None
 
-    tables: List[pd.DataFrame] = get_uhfcu(
+    tables: List[pd.DataFrame] = await get_uhfcu(
         username=args.username, password=args.password, mfa_auth=mfa_auth
     )
     for t in tables:
         print(t.to_string(index=False))
 
 
-def _get_vanguard(args: argparse.Namespace) -> None:
+async def _get_vanguard(args: argparse.Namespace) -> None:
     """
     A wrapper function for printing the Pandas response from the base function for CLI functionality
     :param args: The argparse namespace containing args required by this function
     """
-    tempfile.tempdir = f"{Path.home()}"
-
     if args.json_file is not None:
         with open(args.json_file[0]) as f:
             mfa_auth: Union[Dict, None] = json.load(f)
     else:
         mfa_auth: Union[Dict, None] = None
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tables: List[pd.DataFrame] = get_vanguard(
-            username=args.username,
-            password=args.password,
-            tmp_dir=tmp_dir,
-            mfa_auth=mfa_auth,
-        )
-        for t in tables:
-            print(t.to_string(index=False))
+    tables: List[pd.DataFrame] = await get_vanguard(
+        username=args.username, password=args.password, mfa_auth=mfa_auth
+    )
+    for t in tables:
+        print(t.to_string(index=False))
 
 
-def _get_zillow(args: argparse.Namespace) -> None:
+async def _get_zillow(args: argparse.Namespace) -> None:
     """
     A wrapper function for printing the Pandas response from the base function for CLI functionality
     :param args: The argparse namespace containing args required by this function
     """
-    tables: List[pd.DataFrame] = get_zillow(suffix=args.url_suffix[0])
+    tables: List[pd.DataFrame] = await get_zillow(suffix=args.url_suffix[0])
     for t in tables:
         print(t.to_string(index=False))
 
@@ -196,12 +182,12 @@ def _get_kraken(args: argparse.Namespace) -> None:
         print(t.to_string(index=False))
 
 
-def _get_bitcoin(args: argparse.Namespace) -> None:
+async def _get_bitcoin(args: argparse.Namespace) -> None:
     """
     A wrapper function for printing the Pandas response from the base function for CLI functionality
     :param args: The argparse namespace containing args required by this function
     """
-    tables: List[pd.DataFrame] = get_bitcoin(zpub=args.zpub[0])
+    tables: List[pd.DataFrame] = await get_bitcoin(zpub=args.zpub[0])
     for t in tables:
         print(t.to_string(index=False))
 
@@ -444,10 +430,10 @@ def main() -> None:
     # pylint: disable=W0703
     # noinspection PyBroadException
     try:
-        args.func(args)
+        asyncio.run(args.func(args))
     except Exception:
         log.error(traceback.format_exc())
-        sys.exit(1)
+        raise
 
 
 if __name__ == "__main__":
