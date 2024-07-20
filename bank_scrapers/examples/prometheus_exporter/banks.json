@@ -66,12 +66,14 @@
     },
     {
       "name": "bitcoin",
+      "ignore_login": true,
       "bank_scraper_args": {
         "zpub": "<your_btc_zpub>"
       }
     },
     {
       "name": "ethereum",
+      "ignore_login": true,
       "bank_scraper_args": {
         "address": "<your_eth_address>"
       }
