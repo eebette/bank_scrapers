@@ -46,7 +46,6 @@
     {
       "name": "vanguard",
       "bank_scraper_args": {
-        "tmp_dir": "/tmp/bank_exporter",
         "mfa_auth": {
           "otp_contact_option": 2,
           "otp_code_location": "/sms"
