@@ -447,8 +447,11 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
     with open(banks_file) as file:
         banks: Dict = json.load(file)
 
-    with open(JAIL_FILE, "w+") as file:
-        jail: List = list(line.rstrip() for line in file)
+    try:
+        with open(JAIL_FILE, "w+") as file:
+            jail: List = list(line.rstrip() for line in file)
+    except FileNotFoundError:
+        jail: List = list()
 
     # Loop through banks file
     for bank in banks["banks"]:
