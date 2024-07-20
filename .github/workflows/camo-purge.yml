@@ -2,8 +2,8 @@ name: Purge camo links to update badge test status
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 30 * * *'
-    - cron: '12 30 * * *'
+  - cron: '30 0 * * *'
+  - cron: '30 12 * * *'
 
 jobs:
   camo-purge:
