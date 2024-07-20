@@ -16,7 +16,7 @@ import re
 import os
 from tempfile import TemporaryDirectory
 from time import sleep
-from random import randint
+from random import randint, uniform
 
 # Non-Standard Imports
 import pandas as pd
@@ -79,6 +79,7 @@ async def logon(
     log.debug(f"Username: {username}")
     sleep(randint(1, 5))
     await username_input.press_sequentially(username, delay=randint(100, 500))
+    await username_input.press("Tab")
 
     # Enter Password
     log.info(f"Finding password element...")
@@ -86,14 +87,15 @@ async def logon(
 
     log.info(f"Sending info to password element...")
     sleep(randint(1, 5))
-    await password_input.press_sequentially(password, delay=randint(100, 500))
+    await password_input.type(password, delay=randint(100, 500))
 
     # Submit credentials
     log.info(f"Finding submit button element...")
     submit_button: Locator = page.locator("button[id='username-password-submit-btn-1']")
 
     log.info(f"Clicking submit button element...")
-    sleep(randint(1, 5))
+
+    sleep(uniform(1, 3))
     await submit_button.click()
 
 
@@ -259,45 +261,30 @@ async def seek_accounts_data(page: Page, tmp: str) -> None:
     await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
 
     # Select CSV option for download formats
-    log.info(f"Finding download options element...")
-    download_option: Locator = page.locator("vui-select[id='optionSelect']")
-
-    log.info(f"Clicking download button...")
-    await download_option.click()
-
-    log.info(f"Finding CSV option button element...")
-    vui_format_option: Locator = (
-        page.locator("vui-option").get_by_text("CSV").locator("..")
+    log.info(f"Finding CSV option radio element...")
+    csv_radio: Locator = page.get_by_text("CSV").locator(
+        "xpath=../preceding-sibling::input"
     )
-
     log.info(f"Clicking CSV option button...")
-    await vui_format_option.click()
+    await csv_radio.check(force=True)
 
     # Select last 18 months for date range
     log.info(f"Finding date range options dropdown button element...")
-    date_range: Locator = page.locator("vui-select[id='dateSelect']")
-
-    log.info(f"Clicking date range options dropdown button...")
-    await date_range.click()
-
-    log.info(f"Finding '18 months' option button element...")
-    vui_date_option: Locator = (
-        page.locator("vui-option").get_by_text("18 months").locator("..")
-    )
+    date_range: Locator = page.locator("select[id='selectId']")
 
     log.info(f"Clicking '18 months' option button...")
-    await vui_date_option.click()
+    await date_range.select_option("18 months")
 
     # Select for all accounts
     log.info(f"Finding accounts checkbox element...")
-    accounts_checkbox: Locator = page.locator("input[id='mat-checkbox-1-input']")
+    accounts_checkbox: Locator = page.locator("input[id='mat-mdc-checkbox-1-input']")
 
     log.info(f"Clicking accounts checkbox element...")
     await accounts_checkbox.click()
 
     # Submit download request
     log.info(f"Finding submit button element...")
-    submit_button: Locator = page.locator("vui-button[id='submitOFXDownload']")
+    submit_button: Locator = page.locator("[id='submitOFXDownload']")
 
     log.info(f"Clicking submit button element...")
     await submit_button.click()
@@ -416,6 +403,6 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    with Display(visible=False, size=(1280, 720)):
+    with Display(visible=True, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
