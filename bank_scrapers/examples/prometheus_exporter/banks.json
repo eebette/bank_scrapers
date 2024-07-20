@@ -1,0 +1,81 @@
+{
+  "banks": [
+    {
+      "name": "becu"
+    },
+    {
+      "name": "chase",
+      "bank_scraper_args": {
+        "mfa_auth": {
+          "otp_contact_option": 1,
+          "otp_contact_option_alternate": 1,
+          "otp_code_location": "/sms"
+        }
+      }
+    },
+    {
+      "name": "fidelity_netbenefits",
+      "bank_scraper_args": {
+        "mfa_auth": {
+          "otp_contact_option": 1,
+          "otp_code_location": "/sms"
+        }
+      }
+    },
+    {
+      "name": "roundpoint",
+      "bank_scraper_args": {
+        "mfa_auth": {
+          "otp_contact_option": 2,
+          "otp_code_location": "/sms"
+        }
+      }
+    },
+    {
+      "name": "smbc_prestia"
+    },
+    {
+      "name": "uhfcu",
+      "bank_scraper_args": {
+        "mfa_auth": {
+          "otp_contact_option": 2,
+          "otp_code_location": "/sms"
+        }
+      }
+    },
+    {
+      "name": "vanguard",
+      "bank_scraper_args": {
+        "tmp_dir": "/tmp/bank_exporter",
+        "mfa_auth": {
+          "otp_contact_option": 2,
+          "otp_code_location": "/sms"
+        }
+      }
+    },
+    {
+      "name": "zillow",
+      "ignore_login": true,
+      "bank_scraper_args": {
+        "suffix": "84074482_zpid"
+      }
+    },
+    {
+      "name": "kraken",
+      "username_field_name": "API Key",
+      "password_field_name": "Private Key"
+    },
+    {
+      "name": "bitcoin",
+      "bank_scraper_args": {
+        "zpub": "<your_btc_zpub>"
+      }
+    },
+    {
+      "name": "ethereum",
+      "bank_scraper_args": {
+        "address": "<your_eth_address>"
+      }
+    }
+  ]
+}
