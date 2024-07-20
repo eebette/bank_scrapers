@@ -41,6 +41,7 @@ HOMEPAGE: str = "https://blockpath.com/search/addr?q="
 
 # Timeout
 TIMEOUT: int = 60 * 1000
+
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
