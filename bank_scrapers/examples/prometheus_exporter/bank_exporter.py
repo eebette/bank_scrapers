@@ -623,7 +623,7 @@ async def enable(args: argparse.Namespace) -> None:
     """
     # Truncate the file if user indicates 'all'
     if "all" in args.scrapers:
-        open(JAIL_FILE, "w").close()
+        open(JAIL_FILE, "w+").close()
         print("All scrapes enabled.")
 
     # Otherwise
