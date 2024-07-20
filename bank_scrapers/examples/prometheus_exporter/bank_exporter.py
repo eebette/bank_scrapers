@@ -498,8 +498,9 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                 update_test_status(tests_file, bank_name, False)
 
                 # Copy the most recent screenshot to the mounted directory
+                screenshot_file: str = sorted(os.listdir(f"{ROOT_DIR}/errors"), reverse=True)[0]
                 shutil.copy(
-                    sorted(os.listdir(f"{ROOT_DIR}/errors"), reverse=True)[0],
+                    f"{ROOT_DIR}/errors/{screenshot_file}",
                     SCREENSHOTS_DIR,
                 )
 
