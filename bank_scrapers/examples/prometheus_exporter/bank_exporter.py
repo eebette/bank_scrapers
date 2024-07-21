@@ -435,6 +435,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
     # Args
     banks_file: str = args.config_file[0]
     tests_file: str = args.tests_file[0]
+    banks_arg: List = args.banks
 
     # Set log level
     log.setLevel("INFO")
@@ -446,6 +447,10 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
     print(f"Opening banks file at {banks_file}...")
     with open(banks_file) as file:
         banks: Dict = json.load(file)
+        if "all" in banks_arg:
+            pass
+        else:
+            banks: Dict = {b: banks[b] for b in banks_arg}
 
     try:
         with open(JAIL_FILE, "w+") as file:
@@ -501,7 +506,9 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                 update_test_status(tests_file, bank_name, False)
 
                 # Copy the most recent screenshot to the mounted directory
-                screenshot_file: str = sorted(os.listdir(f"{ROOT_DIR}/errors"), reverse=True)[0]
+                screenshot_file: str = sorted(
+                    os.listdir(f"{ROOT_DIR}/errors"), reverse=True
+                )[0]
                 shutil.copy(
                     f"{ROOT_DIR}/errors/{screenshot_file}",
                     SCREENSHOTS_DIR,
@@ -674,6 +681,13 @@ def main() -> None:
         "-t",
         help="The tests.json file to document the run results",
         nargs=1,
+    )
+    scrape_parser.add_argument(
+        "--banks",
+        "-b",
+        default="all",
+        help="The banks to scrape. Defaults to 'all'",
+        nargs="*",
     )
     scrape_parser.set_defaults(func=get_bank_metrics)
 
