@@ -459,10 +459,12 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
 
         # Banks name
         bank_name: str = bank["name"]
-        if all(
-            [bank_name not in jail, any([bank_name in banks_arg, "all" in banks_arg])]
-        ):
+        if bank_name in jail:
+            print(
+                f"{bank_name} was found in the jail file. Re-enable if you wish to scrape this bank."
+            )
 
+        elif any([bank_name in banks_arg, "all" in banks_arg]):
             # Login credentials
             if "ignore_login" not in bank:
                 username, password = get_credentials(bank, bank_name)
@@ -514,11 +516,6 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
 
             # Print status and proceed loop
             print(f"Completed in {round(time.time() - start_time, 1)} seconds...")
-
-        else:
-            print(
-                f"{bank_name} was found in the jail file. Re-enable if you wish to scrape this bank."
-            )
 
 
 async def send_report(args: argparse.Namespace) -> None:
