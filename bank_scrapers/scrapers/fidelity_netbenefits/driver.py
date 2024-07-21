@@ -147,6 +147,11 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     option_index: int = int(option) - 1
     log.debug(f"Contact option: {option_index}")
 
+    # Reject cookies if prompted
+    if await page.get_by_text("Cookie Banner").is_visible():
+        log.info("Rejecting cookies...")
+        await page.get_by_text("Reject All").click()
+
     # Click based on user input
     log.info(f"Clicking element for user selected contact option...")
     await contact_options[option_index].click()
