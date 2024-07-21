@@ -668,7 +668,9 @@ def main() -> None:
 
     # Scrape the metrics
     scrape_parser: argparse.ArgumentParser = sub_parser.add_parser("scrape")
-    scrape_parser_required_args = parser.add_argument_group("required named arguments")
+    scrape_parser_required_args = scrape_parser.add_argument_group(
+        "required named arguments"
+    )
     scrape_parser_required_args.add_argument(
         "--config_file",
         "-c",
@@ -694,7 +696,9 @@ def main() -> None:
 
     # Generate at send a report
     report_parser: argparse.ArgumentParser = sub_parser.add_parser("report")
-    report_parser_required_args = parser.add_argument_group("required named arguments")
+    report_parser_required_args = report_parser.add_argument_group(
+        "required named arguments"
+    )
     report_parser_required_args.add_argument(
         "--address",
         "-a",
