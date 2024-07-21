@@ -668,18 +668,20 @@ def main() -> None:
 
     # Scrape the metrics
     scrape_parser: argparse.ArgumentParser = sub_parser.add_parser("scrape")
-    scrape_parser_required_args = parser.add_argument_group('required named arguments')
+    scrape_parser_required_args = parser.add_argument_group("required named arguments")
     scrape_parser_required_args.add_argument(
         "--config_file",
         "-c",
         help="The banks.json file containing config for this app",
         nargs=1,
+        required=True,
     )
     scrape_parser_required_args.add_argument(
         "--tests_file",
         "-t",
         help="The tests.json file to document the run results",
         nargs=1,
+        required=True,
     )
     scrape_parser.add_argument(
         "--banks",
@@ -692,48 +694,55 @@ def main() -> None:
 
     # Generate at send a report
     report_parser: argparse.ArgumentParser = sub_parser.add_parser("report")
-    reoprt_parser_required_args = parser.add_argument_group('required named arguments')
-    reoprt_parser_required_args.add_argument(
+    report_parser_required_args = parser.add_argument_group("required named arguments")
+    report_parser_required_args.add_argument(
         "--address",
         "-a",
         help="The web address of the SMTP server to send the email",
         nargs=1,
+        required=True,
     )
-    reoprt_parser_required_args.add_argument(
+    report_parser_required_args.add_argument(
         "--port",
         "-p",
         help="The port on the web address for the SMTP server",
         nargs=1,
+        required=True,
     )
-    reoprt_parser_required_args.add_argument(
+    report_parser_required_args.add_argument(
         "--username",
         "-u",
         help="The login username to use for authenticating with the SMTP server",
         nargs=1,
+        required=True,
     )
-    reoprt_parser_required_args.add_argument(
+    report_parser_required_args.add_argument(
         "--password",
         "-pp",
         help="The password to use for authenticating with the SMTP server",
         nargs=1,
+        required=True,
     )
-    reoprt_parser_required_args.add_argument(
+    report_parser_required_args.add_argument(
         "--from_address",
         "-f",
         help="The address from which to send the report email",
         nargs=1,
+        required=True,
     )
-    reoprt_parser_required_args.add_argument(
+    report_parser_required_args.add_argument(
         "--to_address",
         "-t",
         help="The address to which to send the report email",
         nargs=1,
+        required=True,
     )
-    reoprt_parser_required_args.add_argument(
+    report_parser_required_args.add_argument(
         "--tests_file",
         "-tf",
         help="The tests.json file to document the run results",
         nargs=1,
+        required=True,
     )
     report_parser.add_argument(
         "--include",
