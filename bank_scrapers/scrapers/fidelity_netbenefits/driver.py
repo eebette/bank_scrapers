@@ -158,7 +158,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
-    otp_input: Locator = page.locator("input[type='text']")
+    otp_input: Locator = page.locator("input[id='dom-otp-code-input']")
     await expect(otp_input).to_be_editable(timeout=TIMEOUT)
 
     # Prompt user input for MFA option
