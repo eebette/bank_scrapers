@@ -249,7 +249,6 @@ async def get_account_types(page: Page) -> pd.DataFrame:
     return accounts_df
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def navigate_download_page_legacy(page: Page) -> Locator:
     """
     Navigates the legacy dropdown list based accounts download page sometimes rendered by Vanguard
@@ -299,7 +298,6 @@ async def navigate_download_page_legacy(page: Page) -> Locator:
     return submit_button
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def navigate_download_page(page: Page) -> Locator:
     """
     Navigates the standard accounts download page sometimes rendered by Vanguard
