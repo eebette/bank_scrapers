@@ -324,7 +324,7 @@ async def navigate_download_page(page: Page) -> Locator:
     accounts_checkbox: Locator = page.locator("input[aria-label='checkAll']")
 
     log.info(f"Clicking accounts checkbox element...")
-    await accounts_checkbox.click()
+    await accounts_checkbox.click(force=True)
 
     # Submit download request
     log.info(f"Finding submit button element...")
