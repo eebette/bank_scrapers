@@ -250,16 +250,62 @@ async def get_account_types(page: Page) -> pd.DataFrame:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def seek_accounts_data(page: Page, tmp: str) -> None:
+async def navigate_download_page_legacy(page: Page) -> Locator:
     """
-    Navigate the website and click download button for the accounts data
+    Navigates the legacy dropdown list based accounts download page sometimes rendered by Vanguard
     :param page: The Chrome browser application
-    :param tmp: An empty directory to use for processing the downloaded file
+    :return: The submit button locator for submitting the download on the page
     """
-    # Go to Downloads Center
-    log.info(f"Accessing: {DASHBOARD_PAGE}")
-    await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
+    log.info("Detected legacy downloads page.")
 
+    # Select CSV option for download formats
+    download_format_dropdown: Locator = page.locator(
+        "span[id='OfxDownloadForm:downloadOption']"
+    )
+    csv_option: Locator = page.locator("td[value='CSVFile']")
+
+    while not await csv_option.is_visible():
+        log.info(f"Clicking download format options dropdown button element...")
+        await download_format_dropdown.click(force=True)
+
+    log.info(f"Clicking CSV option...")
+    await csv_option.click()
+
+    # Select last 18 months for date range
+    date_range_dropdown: Locator = page.locator(
+        "a[id='OfxDownloadForm:ofxDateFilterSelectOneMenu_aTag']"
+    )
+    eighteen_months_option: Locator = page.locator("td[value='EIGHTEEN_MONTH']")
+
+    while not await eighteen_months_option.is_visible():
+        await date_range_dropdown.click(force=True)
+
+    log.info(f"Clicking '18 months' option button...")
+    await page.locator("td[value='EIGHTEEN_MONTH']").click()
+
+    # Select for all accounts
+    log.info(f"Finding accounts checkbox element...")
+    accounts_checkbox: Locator = page.locator("input[aria-label='All accounts']")
+
+    log.info(f"Clicking accounts checkbox element...")
+    await accounts_checkbox.click()
+
+    # Submit download request
+    log.info(f"Finding submit button element...")
+    submit_button: Locator = page.locator(
+        "input[id='OfxDownloadForm:downloadButtonInput']"
+    )
+
+    return submit_button
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def navigate_download_page(page: Page) -> Locator:
+    """
+    Navigates the standard accounts download page sometimes rendered by Vanguard
+    :param page: The Chrome browser application
+    :return: The submit button locator for submitting the download on the page
+    """
     # Select CSV option for download formats
     log.info(f"Finding CSV option radio element...")
     csv_radio: Locator = page.get_by_text("CSV").locator(
@@ -286,9 +332,30 @@ async def seek_accounts_data(page: Page, tmp: str) -> None:
     log.info(f"Finding submit button element...")
     submit_button: Locator = page.locator("[id='submitOFXDownload']")
 
-    log.info(f"Clicking submit button element...")
-    await submit_button.click()
+    return submit_button
 
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def seek_accounts_data(page: Page, tmp: str) -> None:
+    """
+    Navigate the website and click download button for the accounts data
+    :param page: The Chrome browser application
+    :param tmp: An empty directory to use for processing the downloaded file
+    """
+    # Go to Downloads Center
+    log.info(f"Accessing: {DASHBOARD_PAGE}")
+    await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
+
+    download_format_dropdown: Locator = page.locator(
+        "span[id='OfxDownloadForm:downloadOption']"
+    )
+    if await download_format_dropdown.is_visible():
+        submit_button: Locator = await navigate_download_page_legacy(page)
+
+    else:
+        submit_button: Locator = await navigate_download_page(page)
+
+    log.info(f"Clicking submit button element...")
     async with page.expect_download() as download_info:
         await submit_button.click()
     download: Download = await download_info.value
@@ -403,6 +470,19 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    with Display(visible=False, size=(1280, 720)):
+    with Display(visible=True, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
+
+
+import asyncio
+
+print(
+    asyncio.run(
+        get_accounts_info(
+            "ericbett",
+            "8D4%$j72Q!99L",
+            mfa_auth={"otp_contact_option": 2, "otp_code_location": "/media/eric/tmp"},
+        )
+    )
+)
