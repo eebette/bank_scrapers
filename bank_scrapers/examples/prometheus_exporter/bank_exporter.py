@@ -614,6 +614,9 @@ async def send_report(args: argparse.Namespace) -> None:
                         print(f"Attaching {filename}")
                         msg.attach(part)
 
+                        # Only attach most recent
+                        break
+
         # Instantiate server and send the message
         with smtplib.SMTP(address, port) as server:
             server.starttls(context=context)
