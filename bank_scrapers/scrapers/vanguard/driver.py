@@ -321,7 +321,7 @@ async def navigate_download_page(page: Page) -> Locator:
 
     # Select for all accounts
     log.info(f"Finding accounts checkbox element...")
-    accounts_checkbox: Locator = page.locator("input[id='mat-mdc-checkbox-1-input']")
+    accounts_checkbox: Locator = page.locator("input[aria-label='checkAll']")
 
     log.info(f"Clicking accounts checkbox element...")
     await accounts_checkbox.click()
