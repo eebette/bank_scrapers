@@ -70,7 +70,7 @@ async def logon(
 
     # Username
     log.info(f"Finding username element...")
-    username_input: Locator = iframe.locator("input[name='userId']")
+    username_input: Locator = iframe.locator("input[id='userId-input']")
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
@@ -78,7 +78,7 @@ async def logon(
 
     # Password
     log.info(f"Finding password element...")
-    password_input: Locator = iframe.locator("input[name='password-input']")
+    password_input: Locator = iframe.locator("input[id='password-input']")
 
     log.info(f"Sending info to password element...")
     await password_input.press_sequentially(password, delay=100)
