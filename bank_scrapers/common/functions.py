@@ -151,7 +151,7 @@ def search_files_for_int(
     timeout: int,
     file_ext: str = ".txt",
     reverse: bool = False,
-    delay=15,
+    delay: int = 30,
 ) -> str:
     """
     Searches files in a directory for an integer of specific length, and returns the integer
