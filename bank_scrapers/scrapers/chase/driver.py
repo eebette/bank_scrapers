@@ -229,7 +229,7 @@ async def handle_mfa_redirect_alternate(
     await expand_button.click()
 
     dropdown_locator: Locator = page.locator(
-        "ul[id=ul-list-container-simplerAuth-dropdownoptions-styledselect]"
+        "input[id=ul-list-container-simplerAuth-dropdownoptions-styledselect]"
     )
 
     # Identify MFA options
