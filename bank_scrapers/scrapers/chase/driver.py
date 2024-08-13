@@ -221,7 +221,7 @@ async def handle_mfa_redirect_alternate(
         f"Finding list expand button element and waiting for it to be clickable..."
     )
     expand_button: Locator = page.locator(
-        "input[id='header-simplerAuth-dropdownoptions-styledselect']"
+        "div[id='simplerAuth-dropdownoptions-styledselect']"
     )
 
     # Then click it
@@ -229,7 +229,7 @@ async def handle_mfa_redirect_alternate(
     await expand_button.click()
 
     dropdown_locator: Locator = page.locator(
-        "input[id=ul-list-container-simplerAuth-dropdownoptions-styledselect]"
+        "ul[id='ul-list-container-simplerAuth-dropdownoptions-styledselect']"
     )
 
     # Identify MFA options
