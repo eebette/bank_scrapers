@@ -223,6 +223,7 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
 
     log.info("Parsing data...")
     df: pd.DataFrame = df[df["Account Name"].notna()]
+    df: pd.DataFrame = df[df["Current Value"].notna()]
 
     df["Quantity"]: pd.DataFrame = df["Quantity"].fillna(df["Current Value"])
     df["Quantity"]: pd.DataFrame = df["Quantity"].astype(str).str.replace("$", "")
