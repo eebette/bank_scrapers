@@ -68,6 +68,11 @@ async def logon(
     log.info(f"Accessing: {homepage}")
     await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
+    # Reject cookies if prompted
+    reject_cookies_button: Locator = page.get_by_text("Reject All")
+    if await reject_cookies_button.first.is_visible():
+        reject_cookies_button.click()
+
     # Enter User
     log.info(f"Finding username element...")
     username_input: Locator = page.locator("input[id='dom-username-input']")
@@ -148,9 +153,9 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     log.debug(f"Contact option: {option_index}")
 
     # Reject cookies if prompted
-    if await page.get_by_text("Cookie Banner").is_visible():
-        log.info("Rejecting cookies...")
-        await page.get_by_text("Reject All").click()
+    reject_cookies_button: Locator = page.get_by_text("Reject All")
+    if await reject_cookies_button.first.is_visible():
+        reject_cookies_button.click()
 
     # Click based on user input
     log.info(f"Clicking element for user selected contact option...")
