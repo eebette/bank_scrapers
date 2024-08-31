@@ -203,11 +203,37 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
         log.info(f"Clicking submit button element...")
         async with page.expect_navigation(
-            url=re.compile(r"dashboard.web.vanguard.com"),
+            url=re.compile(
+                r"(dashboard.web.vanguard.com|challenges.web.vanguard.com/holiday)"
+            ),
             wait_until="load",
             timeout=TIMEOUT,
         ):
             await submit_button.click()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_holiday_redirect(page: Page) -> bool:
+    """
+    Checks and determines if the site is redirecting to a holiday closure notice
+    :param page: The browser application
+    :return: True if the site is redirecting to a holiday closure notice
+    """
+    if "challenges.web.vanguard.com/holiday" in page.url:
+        log.info("Redirected to holiday closure notice...")
+        return True
+    else:
+        return False
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def navigate_to_dashboard(page: Page) -> None:
+    """
+    Navigates to the landing page dashboard
+    :param page: The browser application
+    """
+    log.info("Navigating to dashboard page...")
+    await page.goto("https://dashboard.web.vanguard.com/", timeout=TIMEOUT)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -409,6 +435,10 @@ async def run(
     if await is_mfa_redirect(page):
         await handle_mfa_redirect(page, mfa_auth)
 
+    # Handle holiday closures notice
+    if await is_holiday_redirect(page):
+        await navigate_to_dashboard(page)
+
     # Get the account types while on the dashboard screen
     accounts_df: pd.DataFrame = await get_account_types(page)
 
@@ -471,3 +501,8 @@ async def get_accounts_info(
     with Display(visible=False, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
+
+
+import asyncio
+
+print(asyncio.run(get_accounts_info("ericbett", "&4cA4dAYL8Rb7")))
