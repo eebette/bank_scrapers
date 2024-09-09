@@ -12,6 +12,7 @@ for t in tables:
 # Standard Library Imports
 from typing import List, Tuple, Dict, Union
 from datetime import datetime
+import time
 import re
 
 # Non-Standard Imports
@@ -24,6 +25,7 @@ from undetected_playwright.async_api import (
     expect,
     Browser,
     BrowserContext,
+    TimeoutError as PlaywrightTimeoutError,
 )
 from pyvirtualdisplay import Display
 
@@ -71,7 +73,11 @@ async def logon(
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
-    await username_input.press_sequentially(username, delay=100)
+    loop_timeout: float = time.time() + (TIMEOUT / 1000)
+    while not await username_input.input_value() == username:
+        if time.time() > loop_timeout:
+            raise PlaywrightTimeoutError
+        await username_input.press_sequentially(username, delay=100)
 
     # Enter Password
     log.info(f"Finding password element...")
