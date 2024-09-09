@@ -71,7 +71,8 @@ async def logon(
     # Reject cookies if prompted
     reject_cookies_button: Locator = page.get_by_text("Reject All")
     if await reject_cookies_button.first.is_visible():
-        reject_cookies_button.click()
+        log.info(f"Cookies button detected. Clicking Reject All button...")
+        await reject_cookies_button.click()
 
     # Enter User
     log.info(f"Finding username element...")
@@ -129,6 +130,12 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     """
     log.info(f"Redirected to multi-factor authentication page.")
 
+    # Reject cookies if prompted
+    reject_cookies_button: Locator = page.get_by_text("Reject All")
+    if await reject_cookies_button.first.is_visible():
+        log.info(f"Cookies button detected. Clicking Reject All button...")
+        await reject_cookies_button.click()
+
     log.info(f"Finding contact options elements...")
     await page.wait_for_selector("pvd-button")
     contact_options: List[Locator] = await page.locator("pvd-button").all()
@@ -155,7 +162,8 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     # Reject cookies if prompted
     reject_cookies_button: Locator = page.get_by_text("Reject All")
     if await reject_cookies_button.first.is_visible():
-        reject_cookies_button.click()
+        log.info(f"Cookies button detected. Clicking Reject All button...")
+        await reject_cookies_button.click()
 
     # Click based on user input
     log.info(f"Clicking element for user selected contact option...")
