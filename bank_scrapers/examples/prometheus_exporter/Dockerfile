@@ -1,4 +1,4 @@
-FROM python:latest
+FROM python:3.12
 
 COPY bank_exporter.py /
 COPY requirements.txt /
