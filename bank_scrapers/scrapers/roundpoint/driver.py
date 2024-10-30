@@ -132,13 +132,17 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     # Identify MFA options
     log.info(f"Finding contact options elements...")
     contact_options: List[Locator] = await page.locator(
-        "div[id='otpOption'] input[type='radio']"
+        "bki-one-time-pin-verify input[type='radio']"
     ).all()
 
     log.info(f"Finding labels for contact options elements...")
     contact_options_text: List[Locator] = await page.locator(
-        "div[id='otpOption'] label[class='mdc-label']"
+        "bki-one-time-pin-verify label[class='mdc-label']"
     ).all()
+
+    # Assertions
+    assert len(contact_options) > 0
+    assert len(contact_options) == len(contact_options_text)
 
     # Prompt user input for MFA option
     if mfa_auth is None:
@@ -476,6 +480,11 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    with Display(visible=False, size=(1280, 720)):
+    with Display(visible=True, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
+
+
+import asyncio
+
+print(asyncio.run(get_accounts_info("ebette1","DQ73A873p64^g")))
