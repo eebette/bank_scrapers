@@ -517,12 +517,15 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                     SCREENSHOTS_DIR,
                 )
 
-            # On timeout error....
+            # On requests error....
             except (requests.exceptions.HTTPError, web3_exceptions.Web3RPCError) as e:
                 print(e)
                 print(
                     "Requests error means that the the web3 server didn't return an OK response."
                 )
+
+                # Update the test badge
+                update_test_status(tests_file, bank_name, False)
 
             # Print status and proceed loop
             print(f"Completed in {round(time.time() - start_time, 1)} seconds...")
