@@ -211,9 +211,13 @@ async def seek_accounts_data(page: Page, tmp: str) -> None:
     log.info(f"Accessing: {DASHBOARD_PAGE}")
     await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
 
-    # Wait for the downloads button to be clickable
+    # Wait for the kebab button to be clickable
     log.info(f"Finding download button element...")
-    download_button: Locator = page.locator("button[aria-label='Download Positions']")
+    kebab_button: Locator = page.locator("#posweb-grid_top-kebab_popover-button button")
+    download_button: Locator = page.locator("#kebabmenuitem-download")
+    while not await download_button.is_visible():
+        log.info(f"Clicking kebab button element...")
+        await kebab_button.click()
 
     # Click the button
     log.info(f"Clicking download button element...")
