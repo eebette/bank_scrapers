@@ -25,6 +25,9 @@ import pandas as pd
 import requests
 from prometheus_client import Gauge, CollectorRegistry, push_to_gateway
 from undetected_playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from web3 import exceptions as web3_exceptions
+
+# Local imports
 from bank_scrapers.get_accounts_info import get_accounts_info
 from bank_scrapers.common.log import log
 from bank_scrapers import ROOT_DIR
@@ -512,6 +515,13 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                 shutil.copy(
                     f"{ROOT_DIR}/errors/{screenshot_file}",
                     SCREENSHOTS_DIR,
+                )
+
+            # On timeout error....
+            except (requests.exceptions.HTTPError, web3_exceptions.Web3RPCError) as e:
+                print(e)
+                print(
+                    "Requests error means that the the web3 server didn't return an OK response."
                 )
 
             # Print status and proceed loop
