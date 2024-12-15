@@ -273,8 +273,14 @@ async def parse_other_data(keys: List[Locator], values: List[Locator]) -> pd.Dat
     # Set up a dict for the df to read
     tbl: Dict = {}
     for i in range(len(keys)):
-        key_text_content: str = await keys[i].text_content()
-        value_text_content: str = await values[i].text_content()
+        key_text_content: str = str()
+        while len(key_text_content) == 0:
+            key_text_content: str = await keys[i].text_content()
+
+        value_text_content: str = str()
+        while len(value_text_content) == 0:
+            value_text_content: str = await values[i].text_content()
+
         tbl[key_text_content.replace(":", "")] = [value_text_content]
 
     # Create the df
