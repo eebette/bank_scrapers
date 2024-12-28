@@ -118,7 +118,7 @@ def wait_for_path_to_exist(filepath: str, timeout: int) -> None:
     while not os.path.exists(filepath):
         sleep(1)
         i += 1
-        if i == timeout:
+        if i >= (timeout / 1000):
             raise TimeoutError("File path doesn't exist!")
 
     log.info(f"Found {filepath}")
@@ -136,7 +136,7 @@ def wait_for_files_in_dir(filepath: str, timeout: int) -> None:
     while not os.listdir(filepath):
         sleep(1)
         i += 1
-        if i == timeout:
+        if i >= (timeout / 1000):
             raise TimeoutError("No files in file path!")
 
     log.info(f"Found files in {filepath}")
@@ -159,32 +159,36 @@ def search_files_for_int(
     :param match_string: A substring to match in the file before searching the file for the int
     :param min_length: Minimum length of the returned integer
     :param max_length: Maximum length of the returned integer
-    :param timeout: Timeout parameter that will throw a TimeoutError if path doesn't exist
+    :param timeout: Timeout in ms parameter that will throw a TimeoutError if path doesn't exist
     :param file_ext: Extension of files to search in the target directory
     :param reverse: Set to True to search the files in reverse-alphabetical order
     :param delay: Optional delay parameter to use before starting to recurse the files in the file path
     """
-    sleep(delay)
     wait_for_path_to_exist(filepath, timeout)
     wait_for_files_in_dir(filepath, timeout)
 
-    for file in sorted(os.listdir(filepath), reverse=reverse):
-        filename: str = os.fsdecode(file)
-        if filename.endswith(file_ext):
-            full_filepath: str = os.path.join(filepath, filename)
-            log.info(f"Checking {full_filepath} for OTP...")
-            with open(full_filepath, "r") as text:
-                text_content: str = text.read().replace("\n", "")
+    total_delay: int = 0
+    while True:
+        if total_delay >= (timeout / 1000):
+            raise TimeoutError(f"OTP code not found after {timeout} seconds")
 
-            if re.compile(r"^.*{}(\s+|:\s).*".format(match_string)).match(text_content):
-                code: str = re.findall(
-                    rf"\d{{{min_length},{max_length}}}", text_content
-                )[0]
+        sleep(delay)
+        total_delay += delay
+        for file in sorted(os.listdir(filepath), reverse=reverse)[:2]:
+            filename: str = os.fsdecode(file)
+            if filename.endswith(file_ext):
+                full_filepath: str = os.path.join(filepath, filename)
+                log.info(f"Checking {full_filepath} for OTP...")
+                with open(full_filepath, "r") as text:
+                    text_content: str = text.read().replace("\n", "")
 
-                log.info(f"OTP found.")
-                log.debug(f"OTP: {code}")
-                return code
+                if re.compile(r"^.*{}(\s+|:\s).*".format(match_string)).match(
+                    text_content
+                ):
+                    code: str = re.findall(
+                        rf"\d{{{min_length},{max_length}}}", text_content
+                    )[0]
 
-    raise Exception(
-        f"No integers between {min_length} and {max_length} characters found in any files!"
-    )
+                    log.info(f"OTP found.")
+                    log.debug(f"OTP: {code}")
+                    return code
