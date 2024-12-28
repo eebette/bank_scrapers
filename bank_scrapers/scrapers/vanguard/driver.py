@@ -51,6 +51,7 @@ DASHBOARD_PAGE: str = (
 
 # Timeout
 TIMEOUT: int = 60 * 1000
+OTP_TIMEOUT: int = 1200 * 1000
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
@@ -190,8 +191,8 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
                 "Vanguard",
                 6,
                 10,
-                TIMEOUT,
-                delay=20,
+                OTP_TIMEOUT,
+                delay=60,
                 reverse=True,
             )
 
@@ -498,6 +499,9 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    with Display(visible=False, size=(1280, 720)):
+    with Display(visible=True, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
+
+import asyncio
+print(asyncio.run(get_accounts_info("ericbett","CjrnrhJfjrjsj8977$+$", mfa_auth=MfaAuth(otp_code_location="/media/eric/tmp", otp_contact_option=2))))
