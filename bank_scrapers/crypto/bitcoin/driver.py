@@ -37,7 +37,7 @@ INSTITUTION: str = "BITCOIN"
 SYMBOL: str = "BTC"
 
 # Logon page
-HOMEPAGE: str = "https://blockpath.com/search/addr?q="
+HOMEPAGE: str = "https://www.walletexplorer.com/pub"
 
 # Timeout
 TIMEOUT: int = 60 * 1000
@@ -56,27 +56,17 @@ async def get_account_balance(page: Page) -> float:
     log.info(f"Getting account balance from page...")
 
     log.info("Waiting for account balance to be visible...")
-    prefix_locator: Locator = page.locator("div[id='addressFinalBalance']")
-    await expect(prefix_locator.first).to_be_visible(timeout=TIMEOUT)
+    table_locator: Locator = page.locator("table[class='txs']")
+    await expect(table_locator).to_be_visible(timeout=TIMEOUT)
 
-    prefixes: List[Locator] = await prefix_locator.all()
-    dollars: str = str()
-    for prefix in prefixes:
-        prefix_text_content: str = await prefix.text_content()
-        if len(prefix_text_content) > 0:
-            dollars: str = prefix_text_content
+    row_locator: Locator = table_locator.locator("tr").nth(1)
+    await expect(row_locator).to_be_visible(timeout=TIMEOUT)
 
-    suffix_locator: Locator = page.locator("div[id='addressFinalBalanceDecimal']")
-    await expect(suffix_locator.first).to_be_visible(timeout=TIMEOUT)
+    amount_locator: Locator = row_locator.locator(".amount").nth(1)
+    await expect(amount_locator).to_be_visible(timeout=TIMEOUT)
 
-    suffixes: List[Locator] = await suffix_locator.all()
-    cents: str = str()
-    for suffix in suffixes:
-        suffix_text_content: str = await suffix.text_content()
-        if len(suffix_text_content) > 0:
-            cents: str = suffix_text_content
-
-    return float(dollars + cents)
+    amount: str = await amount_locator.text_content()
+    return float(amount)
 
 
 def parse_accounts_summary(zpub: str, balance: float) -> pd.DataFrame:
@@ -120,8 +110,8 @@ async def run(
     page: Page = await browser.new_page()
 
     # Access the site with the given zpub as a search parameter
-    log.info(f"Accessing {HOMEPAGE}{zpub}...")
-    await page.goto(f"{HOMEPAGE}{zpub}", timeout=TIMEOUT, wait_until="load")
+    log.info(f"Accessing {HOMEPAGE}/{zpub}?show_txs")
+    await page.goto(f"{HOMEPAGE}/{zpub}?show_txs", timeout=TIMEOUT, wait_until="load")
 
     # Get the account balance
     account_balance: float = await get_account_balance(page)
