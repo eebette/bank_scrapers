@@ -27,7 +27,7 @@ INSTITUTION: str = "ETHEREUM"
 SYMBOL: str = "ETH"
 
 # Logon page
-HOMEPAGE: str = "https://cloudflare-eth.com/"
+HOMEPAGE: str = "https://ethereum.publicnode.com/"
 
 
 def parse_accounts_summary(address: str, balance: float) -> pd.DataFrame:
