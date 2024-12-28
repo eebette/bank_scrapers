@@ -499,9 +499,6 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    with Display(visible=True, size=(1280, 720)):
+    with Display(visible=False, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
-
-import asyncio
-print(asyncio.run(get_accounts_info("ericbett","CjrnrhJfjrjsj8977$+$", mfa_auth=MfaAuth(otp_code_location="/media/eric/tmp", otp_contact_option=2))))
