@@ -369,6 +369,7 @@ async def scrape_loan_data(page: Page) -> List[pd.DataFrame]:
 
         log.info(f"Clicking loan button element...")
         await loan.click()
+        await page.wait_for_load_state("load")
 
         # Navigate the site and get the loan amount
         amount: str = await seek_accounts_data(page)
