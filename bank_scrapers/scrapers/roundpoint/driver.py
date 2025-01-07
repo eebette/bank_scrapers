@@ -250,6 +250,9 @@ async def seek_other_data(page: Page) -> Tuple[List[Locator], List[Locator]]:
     Navigate the website and click download button for the accounts data
     :param page: The Chrome browser application
     """
+    log.info(f"Finding waiting got dashboard element...")
+    await page.wait_for_selector("bki-dashboard-payment")
+
     log.info(f"Finding column headers elements...")
     keys: List[Locator] = await page.locator(
         "bki-dashboard-payment div[class='col']"
