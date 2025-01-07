@@ -111,7 +111,11 @@ async def run(
 
     # Access the site with the given zpub as a search parameter
     log.info(f"Accessing {HOMEPAGE}/{zpub}?show_txs")
-    await page.goto(f"{HOMEPAGE}/{zpub}?show_txs", timeout=TIMEOUT, wait_until="load")
+    screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")(
+        await page.goto(
+            f"{HOMEPAGE}/{zpub}?show_txs", timeout=TIMEOUT, wait_until="load"
+        )
+    )
 
     # Get the account balance
     account_balance: float = await get_account_balance(page)
