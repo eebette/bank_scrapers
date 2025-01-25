@@ -106,7 +106,7 @@ async def wait_for_redirect(page: Page) -> None:
     Wait for the page to redirect to the next stage of the login process
     :param page: The browser application
     """
-    target_text: re.Pattern = re.compile(r"(Verify your account|Dashboard)")
+    target_text: re.Pattern = re.compile(r"(Verify your identity|Dashboard)")
     await expect(page.get_by_text(target_text).first).to_be_visible(timeout=TIMEOUT)
 
 
@@ -117,7 +117,7 @@ async def is_mfa_redirect(page: Page) -> bool:
     :param page: The browser application
     :return: True if MFA is being enforced
     """
-    return await page.get_by_text("Verify your account").is_visible()
+    return await page.get_by_text("Verify your identity").is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
