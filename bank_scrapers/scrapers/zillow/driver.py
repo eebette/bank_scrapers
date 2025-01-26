@@ -67,7 +67,7 @@ async def seek_accounts_data(page: Page) -> Tuple[str, str]:
     """
     log.info(f"Finding zestimate element...")
     zestimate_element: Locator = (
-        page.locator("span[data-testid='zestimate-text']").get_by_text("$").first
+        page.locator("span[data-testid='price']").get_by_text("$").first
     )
     zestimate: str = await zestimate_element.text_content()
 
@@ -178,3 +178,7 @@ async def get_accounts_info(
     with Display(visible=False, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, suffix, prometheus)
+
+import asyncio
+
+print(asyncio.run(get_accounts_info("44472460_zpid")))
