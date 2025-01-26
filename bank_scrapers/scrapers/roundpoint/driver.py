@@ -197,18 +197,10 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     )
 
     log.info(f"Clicking submit button element...")
-    await submit_button.click()
-
-    log.info(f"Finding close prompt button element...")
-    close_button: Locator = page.locator(
-        "bki-one-time-pin-verify button[type='submit']"
-    )
-
-    log.info(f"Clicking close prompt button element...")
     async with page.expect_navigation(
-        url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
+            url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
     ):
-        await close_button.click()
+        await submit_button.click()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
