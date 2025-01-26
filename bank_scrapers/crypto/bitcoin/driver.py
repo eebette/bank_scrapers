@@ -40,7 +40,7 @@ SYMBOL: str = "BTC"
 HOMEPAGE: str = "https://www.walletexplorer.com/pub"
 
 # Timeout
-TIMEOUT: int = 60 * 1000
+TIMEOUT: int = 180 * 1000
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
