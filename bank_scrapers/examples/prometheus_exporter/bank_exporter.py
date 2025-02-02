@@ -495,7 +495,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                 update_test_status(tests_file, bank_name, True)
 
             # On timeout error....
-            except (PlaywrightTimeoutError, AssertionError, KeyError) as e:
+            except (PlaywrightTimeoutError, AssertionError, KeyError, TimeoutError) as e:
                 print(e)
                 print(
                     "Timeout error probably means that the website did something unexpected."

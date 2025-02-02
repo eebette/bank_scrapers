@@ -9,9 +9,12 @@ for t in tables:
 ```
 """
 
+from time import sleep
+
 # Standard Library Imports
 from typing import List, Tuple, Union
 from datetime import datetime
+from random import randint
 
 # Non-Standard Imports
 import pandas as pd
@@ -21,6 +24,7 @@ from undetected_playwright.async_api import (
     Page,
     Locator,
     Browser,
+    expect,
 )
 from pyvirtualdisplay import Display
 
@@ -59,6 +63,46 @@ async def logon(page: Page, homepage: str, suffix: str) -> None:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_mfa_redirect(page: Page) -> bool:
+    """
+    Checks and determines if the site is forcing MFA
+    :param page: The browser application
+    :return: True if MFA is being enforced
+    """
+    return await page.get_by_text("Press & Hold").is_visible()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_mfa_redirect(page: Page) -> None:
+    """
+    Navigates the MFA workflow for this website
+    Note that this function only covers Email Me options for now.
+    :param page: The Chrome page/browser used for this function
+    """
+    log.info(f"Redirected to authentication page.")
+
+    button_box = await page.locator("#px-captcha").bounding_box()
+
+    await page.mouse.move(
+        button_box["x"] + (button_box["width"] / 2),
+        button_box["y"] + (button_box["height"] / 5),
+    )
+
+    # Sleep to allow button to become clickable
+    sleep(10 + (randint(100000000, 999999999) / 1000000000))
+    await page.mouse.down()
+
+    # Random wait before releasing mouse
+    sleep(12 + (randint(100000000, 999999999) / 1000000000))
+
+    await page.mouse.up()
+
+    await expect(page.locator("span[data-testid='price']")).to_be_visible(
+        timeout=TIMEOUT
+    )
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def seek_accounts_data(page: Page) -> Tuple[str, str]:
     """
     Navigate the website and find the accounts data for the user
@@ -72,7 +116,9 @@ async def seek_accounts_data(page: Page) -> Tuple[str, str]:
     zestimate: str = await zestimate_element.text_content()
 
     log.info(f"Finding address element...")
-    address_element: Locator = page.locator("div[class='summary-container'] h1")
+    address_element: Locator = page.locator(
+        "//div[contains(@class, 'AddressWrapper')]//h1"
+    )
     address: str = await address_element.text_content()
 
     return address, zestimate
@@ -126,6 +172,10 @@ async def run(
 
     # Navigate to the logon page and submit credentials
     await logon(page, HOMEPAGE, suffix)
+
+    # Handle MFA if prompted
+    if await is_mfa_redirect(page):
+        await handle_mfa_redirect(page)
 
     # Navigate the site and download the accounts data
     address: str
