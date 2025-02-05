@@ -487,8 +487,3 @@ async def get_accounts_info(
     with Display(visible=False, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
-
-
-import asyncio
-
-print(asyncio.run(get_accounts_info("ebette1", "5NlALr*n4*J")))
