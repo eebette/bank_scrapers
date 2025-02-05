@@ -198,7 +198,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
-            url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
+        url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
     ):
         await submit_button.click()
 
@@ -242,18 +242,20 @@ async def seek_other_data(page: Page) -> Tuple[List[Locator], List[Locator]]:
     Navigate the website and click download button for the accounts data
     :param page: The Chrome browser application
     """
-    log.info(f"Finding waiting got dashboard element...")
+    log.info(f"Finding waiting dashboard element...")
     await page.wait_for_selector("bki-dashboard-payment")
 
     log.info(f"Finding column headers elements...")
-    keys: List[Locator] = await page.locator(
-        "bki-dashboard-payment div[class='col']"
-    ).all()
+    keys_locator: Locator = page.locator("bki-dashboard-payment div[class='col']")
+    await expect(keys_locator).not_to_have_count(0, timeout=TIMEOUT)
+    keys: List[Locator] = await keys_locator.all()
 
     log.info(f"Finding column values elements...")
-    values: List[Locator] = await page.locator(
+    values_locator: Locator = page.locator(
         "bki-dashboard-payment div[class='col strong']"
-    ).all()
+    )
+    await expect(values_locator).not_to_have_count(0, timeout=TIMEOUT)
+    values: List[Locator] = await values_locator.all()
 
     return keys, values
 
@@ -485,3 +487,8 @@ async def get_accounts_info(
     with Display(visible=False, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
+
+
+import asyncio
+
+print(asyncio.run(get_accounts_info("ebette1", "5NlALr*n4*J")))

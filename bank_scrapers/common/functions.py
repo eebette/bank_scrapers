@@ -170,7 +170,7 @@ def search_files_for_int(
     total_delay: int = 0
     while True:
         if total_delay >= (timeout / 1000):
-            raise TimeoutError(f"OTP code not found after {timeout} seconds")
+            raise TimeoutError(f"OTP code not found after {timeout/1000} seconds")
 
         sleep(delay)
         total_delay += delay
