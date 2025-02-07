@@ -279,12 +279,18 @@ async def handle_mfa_redirect_alternate(
     if not await page.get_by_text(re.compile(r"(TEXT|CALL) ME")).first.is_visible():
         await expand_button.click()
 
-    # Click again if necessary
-    while not await contact_options[option_index][0].is_visible():
-        await expand_button.click()
+    async def click_contact_option(contact_option, expand_button, n=0):
+        # Click again if necessary
+        if not await contact_option.is_visible():
+            await expand_button.click()
 
-    log.info(f"Clicking element for user selected contact option...")
-    await contact_options[option_index][0].click()
+        if not await contact_option.is_visible():
+            await click_contact_option(contact_option, expand_button, n + 1)
+
+        log.info(f"Clicking element for user selected contact option...")
+        await contact_option.click()
+
+    await click_contact_option(contact_options[option_index][0], expand_button)
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element and waiting for it to be clickable...")
