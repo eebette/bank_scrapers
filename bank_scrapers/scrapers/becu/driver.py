@@ -117,11 +117,11 @@ async def handle_marketing_redirect(page: Page) -> None:
     remind_button: Locator = page.locator("#ctlWorkflow_remind")
     await expect(decline_button.or_(remind_button)).to_be_visible(timeout=TIMEOUT)
 
-    if decline_button.is_visible():
+    if await decline_button.is_visible():
         log.info(f"Clicking decline button element...")
         await decline_button.click()
 
-    elif remind_button.is_visible():
+    elif await remind_button.is_visible():
         log.info(f"Clicking remind button element...")
         await remind_button.click()
 
