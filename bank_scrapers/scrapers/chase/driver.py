@@ -9,6 +9,8 @@ for t in tables:
 ```
 """
 
+from time import sleep
+
 # Standard Library Imports
 from typing import List, Tuple, Dict, Union
 from datetime import datetime
@@ -275,22 +277,27 @@ async def handle_mfa_redirect_alternate(
     log.debug(f"Contact option: {option_index}")
 
     # Click based on user input
-    log.info(f"Clicking list expand button element...")
-    if not await page.get_by_text(re.compile(r"(TEXT|CALL) ME")).first.is_visible():
-        await expand_button.click()
-
     async def click_contact_option(contact_option, expand_button, n=0):
         # Click again if necessary
         if not await contact_option.is_visible():
+            log.info(f"Clicking list expand button element...")
             await expand_button.click()
 
         if not await contact_option.is_visible():
+            log.info(f"Contact option not visible. Trying again...")
             await click_contact_option(contact_option, expand_button, n + 1)
 
         log.info(f"Clicking element for user selected contact option...")
         await contact_option.click()
 
-    await click_contact_option(contact_options[option_index][0], expand_button)
+    n = 0
+    while await page.get_by_text("Choose one").is_visible() and n * 1000 < TIMEOUT:
+        log.info(f"Attempting to select contact option from dropdown...")
+        n += 1
+        if n * 1000 >= TIMEOUT:
+            raise TimeoutError("Timeout while selecting contact option")
+        await click_contact_option(contact_options[option_index][0], expand_button)
+        sleep(1)
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element and waiting for it to be clickable...")
