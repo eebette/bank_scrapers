@@ -404,9 +404,11 @@ async def get_detail_tables(page: Page) -> List[Locator]:
     :return: A list containing the web elements for the tables
     """
     log.info(f"Finding account details elements...")
+
     tables: List[Locator] = await page.locator(
         "xpath=//dl[contains(@class, 'details-bar')]"
     ).all()
+
     return tables
 
 
@@ -423,7 +425,9 @@ async def parse_accounts_summary(table: Locator) -> pd.DataFrame:
     for d in dt_list:
         text_content: str = await d.text_content()
         if len(text_content) == 0:
-            dt.append(await d.locator("span[class='link__text']").text_content())
+            # Skip blank link rows
+            if len(await d.locator("*").all()) > 0:
+                dt.append(await d.locator(".link__text").text_content())
         else:
             dt.append(text_content)
 
