@@ -81,7 +81,7 @@ async def logon(
 
     # Submit
     log.info(f"Finding submit button element...")
-    submit_button: Locator = page.locator("input[id='ctlSignon_btnLogin']")
+    submit_button: Locator = page.locator("#ctlSignon_btnLogin")
 
     log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
