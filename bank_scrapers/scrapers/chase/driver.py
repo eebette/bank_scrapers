@@ -23,9 +23,10 @@ from undetected_playwright.async_api import (
     Playwright,
     Page,
     Locator,
-    Frame,
     expect,
     Browser,
+    FrameLocator,
+    TimeoutError as PlaywrightTimeoutError,
 )
 from pyvirtualdisplay import Display
 
@@ -42,7 +43,7 @@ INSTITUTION: str = "Chase"
 SYMBOL: str = "USD"
 
 # Logon page
-HOMEPAGE: str = "https://www.chase.com/personal/credit-cards/login-account-access"
+HOMEPAGE: str = "https://secure.chase.com/web/auth/dashboard#/dashboard/index/index"
 
 # Timeout
 TIMEOUT: int = 60 * 1000
@@ -68,11 +69,11 @@ async def logon(
 
     # Navigate the login iframe
     log.info(f"Switching to iframe...")
-    iframe: Frame = page.frame("routablecpologonbox")
+    iframe: FrameLocator = page.frame_locator("#logonbox")
 
     # Username
     log.info(f"Finding username element...")
-    username_input: Locator = iframe.locator("input[id='userId-input']")
+    username_input: Locator = iframe.locator("#userId-input")
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
@@ -80,20 +81,26 @@ async def logon(
 
     # Password
     log.info(f"Finding password element...")
-    password_input: Locator = iframe.locator("input[id='password-input']")
+    password_input: Locator = iframe.locator("#password-input")
 
     log.info(f"Sending info to password element...")
     await password_input.press_sequentially(password, delay=100)
 
     # Submit
     log.info(f"Finding submit button element...")
-    submit_button: Locator = iframe.locator("mds-button[id='signin-button']")
+    submit_button: Locator = iframe.locator("#signin-button")
 
     log.info(f"Clicking submit button element...")
-    async with page.expect_navigation(
-        url=re.compile(r"/(auth|dashboard)/"), wait_until="load", timeout=TIMEOUT
-    ):
-        await submit_button.click(force=True)
+    await submit_button.click(force=True)
+
+    target_text: re.Pattern = re.compile(
+        r"(Let's make sure it's you|We don't recognize this device)"
+    )
+
+    try:
+        await expect(iframe.get_by_text(target_text)).to_be_visible(timeout=TIMEOUT)
+    except PlaywrightTimeoutError:
+        await expect(page).to_have_url(re.compile("^.*/overview$"), timeout=TIMEOUT)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -103,10 +110,13 @@ async def wait_for_redirect(page: Page) -> None:
     :param page: The browser application
     """
     log.info("Waiting for auth page...")
+
+    iframe: FrameLocator = page.frame_locator("#logonbox")
+
     target_text: re.Pattern = re.compile(
         r"(Let's make sure it's you|We don't recognize this device)"
     )
-    await expect(page.get_by_text(target_text)).to_be_visible(timeout=TIMEOUT)
+    await expect(iframe.get_by_text(target_text)).to_be_visible(timeout=TIMEOUT)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -116,7 +126,9 @@ async def is_mfa_redirect(page: Page) -> bool:
     :param page: The browser application
     :return: True if MFA is being enforced
     """
-    return await page.get_by_text("Let's make sure it's you").is_visible()
+    iframe: FrameLocator = page.frame_locator("#logonbox")
+
+    return await iframe.get_by_text("Let's make sure it's you").is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -126,7 +138,9 @@ async def is_mfa_redirect_alternate(page: Page) -> bool:
     :param page: The browser application
     :return: True if MFA is being enforced
     """
-    return await page.get_by_text("We don't recognize this device").is_visible()
+    iframe: FrameLocator = page.frame_locator("#logonbox")
+
+    return await iframe.get_by_text("We don't recognize this device").is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -141,7 +155,8 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
 
     # Identify MFA options
     log.info(f"Finding contact options elements...")
-    contact_options_shadow_root: Locator = page.locator("mds-list[id='optionsList']")
+    iframe: FrameLocator = page.frame_locator("#logonbox")
+    contact_options_shadow_root: Locator = iframe.locator("mds-list[id='optionsList']")
     await expect(contact_options_shadow_root).to_be_visible(timeout=TIMEOUT)
     contact_options: List[Locator] = await contact_options_shadow_root.locator(
         "li"
@@ -166,19 +181,19 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
 
     # Click based on user input
     log.info(f"Clicking element for user selected contact option...")
-    await contact_options[option_index].click()
+    await contact_options[option_index].click(force=True)
 
     # Open accounts dropdown
     log.info(f"Finding next button element...")
-    next_button_shadow_root: Locator = page.locator("mds-button[id='next-content']")
+    next_button_shadow_root: Locator = iframe.locator("mds-button[id='next-content']")
     next_button: Locator = next_button_shadow_root.locator("button")
 
     log.info(f"Clicking next button element...")
-    await next_button.click()
+    await next_button.click(force=True)
 
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
-    otp_input_shadow_root: Locator = page.locator("mds-text-input-secure")
+    otp_input_shadow_root: Locator = iframe.locator("mds-text-input-secure")
     otp_input: Locator = otp_input_shadow_root.locator("input[id='otpInput-input']")
 
     # Prompt user input for MFA option
@@ -198,11 +213,11 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")
-    submit_button_shadow_root: Locator = page.locator("mds-button[id='next-content']")
+    submit_button_shadow_root: Locator = iframe.locator("mds-button[id='next-content']")
     submit_button: Locator = submit_button_shadow_root.locator("button")
 
     log.info(f"Clicking submit button element...")
-    await submit_button.click()
+    await submit_button.click(force=True)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
