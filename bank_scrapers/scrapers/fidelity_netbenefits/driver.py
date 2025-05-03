@@ -137,8 +137,8 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
         await reject_cookies_button.click()
 
     log.info(f"Finding contact options elements...")
-    await page.wait_for_selector("pvd-button")
-    contact_options: List[Locator] = await page.locator("pvd-button").all()
+    await page.wait_for_selector("pvd-cc-auth-button")
+    contact_options: List[Locator] = await page.locator("pvd-cc-auth-button").all()
 
     contact_options_text: List[str] = []
     for contact_option in contact_options:
