@@ -139,7 +139,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     if mfa_auth is None:
         for i, l in enumerate(contact_options):
             log.info(f"No automation info provided. Prompting user for contact option.")
-            print(f"{i + 1}: {await l.text_content()}")
+            print(f"{i + 1}: {(await l.text_content()).replace('\n','')}")
         option: str = input("Please select one: ")
     else:
         log.info(f"Contact option found in automation info.")
@@ -185,7 +185,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")
-    submit_button: Locator = page.locator("button").get_by_text("Sign In")
+    submit_button: Locator = page.locator("button").get_by_text("Continue")
 
     log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
