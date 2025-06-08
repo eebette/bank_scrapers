@@ -221,6 +221,31 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_contact_information_prompt(page: Page) -> bool:
+    """
+    Checks and determines if the site is asking to confirm primary contact information
+    :param page: The browser application
+    :return: True if MFA is being enforced
+    """
+    return await page.get_by_text(
+        "Please look over your primary contact information"
+    ).is_visible()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_contact_information_prompt(page: Page) -> None:
+    """
+    Checks and determines if the site is asking to confirm primary contact information
+    :param page: The browser application
+    :return: True if MFA is being enforced
+    """
+    ask_me_later_button: Locator = page.get_by_text("Ask me later")
+
+    await ask_me_later_button.click(force=True)
+
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def handle_mfa_redirect_alternate(
     page: Page, password: str, mfa_auth: ChaseMfaAuth = None
 ) -> None:
@@ -508,6 +533,12 @@ async def run(
     if await is_mfa_redirect_alternate(page):
         await handle_mfa_redirect_alternate(page, password, mfa_auth)
 
+    await page.wait_for_load_state("domcontentloaded")
+
+    # Handle contact information prompt
+    if await is_contact_information_prompt(page):
+        await handle_contact_information_prompt(page)
+
     # Navigate the site and download the accounts data
     await seek_accounts_data(page)
 
@@ -577,3 +608,4 @@ async def get_accounts_info(
     with Display(visible=False, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
+
