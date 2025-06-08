@@ -239,6 +239,8 @@ async def handle_contact_information_prompt(page: Page) -> None:
     :param page: The browser application
     :return: True if MFA is being enforced
     """
+
+    log.info(f"Handling primary contact information prompt...")
     ask_me_later_button: Locator = page.get_by_text("Ask me later")
 
     await ask_me_later_button.click(force=True)
