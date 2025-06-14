@@ -495,7 +495,12 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                 update_test_status(tests_file, bank_name, True)
 
             # On timeout error....
-            except (PlaywrightTimeoutError, AssertionError, KeyError, TimeoutError) as e:
+            except (
+                PlaywrightTimeoutError,
+                AssertionError,
+                KeyError,
+                TimeoutError,
+            ) as e:
                 print(e)
                 print(
                     "Timeout error probably means that the website did something unexpected."
@@ -613,10 +618,12 @@ async def send_report(args: argparse.Namespace) -> None:
 
             # Find the most recent screenshot (if exists) for these tests and attach to message
             for scraper in set(jail + errors):
+                attached_png: bool = False
+                attached_html: bool = False
                 for file in sorted(os.listdir(SCREENSHOTS_DIR), reverse=True):
                     filename: str = os.fsdecode(file)
                     if (
-                        filename.endswith(".png")
+                        any([filename.endswith(".png"), filename.endswith(".html")])
                         and scraper.lower() in filename.replace(" ", "_").lower()
                     ):
                         full_filepath: str = os.path.join(SCREENSHOTS_DIR, filename)
@@ -627,8 +634,14 @@ async def send_report(args: argparse.Namespace) -> None:
                         print(f"Attaching {filename}")
                         msg.attach(part)
 
+                        if filename.endswith(".png"):
+                            attached_png = True
+                        elif filename.endswith(".html"):
+                            attached_html = True
+
                         # Only attach most recent
-                        break
+                        if all([attached_png, attached_html]):
+                            break
 
         # Instantiate server and send the message
         with smtplib.SMTP(address, port) as server:
