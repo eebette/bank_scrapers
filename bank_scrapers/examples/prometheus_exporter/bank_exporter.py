@@ -24,7 +24,7 @@ import argparse
 import pandas as pd
 import requests
 from prometheus_client import Gauge, CollectorRegistry, push_to_gateway
-from undetected_playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from undetected_playwright.async_api import TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 from web3 import exceptions as web3_exceptions
 
 # Local imports
@@ -496,6 +496,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
 
             # On timeout error....
             except (
+                PlaywrightError,
                 PlaywrightTimeoutError,
                 AssertionError,
                 KeyError,
