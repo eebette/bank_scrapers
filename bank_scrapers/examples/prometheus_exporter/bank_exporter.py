@@ -216,7 +216,7 @@ def get_credentials(
     :param bank: The bank dict object from the config file
     :return: A tuple containing the requested username and password
     """
-    print(f"Getting credentials for {bank.get("name")}...")
+    print(f"Getting credentials for {bank.get("name").upper()}...")
 
     # Get credentials using the BitwardenClient interface
     username: Union[str, None]
