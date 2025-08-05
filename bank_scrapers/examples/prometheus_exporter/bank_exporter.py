@@ -45,14 +45,17 @@ SCREENSHOTS_DIR: str = os.path.join(
 )
 
 
-def get_credentials_from_password_manager(bank: Dict) -> Tuple[str, str]:
+def get_credentials_from_password_manager(
+    get_credentials_script: str, bank: Dict
+) -> Tuple[str, str]:
     """
     Runs the local shell script provided as a CLI arg to get the credentials from the password manager
+    :param get_credentials_script: The string for the shell script to get the credentials
     :param bank: The bank object for which to get the credentials
     :return: The returned object from the shell script
     """
     output: str = subprocess.check_output(
-        [".", "/scripts/get_credentials.sh", "/env/bitwarden.env", bank.get("id")]
+        get_credentials_script.split(" ") + [bank.get("id")]
     ).decode("utf-8")
     return parse_credentials(json.loads(output))
 
@@ -203,19 +206,24 @@ def update_test_status(file_location: str, bank_name: str, passed: bool) -> None
         json.dump(tests_dict, tests)
 
 
-def get_credentials(bank: Dict, bank_name: str) -> Tuple[str, str]:
+def get_credentials(
+    get_credentials_script: str,
+    bank: Dict,
+) -> Tuple[str, str]:
     """
     Gets credentials for a given bank
+    :param get_credentials_script: The string for the shell script to get the credentials
     :param bank: The bank dict object from the config file
-    :param bank_name: The name of the bank for which to get credentials
     :return: A tuple containing the requested username and password
     """
-    print(f"Getting credentials for {bank_name.upper()}...")
+    print(f"Getting credentials for {bank.get("name")}...")
 
     # Get credentials using the BitwardenClient interface
     username: Union[str, None]
     password: Union[str, None]
-    username, password = get_credentials_from_password_manager(bank)
+    username, password = get_credentials_from_password_manager(
+        get_credentials_script, bank
+    )
     return username, password
 
 
@@ -253,6 +261,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
     # Args
     banks_file: str = args.config_file[0]
     tests_file: str = args.tests_file[0]
+    get_credentials_script: str = args.get_credentials_script
     banks_arg: List = args.banks
 
     # Set log level
@@ -285,7 +294,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
         elif any([bank_name in banks_arg, "all" in banks_arg]):
             # Login credentials
             if "ignore_login" not in bank:
-                username, password = get_credentials(bank, bank_name)
+                username, password = get_credentials(get_credentials_script, bank)
             else:
                 username, password = (None, None)
 
