@@ -5,7 +5,7 @@ Provides library level metadata and constants.
 import os
 
 NAME: str = "bank_scrapers"
-VERSION: str = "1.3.25"
+VERSION: str = "1.3.26"
 ROOT_DIR: str = os.path.dirname(os.path.abspath(__file__))
 
 

@@ -140,6 +140,7 @@ async def collect_metrics(
     bank_scraper_args: Dict,
     username: str,
     password: str,
+    prometheus_endpoint: str,
     registry: CollectorRegistry,
     current_balances_metrics: Gauge,
     current_values_metrics: Gauge,
@@ -150,6 +151,7 @@ async def collect_metrics(
     :param bank_scraper_args: The args to pass to the bank_scrapers function
     :param username: The username for the bank
     :param password: The password for the bank
+    :param prometheus_endpoint: The url endpoint for the Prometheus instance
     :param registry: The Prometheus registry object to which to push the metrics
     :param current_balances_metrics: The Prometheus gauge object for current balance
     :param current_values_metrics: The Prometheus gauge object to USD values of the accounts' holdings
@@ -174,7 +176,11 @@ async def collect_metrics(
         current_values_metrics.labels(*labels).set(value)
 
     # Push metrics to push gateway
-    push_to_gateway("0.0.0.0:9091", job="bank_exporter", registry=registry)
+    push_to_gateway(
+        prometheus_endpoint,
+        job="bank_exporter",
+        registry=registry,
+    )
 
 
 def update_test_status(file_location: str, bank_name: str, passed: bool) -> None:
@@ -262,6 +268,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
     banks_file: str = args.config_file[0]
     tests_file: str = args.tests_file[0]
     get_credentials_script: str = args.get_credentials_script[0]
+    prometheus_endpoint: str = args.prometheus_endpoint[0]
     banks_arg: List = args.banks
 
     # Set log level
@@ -310,6 +317,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                     bank_scraper_args,
                     username,
                     password,
+                    prometheus_endpoint,
                     registry,
                     current_balances,
                     current_values,
@@ -547,6 +555,13 @@ def main() -> None:
         "--get_credentials_script",
         "-s",
         help="The local shell script which gets the credentials for a bank from the password manager",
+        nargs=1,
+        required=True,
+    )
+    scrape_parser_required_args.add_argument(
+        "--prometheus_endpoint",
+        "-p",
+        help="The url endpoint for the Prometheus instance",
         nargs=1,
         required=True,
     )
