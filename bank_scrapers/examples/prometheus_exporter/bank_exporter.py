@@ -261,7 +261,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
     # Args
     banks_file: str = args.config_file[0]
     tests_file: str = args.tests_file[0]
-    get_credentials_script: str = args.get_credentials_script
+    get_credentials_script: str = args.get_credentials_script[0]
     banks_arg: List = args.banks
 
     # Set log level
