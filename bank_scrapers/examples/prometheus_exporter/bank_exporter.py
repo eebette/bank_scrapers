@@ -24,7 +24,10 @@ import argparse
 import pandas as pd
 import requests
 from prometheus_client import Gauge, CollectorRegistry, push_to_gateway
-from undetected_playwright.async_api import TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
+from undetected_playwright.async_api import (
+    TimeoutError as PlaywrightTimeoutError,
+    Error as PlaywrightError,
+)
 from web3 import exceptions as web3_exceptions
 
 # Local imports
@@ -515,13 +518,15 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                 update_test_status(tests_file, bank_name, False)
 
                 # Copy the most recent screenshot to the mounted directory
-                screenshot_file: str = sorted(
-                    os.listdir(f"{ROOT_DIR}/errors"), reverse=True
-                )[0]
-                shutil.copy(
-                    f"{ROOT_DIR}/errors/{screenshot_file}",
-                    SCREENSHOTS_DIR,
-                )
+                for i in [0, 1]:
+                    screenshot_file: str = sorted(
+                        os.listdir(f"{ROOT_DIR}/errors"), reverse=True
+                    )[i]
+
+                    shutil.copy(
+                        f"{ROOT_DIR}/errors/{screenshot_file}",
+                        SCREENSHOTS_DIR,
+                    )
 
             # On requests error....
             except (requests.exceptions.HTTPError, web3_exceptions.Web3RPCError) as e:
@@ -629,8 +634,13 @@ async def send_report(args: argparse.Namespace) -> None:
                     ):
                         full_filepath: str = os.path.join(SCREENSHOTS_DIR, filename)
 
-                        with open(full_filepath, "rb") as f:
-                            part = MIMEImage(f.read())
+                        if filename.endswith(".png"):
+                            with open(full_filepath, "rb") as f:
+                                part = MIMEImage(f.read())
+
+                        if filename.endswith(".html"):
+                            with open(full_filepath) as f:
+                                part = MIMEText(f.read(), "html")
 
                         print(f"Attaching {filename}")
                         msg.attach(part)

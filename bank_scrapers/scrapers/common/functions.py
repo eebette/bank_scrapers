@@ -30,10 +30,14 @@ def screenshot_on_timeout(save_path: str):
                 log.warning(f"Saving screenshot to: {save_path}")
                 await driver.screenshot(path=save_path)
 
+                client = await driver.context.new_cdp_session(driver)
+                mhtml_coroutine = await client.send("Page.captureSnapshot")
+                mhtml = mhtml_coroutine['data']
+
                 with open(
                     save_path.replace(".png", ".html"), "w+", encoding="utf-8"
                 ) as f:
-                    f.write(await driver.content())
+                    f.write(mhtml)
 
                 raise
 
