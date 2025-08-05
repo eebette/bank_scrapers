@@ -5,7 +5,8 @@ Bitwarden REST server
 
 # Standard imports
 import asyncio
-from typing import List, Dict, Tuple, Type, Callable, Union
+import subprocess
+from typing import List, Dict, Tuple, Union
 import os
 import traceback
 import shutil
@@ -44,197 +45,26 @@ SCREENSHOTS_DIR: str = os.path.join(
 )
 
 
-class BitwardenClient:
-    def __init__(
-        self,
-        base_url: str = "http://0.0.0.0:8087",
-        unlock_api_target: str = "/unlock",
-        lock_api_target: str = "/lock",
-        sync_api_target: str = "/sync",
-        list_api_target: str = "/list/object/items",
-        password: str = str(),
-    ):
-        """
-        A client interface for interacting with a local BitWarden HTTP REST server
-        :param base_url: The url to which to make HTTP calls
-        :param unlock_api_target: The unlock endpoint
-        :param lock_api_target: The lock endpoint
-        :param sync_api_target: The sync endpoint
-        :param list_api_target: The list endpoint
-        :param password: The user's password for unlocking the server
-        """
-        self.base_url: str = base_url
-        self.unlock_api_target: str = unlock_api_target
-        self.lock_api_target: str = lock_api_target
-        self.sync_api_target: str = sync_api_target
-        self.list_api_target: str = list_api_target
-        self.session_key = str()
-
-        if password == str():
-            try:
-                self.password = os.environ["BW_PASSWORD"]
-            except KeyError as e:
-                print(e)
-                print(
-                    "No password provided. Provide a password when calling this class or by setting the environmental"
-                    ' variable "BW_PASSWORD".'
-                )
-                raise
-        else:
-            self.password = password
-
-    # noinspection PyMethodParameters
-    def check_session_key(func):
-        """
-        Decorator for checking if a session key is available
-        """
-
-        def _check_session_key(self):
-            try:
-                assert self.session_key
-            except AssertionError:
-                print(
-                    "No session key found. Run the unlock command before accessing vault items."
-                )
-                raise
-            # noinspection PyCallingNonCallable
-            return func(self)
-
-        return _check_session_key
-
-    def unlock(self) -> None:
-        """
-        Unlocks the vault
-        """
-        response: requests.Response = request_ok(
-            function=requests.post,
-            url=f"{self.base_url}{self.unlock_api_target}",
-            payload={"password": self.password},
-        )
-        self.session_key = response.json()["data"]["raw"]
-
-    def lock(self) -> None:
-        """
-        Locks the vault
-        """
-        request_ok(
-            function=requests.post,
-            url=f"{self.base_url}{self.lock_api_target}",
-            payload={"password": self.password},
-        )
-
-    def sync(self) -> None:
-        """
-        Syncs the vault
-        """
-        request_ok(
-            function=requests.post,
-            url=f"{self.base_url}{self.sync_api_target}",
-            payload={},
-        )
-
-    # noinspection PyArgumentList
-    @check_session_key
-    def list(self) -> requests.Response:
-        """
-        Lists all items in the vault
-        :return: The requests response from the HTTP call.
-        """
-        list_response: requests.Response = request_ok(
-            function=requests.get,
-            url=f"{self.base_url}{self.list_api_target}",
-            payload={"session": self.session_key},
-        )
-        return list_response
-
-    def get_credentials(
-        self,
-        entry: str,
-        username_field_name: str = None,
-        password_field_name: str = None,
-    ) -> Tuple[str, str]:
-        """
-        Parses the listed items response and returns credentials for the requested entry
-        :param entry: The vault entry for which to get credentials
-        :param username_field_name: The name of the custom field containing the username (if the requested username is
-        stored outside the standard username field)
-        :param password_field_name: The name of the custom field containing the password (if the requested password is
-        stored outside the standard password field)
-        :return: A tuple containing the requested username and password
-        """
-        self.sync()
-        self.unlock()
-
-        list_response: requests.Response = self.list()
-
-        username: str
-        password: str
-        username, password = parse_credentials(
-            list_response, entry, username_field_name, password_field_name
-        )
-
-        self.lock()
-
-        return username, password
-
-
-def retry(exceptions: Tuple[Type, ...], retries=3, delay=10):
+def get_credentials_from_password_manager(bank: Dict) -> Tuple[str, str]:
     """
-    A decorator function for retrying a function if a given set of exceptions are raised
-    :param exceptions: The exceptions for which to retry the function
-    :param retries: The amount of times to retry the function
-    :param delay: The amount of time (in seconds) to wait before retrying the function
+    Runs the local shell script provided as a CLI arg to get the credentials from the password manager
+    :param bank: The bank object for which to get the credentials
+    :return: The returned object from the shell script
     """
-
-    def wrapper(func):
-        def _retry(*args, **kwargs):
-            nonlocal retries, delay
-            this_retries = retries
-            while this_retries > 0:
-                try:
-                    return func(*args, **kwargs)
-                except exceptions as e:
-                    print(e)
-                    if this_retries == 1:
-                        print("All attempts failed.")
-                        raise
-
-                    this_retries -= 1
-                    print(f"Retrying in {delay} seconds...")
-                    time.sleep(delay)
-
-        return _retry
-
-    return wrapper
-
-
-@retry(exceptions=(AssertionError, requests.exceptions.ConnectionError))
-def request_ok(
-    function: Callable, url: str, payload: Dict[Union[str, None], Union[str, None]]
-) -> requests.Response:
-    """
-    Simple helper function for running a request and asserting its response is 200 (OK)
-    :param function: The requests function to run
-    :param url: The request url
-    :param payload: The request json
-    :return: The OK requests response
-    """
-    response = function(url=url, json=payload)
-    assert response.ok
-
-    return response
+    output: str = subprocess.check_output(
+        [".", "/scripts/get_credentials.sh", "/env/bitwarden.env", bank.get("id")]
+    ).decode("utf-8")
+    return parse_credentials(json.loads(output))
 
 
 def parse_credentials(
-    response: requests.Response,
-    entry: str,
+    entry: Dict,
     username_field_name: str = None,
     password_field_name: str = None,
 ) -> Tuple[str, str]:
     """
-    Parses a requests response containing BitWarden vault items and returns the username and password for a requested
+    Parses an entry from Bitwarden and returns the username and password for a requested
     entry
-    :param response: The requests response to parse
     :param entry: The entry for which to get credentials
     :param username_field_name: The name of the custom field containing the username (if the requested username is
     stored outside the standard username field)
@@ -242,38 +72,26 @@ def parse_credentials(
     stored outside the standard password field)
     :return: A tuple containing the requested username and password
     """
-    username: str = str()
-    password: str = str()
 
-    # Iterate the items in the response
-    for item in response.json()["data"]["data"]:
+    # Return normal username key if no custom field name is provided
+    if username_field_name is None:
+        username: str = entry["login"]["username"]
 
-        # Match the entry name and the item in the response
-        if item["name"].lower() == entry.lower():
+    # Return element from custom field name if provided
+    else:
+        username: str = list(
+            f["value"] for f in entry["fields"] if f["name"] == username_field_name
+        )[0]
 
-            # Return normal username key if no custom field name is provided
-            if username_field_name is None:
-                username: str = item["login"]["username"]
+    # Return normal password key if no custom field name is provided
+    if password_field_name is None:
+        password: str = entry["login"]["password"]
 
-            # Return element from custom field name if provided
-            else:
-                username: str = list(
-                    f["value"]
-                    for f in item["fields"]
-                    if f["name"] == username_field_name
-                )[0]
-
-            # Return normal password key if no custom field name is provided
-            if password_field_name is None:
-                password: str = item["login"]["password"]
-
-            # Return element from custom field name if provided
-            else:
-                password: str = list(
-                    f["value"]
-                    for f in item["fields"]
-                    if f["name"] == password_field_name
-                )[0]
+    # Return element from custom field name if provided
+    else:
+        password: str = list(
+            f["value"] for f in entry["fields"] if f["name"] == password_field_name
+        )[0]
 
     return username, password
 
@@ -394,16 +212,10 @@ def get_credentials(bank: Dict, bank_name: str) -> Tuple[str, str]:
     """
     print(f"Getting credentials for {bank_name.upper()}...")
 
-    # Get the custom username/password field names if exists in the config
-    username_field_name: Union[str, None] = bank.get("username_field_name", None)
-    password_field_name: Union[str, None] = bank.get("password_field_name", None)
-
     # Get credentials using the BitwardenClient interface
     username: Union[str, None]
     password: Union[str, None]
-    username, password = BitwardenClient().get_credentials(
-        bank_name, username_field_name, password_field_name
-    )
+    username, password = get_credentials_from_password_manager(bank)
     return username, password
 
 
@@ -719,6 +531,13 @@ def main() -> None:
         "--tests_file",
         "-t",
         help="The tests.json file to document the run results",
+        nargs=1,
+        required=True,
+    )
+    scrape_parser_required_args.add_argument(
+        "--get_credentials_script",
+        "-s",
+        help="The local shell script which gets the credentials for a bank from the password manager",
         nargs=1,
         required=True,
     )

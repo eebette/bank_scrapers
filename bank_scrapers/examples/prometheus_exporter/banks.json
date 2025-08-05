@@ -1,10 +1,12 @@
 {
   "banks": [
     {
-      "name": "becu"
+      "name": "becu",
+      "id": "password_manager_object_id"
     },
     {
       "name": "chase",
+      "id": "password_manager_object_id",
       "bank_scraper_args": {
         "mfa_auth": {
           "otp_contact_option": 1,
@@ -15,6 +17,7 @@
     },
     {
       "name": "fidelity_netbenefits",
+      "id": "password_manager_object_id",
       "bank_scraper_args": {
         "mfa_auth": {
           "otp_contact_option": 1,
@@ -24,6 +27,7 @@
     },
     {
       "name": "roundpoint",
+      "id": "password_manager_object_id",
       "bank_scraper_args": {
         "mfa_auth": {
           "otp_contact_option": 2,
@@ -32,10 +36,12 @@
       }
     },
     {
-      "name": "smbc_prestia"
+      "name": "smbc_prestia",
+      "id": "password_manager_object_id"
     },
     {
       "name": "uhfcu",
+      "id": "password_manager_object_id",
       "bank_scraper_args": {
         "mfa_auth": {
           "otp_contact_option": 2,
@@ -45,6 +51,7 @@
     },
     {
       "name": "vanguard",
+      "id": "password_manager_object_id",
       "bank_scraper_args": {
         "mfa_auth": {
           "otp_contact_option": 2,
@@ -61,6 +68,7 @@
     },
     {
       "name": "kraken",
+      "id": "password_manager_object_id",
       "username_field_name": "API Key",
       "password_field_name": "Private Key"
     },
