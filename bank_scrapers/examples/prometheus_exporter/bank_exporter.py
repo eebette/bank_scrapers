@@ -57,43 +57,44 @@ def get_credentials_from_password_manager(
     output: str = subprocess.check_output(
         get_credentials_script.split(" ") + [bank.get("id")]
     ).decode("utf-8")
-    return parse_credentials(json.loads(output))
+
+    return parse_credentials(json.loads(output), bank)
 
 
 def parse_credentials(
     entry: Dict,
-    username_field_name: str = None,
-    password_field_name: str = None,
+    bank: Dict,
 ) -> Tuple[str, str]:
     """
     Parses an entry from Bitwarden and returns the username and password for a requested
     entry
     :param entry: The entry for which to get credentials
-    :param username_field_name: The name of the custom field containing the username (if the requested username is
-    stored outside the standard username field)
-    :param password_field_name: The name of the custom field containing the password (if the requested password is
-    stored outside the standard password field)
+    :param bank: The bank object for which to get the credentials
     :return: A tuple containing the requested username and password
     """
 
     # Return normal username key if no custom field name is provided
-    if username_field_name is None:
+    if bank.get("username_field_name") is None:
         username: str = entry["login"]["username"]
 
     # Return element from custom field name if provided
     else:
         username: str = list(
-            f["value"] for f in entry["fields"] if f["name"] == username_field_name
+            f["value"]
+            for f in entry["fields"]
+            if f["name"] == bank.get("username_field_name")
         )[0]
 
     # Return normal password key if no custom field name is provided
-    if password_field_name is None:
+    if bank.get("password_field_name") is None:
         password: str = entry["login"]["password"]
 
     # Return element from custom field name if provided
     else:
         password: str = list(
-            f["value"] for f in entry["fields"] if f["name"] == password_field_name
+            f["value"]
+            for f in entry["fields"]
+            if f["name"] == bank.get("password_field_name")
         )[0]
 
     return username, password
