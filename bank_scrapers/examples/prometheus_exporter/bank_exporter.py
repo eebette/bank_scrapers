@@ -473,6 +473,9 @@ async def send_report(args: argparse.Namespace) -> None:
                                 part = MIMEText(f.read(), "html")
 
                         print(f"Attaching {filename}")
+                        part["Content-Disposition"] = (
+                            f'attachment; filename="{filename}"'
+                        )
                         msg.attach(part)
 
                         if filename.endswith(".png"):
