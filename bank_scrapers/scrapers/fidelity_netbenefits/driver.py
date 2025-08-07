@@ -68,11 +68,14 @@ async def logon(
     log.info(f"Accessing: {homepage}")
     await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
-    # Reject cookies if prompted
-    reject_cookies_button: Locator = page.get_by_text("Reject All")
-    if await reject_cookies_button.first.is_visible():
-        log.info(f"Cookies button detected. Clicking Reject All button...")
-        await reject_cookies_button.click()
+    async def reject_cookies_if_prompt_is_visible():
+        # Reject cookies if prompted
+        reject_cookies_button: Locator = page.get_by_text("Reject All")
+        if await reject_cookies_button.first.is_visible():
+            log.info(f"Cookies button detected. Clicking Reject All button...")
+            await reject_cookies_button.click()
+
+    await reject_cookies_if_prompt_is_visible()
 
     # Enter User
     log.info(f"Finding username element...")
@@ -81,6 +84,8 @@ async def logon(
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
     await username_input.fill(username)
+
+    await reject_cookies_if_prompt_is_visible()
 
     # Enter Password
     log.info(f"Finding password element...")
