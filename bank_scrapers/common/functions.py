@@ -37,12 +37,24 @@ def get_usd_rate_crypto(symbol: str) -> float:
     """
     try:
         log.info(f"Getting value of {symbol.upper()}-USD from YFinance...")
-        return yf.download(
-            f"{symbol.upper()}-USD",
-            date.today() - timedelta(days=2),
-            date.today() - timedelta(),
-            progress=False,
-        )["Close"].values[0]
+        symbol_value = (
+            yf.download(
+                f"{symbol.upper()}-USD",
+                date.today() - timedelta(days=7),
+                progress=False,
+            )["Close"]
+            .values[-1]
+            .item()
+        )
+
+        try:
+            assert isinstance(symbol_value, float)
+        except AssertionError:
+            log.error("Return value is not a float")
+            raise
+
+        return symbol_value
+
     except IndexError:
         log.warning(
             f"Couldn't find value of {symbol.upper()}-USD from YFinance! Filling with 0.0 instead."
