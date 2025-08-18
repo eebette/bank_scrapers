@@ -5,16 +5,11 @@ COPY requirements.txt /
 
 RUN curl -fsSL https://get.docker.com | sh
 
-RUN apt update && apt install -y wget && \
-    wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor | tee /usr/share/keyrings/google-chrome.gpg > /dev/null && \
-    sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' && \
-    apt update && \
-    apt install -y google-chrome-stable
+RUN pip install -r /requirements.txt
 
 RUN apt update && \
     apt install -y xvfb xserver-xephyr tigervnc-standalone-server
 
-RUN pip install -r /requirements.txt
-RUN find /usr/local/lib -path "*/undetected_playwright/driver" -exec chmod +x -R {} \;
+RUN patchright install chrome
 
 ENTRYPOINT [ "python", "/bank_exporter.py" ]
