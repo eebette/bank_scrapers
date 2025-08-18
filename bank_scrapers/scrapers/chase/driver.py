@@ -128,7 +128,14 @@ async def is_mfa_redirect(page: Page) -> bool:
     """
     iframe: FrameLocator = page.frame_locator("#logonbox")
 
-    return await iframe.get_by_text("Let's make sure it's you").is_visible()
+    return all(
+        [
+            await iframe.get_by_text("Let's make sure it's you").is_visible(),
+            await iframe.get_by_text(
+                "For your security, we need to confirm your identity"
+            ).is_visible(),
+        ]
+    )
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -141,6 +148,25 @@ async def is_mfa_redirect_alternate(page: Page) -> bool:
     iframe: FrameLocator = page.frame_locator("#logonbox")
 
     return await iframe.get_by_text("We don't recognize this device").is_visible()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_mfa_redirect_new(page: Page) -> bool:
+    """
+    Checks and determines if the site is forcing MFA on the login attempt
+    :param page: The browser application
+    :return: True if MFA is being enforced
+    """
+    iframe: FrameLocator = page.frame_locator("#logonbox")
+
+    return all(
+        [
+            await iframe.get_by_text("Let's make sure it's you").is_visible(),
+            await iframe.get_by_text(
+                "For your security, we'll call you with a one-time code"
+            ).is_visible(),
+        ]
+    )
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -218,6 +244,27 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
 
     log.info(f"Clicking submit button element...")
     await submit_button.click(force=True)
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_mfa_redirect_new(page: Page, mfa_auth: ChaseMfaAuth = None) -> None:
+    """
+    Navigates the MFA workflow for this website
+    Note that this function only covers Email Me options for now.
+    :param page: The Chrome page/browser used for this function
+    :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
+    """
+    log.info("Redirected to new multi-factor authentication page.")
+
+    log.info("Finding 'Try a different method' button...")
+    iframe: FrameLocator = page.frame_locator("#logonbox")
+
+    button: Locator = iframe.get_by_text("Try a different method")
+    log.info("Clicking 'Try a different method' button...")
+    await button.click(force=True)
+
+    # Do normal MFA redirect
+    await handle_mfa_redirect(page, mfa_auth)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -534,6 +581,10 @@ async def run(
     # Handle MFA if prompted
     if await is_mfa_redirect_alternate(page):
         await handle_mfa_redirect_alternate(page, password, mfa_auth)
+
+    # Handle MFA if prompted
+    if await is_mfa_redirect_new(page):
+        await handle_mfa_redirect_new(page, password, mfa_auth)
 
     await page.wait_for_load_state("domcontentloaded")
 
