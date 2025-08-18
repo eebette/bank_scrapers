@@ -17,13 +17,12 @@ import re
 
 # Non-Standard Imports
 import pandas as pd
-from undetected_playwright.async_api import (
+from patchright.async_api import (
     async_playwright,
     Playwright,
     Page,
     Locator,
     expect,
-    Browser,
     BrowserContext,
     TimeoutError as PlaywrightTimeoutError,
 )
@@ -366,10 +365,11 @@ async def run(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate browser
-    browser: Browser = await playwright.chromium.launch(
+    browser: BrowserContext = await playwright.chromium.launch_persistent_context(
+        user_data_dir=str(),
         channel="chrome",
         headless=False,
-        args=["--disable-blink-features=AutomationControlled"],
+        no_viewport=True,
     )
     context: BrowserContext = await browser.new_context()
     page: Page = await context.new_page()
