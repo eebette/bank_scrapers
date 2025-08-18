@@ -248,7 +248,7 @@ async def get_account_types(page: Page) -> pd.DataFrame:
 
     log.info("Waiting for accounts tables to be visible...")
     account_label_locator: Locator = page.locator("a.account-holdings-link")
-    await expect(account_label_locator.first).to_be_visible(timeout=TIMEOUT)
+    await expect(account_label_locator).not_to_have_count(0, timeout=TIMEOUT)
 
     account_label_elements: List[Locator] = await account_label_locator.all()
 
