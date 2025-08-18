@@ -187,11 +187,12 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
         for i, text in enumerate(contact_options_text):
             if mfa_auth["otp_contact_option"].lower() in text.lower():
                 option: str = str(i)
-            try:
-                assert len(option) > 0
-            except AssertionError:
-                raise ValueError("Invalid contact option")
+                break
 
+        try:
+            assert len(option) > 0
+        except AssertionError:
+            raise ValueError("Invalid contact option")
 
     option_index: int = int(option) - 1
     log.debug(f"Contact option: {option_index}")
