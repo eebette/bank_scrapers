@@ -6,7 +6,7 @@ Handy functions to be used by any driver
 import os
 
 # Non-standard Imports
-from undetected_playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
+from patchright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
 # Local Imports
 from bank_scrapers.common.log import log
@@ -32,7 +32,7 @@ def screenshot_on_timeout(save_path: str):
 
                 client = await driver.context.new_cdp_session(driver)
                 mhtml_coroutine = await client.send("Page.captureSnapshot")
-                mhtml = mhtml_coroutine['data']
+                mhtml = mhtml_coroutine["data"]
 
                 with open(
                     save_path.replace(".png", ".html"), "w+", encoding="utf-8"

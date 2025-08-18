@@ -284,7 +284,7 @@ async def run(
     # Instantiate browser
     browser: BrowserContext = await playwright.chromium.launch_persistent_context(
         user_data_dir=str(),
-        #channel="chrome",
+        channel="chrome",
         headless=False,
         no_viewport=True,
     )
@@ -363,7 +363,3 @@ async def get_accounts_info(
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
 
-
-import asyncio
-
-print(asyncio.run(get_accounts_info("ebette1", "%!t26H323h3q4")))
