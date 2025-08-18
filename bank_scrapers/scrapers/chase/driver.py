@@ -159,10 +159,10 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
     :param page: The Chrome page/browser used for this function
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     """
-    log.info(f"Redirected to multi-factor authentication page.")
+    log.info("Redirected to multi-factor authentication page.")
 
     # Identify MFA options
-    log.info(f"Finding contact options elements...")
+    log.info("Finding contact options elements...")
     iframe: FrameLocator = page.frame_locator("#logonbox")
     contact_options_shadow_root: Locator = iframe.locator("mds-list[id='optionsList']")
     await expect(contact_options_shadow_root).to_be_visible(timeout=TIMEOUT)
@@ -176,38 +176,46 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
         contact_options_text.append(await contact_option_element.text_content())
 
     # Prompt user input for MFA option
+    option: str = str()
     if mfa_auth is None:
-        log.info(f"No automation info provided. Prompting user for contact option.")
+        log.info("No automation info provided. Prompting user for contact option.")
         for i, text in enumerate(contact_options_text):
             print(f"{i + 1}: {text}")
         option: str = input("Please select one: ")
     else:
         log.info(f"Contact option found in automation info.")
-        option: str = str(mfa_auth["otp_contact_option"])
+        for i, text in enumerate(contact_options_text):
+            if mfa_auth["otp_contact_option"].lower() in text.lower():
+                option: str = str(i)
+            try:
+                assert len(option) > 0
+            except AssertionError:
+                raise ValueError("Invalid contact option")
+
 
     option_index: int = int(option) - 1
     log.debug(f"Contact option: {option_index}")
 
     # Click based on user input
-    log.info(f"Clicking element for user selected contact option...")
+    log.info("Clicking element for user selected contact option...")
     await contact_options[option_index].click(force=True)
 
     # Open accounts dropdown
-    log.info(f"Finding next button element...")
+    log.info("Finding next button element...")
     next_button_shadow_root: Locator = iframe.locator("mds-button[id='next-content']")
     next_button: Locator = next_button_shadow_root.locator("button")
 
-    log.info(f"Clicking next button element...")
+    log.info("Clicking next button element...")
     await next_button.click(force=True)
 
     # Prompt user for OTP code and enter onto the page
-    log.info(f"Finding input box element for OTP...")
+    log.info("Finding input box element for OTP...")
     otp_input_shadow_root: Locator = iframe.locator("mds-text-input-secure")
     otp_input: Locator = otp_input_shadow_root.locator("input[id='otpInput-input']")
 
     # Prompt user input for MFA option
     if mfa_auth is None:
-        log.info(f"No automation info provided. Prompting user for OTP.")
+        log.info("No automation info provided. Prompting user for OTP.")
         otp_code: str = input("Enter OTP Code: ")
     else:
         log.info(
@@ -527,7 +535,6 @@ async def run(
         channel="chrome",
         headless=False,
         no_viewport=True,
-        args=["--disable-blink-features=AutomationControlled"],
     )
     page: Page = await browser.new_page()
 
