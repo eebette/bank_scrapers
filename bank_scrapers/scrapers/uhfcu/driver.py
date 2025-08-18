@@ -371,8 +371,7 @@ async def run(
         headless=False,
         no_viewport=True,
     )
-    context: BrowserContext = await browser.new_context()
-    page: Page = await context.new_page()
+    page: Page = await browser.new_page()
 
     # Navigate to the logon page and submit credentials
     await logon(page, username, password)
@@ -393,7 +392,7 @@ async def run(
             deposit_tables.append(await parse_accounts_summary(t))
         elif "Loan Account" in await t.text_content():
             credit_card_page: Page = await navigate_to_credit_accounts_data(
-                context, page, t
+                browser, page, t
             )
             credit_tables.append(await parse_credit_card_info(credit_card_page))
 
