@@ -129,8 +129,8 @@ async def is_mfa_redirect(page: Page) -> bool:
     iframe: FrameLocator = page.frame_locator("#logonbox")
 
     try:
-        expect(iframe.get_by_text("Let's make sure it's you")).to_be_visible()
-        expect(
+        await expect(iframe.get_by_text("Let's make sure it's you")).to_be_visible()
+        await expect(
             iframe.get_by_text("For your security, we need to confirm your identity")
         ).to_be_visible()
         return True
@@ -161,8 +161,8 @@ async def is_mfa_redirect_new(page: Page) -> bool:
     iframe: FrameLocator = page.frame_locator("#logonbox")
 
     try:
-        expect(iframe.get_by_text("Let's make sure it's you")).to_be_visible()
-        expect(
+        await expect(iframe.get_by_text("Let's make sure it's you")).to_be_visible()
+        await expect(
             iframe.get_by_text("For your security, we'll call you with a one-time code")
         ).to_be_visible()
         return True
