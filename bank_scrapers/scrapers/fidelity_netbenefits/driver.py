@@ -24,7 +24,6 @@ from patchright.async_api import (
     Page,
     Locator,
     expect,
-    Browser,
     Download, BrowserContext,
 )
 from pyvirtualdisplay import Display
