@@ -103,7 +103,7 @@ async def wait_for_redirect(page: Page) -> None:
     :param page: The browser application
     """
     target_text: re.Pattern = re.compile(r"(Security Checks|Dashboard)")
-    await expect(page.get_by_text(target_text).first).to_be_visible()
+    await expect(page.get_by_text(target_text)).not_to_have_count(0, timeout=TIMEOUT)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
