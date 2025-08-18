@@ -1,3 +1,3 @@
-bank_scrapers>=1.3.30
+bank_scrapers>=1.4.0
 prometheus_client>=0.20.0
 requests>=2.31.0

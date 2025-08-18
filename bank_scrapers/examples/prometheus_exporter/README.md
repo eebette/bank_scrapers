@@ -19,21 +19,11 @@ This script/container uses a configuration called `banks.json`
 {
   "banks": [
     {
-      "name": "becu"
+      "name": "becu",
+      "id": "password_manager_object_id"
     }
   ]
 }
-```
-
-### Set up environment variables
-
-The image uses the environment variables `BW_PASSWORD` to get the authentication credentials for the banks that it
-scrapes.
-
-1. Put your password into a local file (i.e. `$HOME/.env`) to pass to the container at runtime:
-
-```sh
-echo BW_PASSWORD=<your_bitwarden_password> >> $HOME/.env
 ```
 
 ### Run
@@ -49,9 +39,10 @@ docker run --rm --env-file .env -t -v /path/to/config_file:/bank_exporter -v /pa
 If you want to build the image locally, the easiest way is to clone the GitHub repo and build from there:
 
 ```sh
-git clone https://github.com/eebette/BankExporter
+git clone https://github.com/eebette/bank_scrapers
 ```
 
 ```sh
+cd bank_scrapers/examples/prometheus_exporter/
 docker build ./BankExporter
 ```

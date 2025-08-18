@@ -25,7 +25,7 @@ import argparse
 import pandas as pd
 import requests
 from prometheus_client import Gauge, CollectorRegistry, push_to_gateway
-from undetected_playwright.async_api import (
+from patchright.async_api import (
     TimeoutError as PlaywrightTimeoutError,
     Error as PlaywrightError,
 )
