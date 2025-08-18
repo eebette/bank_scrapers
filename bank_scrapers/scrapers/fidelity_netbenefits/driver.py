@@ -24,7 +24,8 @@ from patchright.async_api import (
     Page,
     Locator,
     expect,
-    Download, BrowserContext,
+    Download,
+    BrowserContext,
 )
 from pyvirtualdisplay import Display
 
@@ -53,7 +54,7 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
-        page: Page, username: str, password: str, homepage: str = HOMEPAGE
+    page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
     Opens and signs on to an account
@@ -68,11 +69,15 @@ async def logon(
 
     reject_cookies_button: Locator = page.get_by_text("Reject All")
 
-    log.info(f"Waiting for Reject All button to be visible...")
-    await expect(reject_cookies_button).to_be_visible()
+    log.info("Waiting for Reject All button to be visible...")
+    try:
+        await expect(reject_cookies_button).to_be_visible(timeout=30 * 1000)
 
-    log.info(f"Clicking Reject All button...")
-    await reject_cookies_button.click()
+        log.info("Clicking Reject All button...")
+        await reject_cookies_button.click()
+
+    except TimeoutError:
+        log.info("Reject All button not visible")
 
     # Enter User
     log.info(f"Finding username element...")
@@ -195,7 +200,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
-            url=re.compile(r"workplaceservices"), wait_until="load", timeout=TIMEOUT
+        url=re.compile(r"workplaceservices"), wait_until="load", timeout=TIMEOUT
     ):
         await submit_button.click(force=True)
 
@@ -266,11 +271,11 @@ def get_account_type(row: pd.Series) -> str:
 
 
 async def run(
-        playwright: Playwright,
-        username: str,
-        password: str,
-        prometheus: bool = False,
-        mfa_auth: MfaAuth = None,
+    playwright: Playwright,
+    username: str,
+    password: str,
+    prometheus: bool = False,
+    mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
@@ -345,10 +350,10 @@ async def run(
 
 
 async def get_accounts_info(
-        username: str,
-        password: str,
-        prometheus: bool = False,
-        mfa_auth: MfaAuth = None,
+    username: str,
+    password: str,
+    prometheus: bool = False,
+    mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
@@ -362,4 +367,3 @@ async def get_accounts_info(
     with Display(visible=False, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
-
