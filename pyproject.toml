@@ -23,7 +23,7 @@ dependencies = [
     "pybadges>=3.0.1",
     "prometheus_client>=0.20.0",
     "CurrencyConverter>=0.17.23",
-    "undetected-playwright-patch>=1.40.0.post1700587210000"
+    "patchright>=1.52.5"
 ]
 
 [project.urls]
