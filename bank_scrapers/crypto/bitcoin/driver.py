@@ -15,7 +15,7 @@ from datetime import datetime
 import pandas as pd
 
 # Non-Standard Imports
-from undetected_playwright.async_api import (
+from patchright.async_api import (
     async_playwright,
     Playwright,
     Page,
@@ -161,6 +161,6 @@ async def get_accounts_info(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate the virtual display
-    with Display(visible=False, size=(1280, 720)):
+    with Display(visible=True, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, zpub, prometheus)
