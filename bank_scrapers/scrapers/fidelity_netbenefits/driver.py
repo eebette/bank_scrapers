@@ -26,6 +26,7 @@ from patchright.async_api import (
     expect,
     Download,
     BrowserContext,
+    TimeoutError as PlaywrightTimeoutError,
 )
 from pyvirtualdisplay import Display
 
@@ -76,7 +77,7 @@ async def logon(
         log.info("Clicking Reject All button...")
         await reject_cookies_button.click()
 
-    except TimeoutError:
+    except PlaywrightTimeoutError:
         log.info("Reject All button not visible")
 
     # Enter User
