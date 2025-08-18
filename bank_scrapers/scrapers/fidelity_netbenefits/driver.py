@@ -18,14 +18,14 @@ from tempfile import TemporaryDirectory
 
 # Non-Standard Imports
 import pandas as pd
-from undetected_playwright.async_api import (
+from patchright.async_api import (
     async_playwright,
     Playwright,
     Page,
     Locator,
     expect,
     Browser,
-    Download,
+    Download, BrowserContext,
 )
 from pyvirtualdisplay import Display
 
@@ -36,7 +36,6 @@ from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
-
 
 # Institution info
 INSTITUTION: str = "Fidelity NetBenefits"
@@ -55,7 +54,7 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
-    page: Page, username: str, password: str, homepage: str = HOMEPAGE
+        page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
     Opens and signs on to an account
@@ -68,14 +67,13 @@ async def logon(
     log.info(f"Accessing: {homepage}")
     await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
-    async def reject_cookies_if_prompt_is_visible():
-        # Reject cookies if prompted
-        reject_cookies_button: Locator = page.get_by_text("Reject All")
-        if await reject_cookies_button.first.is_visible():
-            log.info(f"Cookies button detected. Clicking Reject All button...")
-            await reject_cookies_button.click()
+    reject_cookies_button: Locator = page.get_by_text("Reject All")
 
-    await reject_cookies_if_prompt_is_visible()
+    log.info(f"Waiting for Reject All button to be visible...")
+    await expect(reject_cookies_button).to_be_visible()
+
+    log.info(f"Clicking Reject All button...")
+    await reject_cookies_button.click()
 
     # Enter User
     log.info(f"Finding username element...")
@@ -84,8 +82,6 @@ async def logon(
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
     await username_input.fill(username)
-
-    await reject_cookies_if_prompt_is_visible()
 
     # Enter Password
     log.info(f"Finding password element...")
@@ -200,7 +196,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
-        url=re.compile(r"workplaceservices"), wait_until="load", timeout=TIMEOUT
+            url=re.compile(r"workplaceservices"), wait_until="load", timeout=TIMEOUT
     ):
         await submit_button.click(force=True)
 
@@ -271,11 +267,11 @@ def get_account_type(row: pd.Series) -> str:
 
 
 async def run(
-    playwright: Playwright,
-    username: str,
-    password: str,
-    prometheus: bool = False,
-    mfa_auth: MfaAuth = None,
+        playwright: Playwright,
+        username: str,
+        password: str,
+        prometheus: bool = False,
+        mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
@@ -287,10 +283,11 @@ async def run(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate browser
-    browser: Browser = await playwright.chromium.launch(
-        channel="chrome",
+    browser: BrowserContext = await playwright.chromium.launch_persistent_context(
+        user_data_dir=str(),
+        #channel="chrome",
         headless=False,
-        args=["--disable-blink-features=AutomationControlled"],
+        no_viewport=True,
     )
     page: Page = await browser.new_page()
 
@@ -349,10 +346,10 @@ async def run(
 
 
 async def get_accounts_info(
-    username: str,
-    password: str,
-    prometheus: bool = False,
-    mfa_auth: MfaAuth = None,
+        username: str,
+        password: str,
+        prometheus: bool = False,
+        mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
@@ -366,3 +363,8 @@ async def get_accounts_info(
     with Display(visible=False, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
+
+
+import asyncio
+
+print(asyncio.run(get_accounts_info("ebette1", "%!t26H323h3q4")))
