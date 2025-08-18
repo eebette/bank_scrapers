@@ -186,7 +186,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
         log.info(f"Contact option found in automation info.")
         for i, text in enumerate(contact_options_text):
             if mfa_auth["otp_contact_option"].lower() in text.lower():
-                option: str = str(i)
+                option: str = str(i + 1)
                 break
 
         try:
