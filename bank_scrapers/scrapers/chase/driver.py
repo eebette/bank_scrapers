@@ -128,14 +128,15 @@ async def is_mfa_redirect(page: Page) -> bool:
     """
     iframe: FrameLocator = page.frame_locator("#logonbox")
 
-    return all(
-        [
-            await iframe.get_by_text("Let's make sure it's you").is_visible(),
-            await iframe.get_by_text(
-                "For your security, we need to confirm your identity"
-            ).is_visible(),
-        ]
-    )
+    try:
+        expect(iframe.get_by_text("Let's make sure it's you")).to_be_visible()
+        expect(
+            iframe.get_by_text("For your security, we need to confirm your identity")
+        ).to_be_visible()
+        return True
+
+    except PlaywrightTimeoutError:
+        return False
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -159,14 +160,15 @@ async def is_mfa_redirect_new(page: Page) -> bool:
     """
     iframe: FrameLocator = page.frame_locator("#logonbox")
 
-    return all(
-        [
-            await iframe.get_by_text("Let's make sure it's you").is_visible(),
-            await iframe.get_by_text(
-                "For your security, we'll call you with a one-time code"
-            ).is_visible(),
-        ]
-    )
+    try:
+        expect(iframe.get_by_text("Let's make sure it's you")).to_be_visible()
+        expect(
+            iframe.get_by_text("For your security, we'll call you with a one-time code")
+        ).to_be_visible()
+        return True
+
+    except PlaywrightTimeoutError:
+        return False
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -565,6 +567,7 @@ async def run(
         channel="chrome",
         headless=False,
         no_viewport=True,
+        args=["--disable-blink-features=AutomationControlled"],
     )
     page: Page = await browser.new_page()
 
