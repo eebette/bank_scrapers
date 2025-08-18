@@ -18,15 +18,15 @@ import re
 
 # Non-standard Library Imports
 import pandas as pd
-from undetected_playwright.async_api import (
+from patchright.async_api import (
     async_playwright,
     Playwright,
     Page,
     Locator,
     expect,
-    Browser,
     FrameLocator,
     TimeoutError as PlaywrightTimeoutError,
+    BrowserContext,
 )
 from pyvirtualdisplay import Display
 
@@ -244,7 +244,6 @@ async def handle_contact_information_prompt(page: Page) -> None:
     ask_me_later_button: Locator = page.get_by_text("Ask me later")
 
     await ask_me_later_button.click(force=True)
-
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -514,10 +513,11 @@ async def run(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate browser
-    browser: Browser = await playwright.chromium.launch(
+    browser: BrowserContext = await playwright.chromium.launch_persistent_context(
+        user_data_dir=str(),
         channel="chrome",
         headless=False,
-        args=["--disable-blink-features=AutomationControlled"],
+        no_viewport=True,
     )
     page: Page = await browser.new_page()
 
@@ -610,4 +610,3 @@ async def get_accounts_info(
     with Display(visible=False, size=(1280, 720)):
         async with async_playwright() as playwright:
             return await run(playwright, username, password, prometheus, mfa_auth)
-
