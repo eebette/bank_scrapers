@@ -257,8 +257,6 @@ async def seek_other_data(page: Page) -> Tuple[List[Locator], List[Locator]]:
     await expect(values_locator).to_have_count(len(keys), timeout=TIMEOUT)
     values: List[Locator] = await values_locator.all()
 
-    assert len(keys) == len(values)
-
     return keys, values
 
 
@@ -269,17 +267,17 @@ async def parse_other_data(keys: List[Locator], values: List[Locator]) -> pd.Dat
     :param values: A list of column values as web elements
     :return: A pandas dataframe of the data in the table
     """
+    assert len(keys) == len(values)
 
     # Set up a dict for the df to read
     tbl: Dict = {}
     for i in range(len(keys)):
-        key_text_content: str = str()
-        while len(key_text_content) == 0:
-            key_text_content: str = await keys[i].text_content()
 
-        value_text_content: str = str()
-        while len(value_text_content) == 0:
-            value_text_content: str = await values[i].text_content()
+        expect(keys[i]).not_to_be_empty(timeout=TIMEOUT)
+        key_text_content: str = await keys[i].text_content()
+
+        expect(values[i]).not_to_be_empty(timeout=TIMEOUT)
+        value_text_content: str = await values[i].text_content()
 
         tbl[key_text_content.replace(":", "")] = [value_text_content]
 
