@@ -246,16 +246,18 @@ async def seek_other_data(page: Page) -> Tuple[List[Locator], List[Locator]]:
     await page.wait_for_selector("bki-dashboard-payment")
 
     log.info(f"Finding column headers elements...")
-    keys_locator: Locator = page.locator("bki-dashboard-payment div[class='col']")
+    keys_locator: Locator = page.locator("bki-dashboard-payment .row div:nth-child(1)")
     await expect(keys_locator).not_to_have_count(0, timeout=TIMEOUT)
     keys: List[Locator] = await keys_locator.all()
 
     log.info(f"Finding column values elements...")
     values_locator: Locator = page.locator(
-        "bki-dashboard-payment div[class='col strong']"
+        "bki-dashboard-payment .row div:nth-child(2)"
     )
-    await expect(values_locator).not_to_have_count(0, timeout=TIMEOUT)
+    await expect(values_locator).to_have_count(len(keys), timeout=TIMEOUT)
     values: List[Locator] = await values_locator.all()
+
+    assert len(keys) == len(values)
 
     return keys, values
 
@@ -267,6 +269,7 @@ async def parse_other_data(keys: List[Locator], values: List[Locator]) -> pd.Dat
     :param values: A list of column values as web elements
     :return: A pandas dataframe of the data in the table
     """
+
     # Set up a dict for the df to read
     tbl: Dict = {}
     for i in range(len(keys)):
