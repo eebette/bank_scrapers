@@ -9,12 +9,11 @@ for t in tables:
 ```
 """
 
-from time import sleep
-
 # Standard Library Imports
 from typing import List, Tuple, Dict, Union
 from datetime import datetime
 import re
+from time import sleep
 
 # Non-standard Library Imports
 import pandas as pd
@@ -73,7 +72,9 @@ async def logon(
 
     # Username
     log.info(f"Finding username element...")
-    username_input: Locator = iframe.locator("#userId-input-field-input")
+    username_input: Locator = iframe.locator("#userId-input").or_(
+        iframe.locator("#userId-input-field-input")
+    )
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
@@ -81,7 +82,9 @@ async def logon(
 
     # Password
     log.info(f"Finding password element...")
-    password_input: Locator = iframe.locator("#password-input-field-input")
+    password_input: Locator = iframe.locator("#password-input").or_(
+        iframe.locator("#password-input-field-input")
+    )
 
     log.info(f"Sending info to password element...")
     await password_input.press_sequentially(password, delay=100)
