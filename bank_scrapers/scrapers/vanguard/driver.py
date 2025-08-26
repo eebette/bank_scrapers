@@ -172,7 +172,9 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
             await contact_options[option_index].click()
     else:
         log.info(f"Finding element for send SMS...")
-        sms_button: Locator = page.locator("lgn-phone-now-selection button")
+        sms_button: Locator = page.locator("lgn-phone-now-selection button").or_(
+            page.get_by_text("Text")
+        )
 
         log.info(f"Clicking element for send SMS...")
         await sms_button.click()
