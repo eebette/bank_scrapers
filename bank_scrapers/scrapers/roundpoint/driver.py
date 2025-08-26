@@ -273,10 +273,10 @@ async def parse_other_data(keys: List[Locator], values: List[Locator]) -> pd.Dat
     tbl: Dict = {}
     for i in range(len(keys)):
 
-        expect(keys[i]).not_to_be_empty(timeout=TIMEOUT)
+        await expect(keys[i]).not_to_be_empty(timeout=TIMEOUT)
         key_text_content: str = await keys[i].text_content()
 
-        expect(values[i]).not_to_be_empty(timeout=TIMEOUT)
+        await expect(values[i]).not_to_be_empty(timeout=TIMEOUT)
         value_text_content: str = await values[i].text_content()
 
         tbl[key_text_content.replace(":", "")] = [value_text_content]
