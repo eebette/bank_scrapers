@@ -131,15 +131,7 @@ async def is_mfa_redirect(page: Page) -> bool:
     """
     iframe: FrameLocator = page.frame_locator("#logonbox")
 
-    try:
-        await expect(iframe.get_by_text("Let's make sure it's you")).to_be_visible()
-        await expect(
-            iframe.get_by_text("For your security, we need to confirm your identity")
-        ).to_be_visible()
-        return True
-
-    except PlaywrightTimeoutError:
-        return False
+    return await iframe.get_by_text("Let's make sure it's you").is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
