@@ -55,7 +55,7 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
-    page: Page, username: str, password: str, homepage: str = HOMEPAGE
+        page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
     Opens and signs on to an account
@@ -198,7 +198,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
-        url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
+            url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
     ):
         await submit_button.click()
 
@@ -246,14 +246,12 @@ async def seek_other_data(page: Page) -> Tuple[List[Locator], List[Locator]]:
     await page.wait_for_selector("bki-dashboard-payment")
 
     log.info(f"Finding column headers elements...")
-    keys_locator: Locator = page.locator("bki-dashboard-payment .row div:nth-child(1)")
+    keys_locator: Locator = page.locator("bki-dashboard-payment .container-fluid .row div:nth-child(1)")
     await expect(keys_locator).not_to_have_count(0, timeout=TIMEOUT)
     keys: List[Locator] = await keys_locator.all()
 
     log.info(f"Finding column values elements...")
-    values_locator: Locator = page.locator(
-        "bki-dashboard-payment .row div:nth-child(2)"
-    )
+    values_locator: Locator = page.locator("bki-dashboard-payment .container-fluid .row div:nth-child(2)")
     await expect(values_locator).to_have_count(len(keys), timeout=TIMEOUT)
     values: List[Locator] = await values_locator.all()
 
@@ -272,7 +270,6 @@ async def parse_other_data(keys: List[Locator], values: List[Locator]) -> pd.Dat
     # Set up a dict for the df to read
     tbl: Dict = {}
     for i in range(len(keys)):
-
         await expect(keys[i]).not_to_be_empty(timeout=TIMEOUT)
         key_text_content: str = await keys[i].text_content()
 
@@ -405,11 +402,11 @@ async def scrape_loan_data(page: Page) -> List[pd.DataFrame]:
 
 
 async def run(
-    playwright: Playwright,
-    username: str,
-    password: str,
-    prometheus: bool = False,
-    mfa_auth: MfaAuth = None,
+        playwright: Playwright,
+        username: str,
+        password: str,
+        prometheus: bool = False,
+        mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
@@ -472,10 +469,10 @@ async def run(
 
 
 async def get_accounts_info(
-    username: str,
-    password: str,
-    prometheus: bool = False,
-    mfa_auth: MfaAuth = None,
+        username: str,
+        password: str,
+        prometheus: bool = False,
+        mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
