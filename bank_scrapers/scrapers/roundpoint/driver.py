@@ -258,6 +258,7 @@ async def seek_other_data(page: Page) -> Tuple[List[Locator], List[Locator]]:
     return keys, values
 
 
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def parse_other_data(keys: List[Locator], values: List[Locator]) -> pd.DataFrame:
     """
     Parses other loan data, such as monthly payment info, from the RoundPoint site
