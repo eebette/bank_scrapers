@@ -10,7 +10,7 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Union
 from datetime import datetime
 import re
 
@@ -237,63 +237,6 @@ def parse_accounts_summary(amount: str) -> pd.DataFrame:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def seek_other_data(page: Page) -> Tuple[List[Locator], List[Locator]]:
-    """
-    Navigate the website and click download button for the accounts data
-    :param page: The Chrome browser application
-    """
-    log.info(f"Finding waiting dashboard element...")
-    await page.wait_for_selector("bki-dashboard-payment")
-
-    log.info(f"Finding column headers elements...")
-    keys_locator: Locator = page.locator("bki-dashboard-payment .container-fluid .row div:nth-child(1)")
-    await expect(keys_locator).not_to_have_count(0, timeout=TIMEOUT)
-    keys: List[Locator] = await keys_locator.all()
-
-    log.info(f"Finding column values elements...")
-    values_locator: Locator = page.locator("bki-dashboard-payment .container-fluid .row div:nth-child(2)")
-    await expect(values_locator).to_have_count(len(keys), timeout=TIMEOUT)
-    values: List[Locator] = await values_locator.all()
-
-    return keys, values
-
-
-async def parse_other_data(keys: List[Locator], values: List[Locator]) -> pd.DataFrame:
-    """
-    Parses other loan data, such as monthly payment info, from the RoundPoint site
-    :param keys: A list of column headers as web elements. Acts as the left table in a left join
-    :param values: A list of column values as web elements
-    :return: A pandas dataframe of the data in the table
-    """
-    assert len(keys) == len(values)
-
-    # Set up a dict for the df to read
-    tbl: Dict = {}
-    for i in range(len(keys)):
-        await expect(keys[i]).not_to_be_empty(timeout=TIMEOUT)
-        key_text_content: str = await keys[i].text_content()
-
-        await expect(values[i]).not_to_be_empty(timeout=TIMEOUT)
-        value_text_content: str = await values[i].text_content()
-
-        tbl[key_text_content.replace(":", "")] = [value_text_content]
-
-    # Create the df
-    df: pd.DataFrame = pd.DataFrame(data=tbl)
-
-    # Int-ify the monthly payment amount column
-    df["Monthly Payment Amount"] = df["Monthly Payment Amount"].replace(
-        to_replace=r"[^0-9\.\/]+", value="", regex=True
-    )
-
-    # Drop columns where all values are null
-    df: pd.DataFrame = df.dropna(axis=1, how="all")
-
-    # Return the df
-    return df
-
-
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def get_loan_number(page: Page) -> str:
     """
     Gets the full loan number from the My Loan page on the RoundPoint website
@@ -370,27 +313,14 @@ async def scrape_loan_data(page: Page) -> List[pd.DataFrame]:
         amount: str = await seek_accounts_data(page)
         amount_df: pd.DataFrame = parse_accounts_summary(amount)
 
-        # Get other details/info about the loan
-        other_data_keys: List[Locator]
-        other_data_values: List[Locator]
-        other_data_keys, other_data_values = await seek_other_data(page)
-        other_data_df: pd.DataFrame = await parse_other_data(
-            other_data_keys, other_data_values
-        )
-
         # Get the loan number
         loan_number: str = await get_loan_number(page)
+        amount_df["account_number"]: pd.DataFrame = loan_number
+        amount_df["account_type"]: pd.DataFrame = "loan"
+        amount_df["usd_value"]: pd.DataFrame = 1.0
+        amount_df["Balance"]: pd.DataFrame = pd.to_numeric(amount_df["Balance"])
 
-        # Merge the loan amount and the other details
-        return_table = pd.merge(
-            amount_df, other_data_df, left_index=True, right_index=True
-        )
-        return_table["account_number"]: pd.DataFrame = loan_number
-        return_table["account_type"]: pd.DataFrame = "loan"
-        return_table["usd_value"]: pd.DataFrame = 1.0
-        return_table["Balance"]: pd.DataFrame = pd.to_numeric(return_table["Balance"])
-
-        return_tables.append(return_table)
+        return_tables.append(amount_df)
 
     # Process tables
     return_table: pd.DataFrame = pd.concat(return_tables)
