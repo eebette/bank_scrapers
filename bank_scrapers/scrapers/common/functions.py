@@ -6,7 +6,7 @@ Handy functions to be used by any driver
 import os
 
 # Non-standard Imports
-from patchright.async_api import Page, TimeoutError as PlaywrightTimeoutError
+from patchright.async_api import Page, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 
 # Local Imports
 from bank_scrapers.common.log import log
@@ -24,7 +24,7 @@ def screenshot_on_timeout(save_path: str):
             nonlocal save_path
             try:
                 return await func(*args, **kwargs)
-            except (PlaywrightTimeoutError, AssertionError, KeyError):
+            except (PlaywrightTimeoutError, PlaywrightError, AssertionError, KeyError):
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
                 log.warning(f"Saving screenshot to: {save_path}")
