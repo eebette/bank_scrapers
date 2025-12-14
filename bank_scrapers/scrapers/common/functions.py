@@ -20,7 +20,7 @@ def screenshot_on_timeout(save_path: str):
 
     def wrapper(func):
         async def _screenshot_on_timeout(*args, **kwargs):
-            driver: Page = args[0]
+            driver: Page = next(arg for arg in args if isinstance(arg, Page))
             nonlocal save_path
             try:
                 return await func(*args, **kwargs)
