@@ -23,7 +23,7 @@ dependencies = [
     "pybadges>=3.0.1",
     "prometheus_client>=0.20.0",
     "CurrencyConverter>=0.17.23",
-    "patchright>=1.52.5"
+    "patchright==1.56.0"
 ]
 
 [project.urls]
