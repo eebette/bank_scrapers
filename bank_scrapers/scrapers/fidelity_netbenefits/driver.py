@@ -8,8 +8,9 @@ for t in tables:
     print(t.to_string())
 ```
 """
-
 # Standard Library Imports
+from random import randint
+from time import sleep
 from typing import List, Tuple, Union
 from datetime import datetime
 import re
@@ -77,7 +78,7 @@ async def logon(
         log.info("Clicking Reject All button...")
         await reject_cookies_button.click()
 
-    except PlaywrightTimeoutError:
+    except (PlaywrightTimeoutError, AssertionError):
         log.info("Reject All button not visible")
 
     # Enter User
@@ -86,7 +87,7 @@ async def logon(
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
-    await username_input.fill(username)
+    await username_input.press_sequentially(username, delay=randint(100, 500))
 
     # Enter Password
     log.info(f"Finding password element...")
@@ -94,10 +95,11 @@ async def logon(
     password_input: Locator = page.locator("input[id='dom-pswd-input']")
 
     log.info(f"Sending info to password element...")
-    await password_input.fill(password)
+    await password_input.press_sequentially(password, delay=randint(100, 500))
 
     # Submit
     log.info(f"Finding submit button element...")
+    sleep(randint(1, 5))
     submit_button: Locator = page.locator("button[id='dom-login-button']")
 
     log.info(f"Clicking submit button element...")
