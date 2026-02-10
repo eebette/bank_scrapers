@@ -138,7 +138,7 @@ async def wait_for_credit_details(page: Page) -> None:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def get_detail_tables(page: Page) -> List[Locator]:
+async def get_detail_tables(page: Page) -> List[str]:
     """
     Gets the web elements for the tables containing the account details for each account
     :param page: The browser application
@@ -146,18 +146,21 @@ async def get_detail_tables(page: Page) -> List[Locator]:
     """
     log.info(f"Finding accounts details elements...")
     tables: List[Locator] = await page.locator("table.tablesaw-stack").all()
-    return tables
+
+    htmls: List[str] = []
+    for table in tables:
+        html: str = await table.evaluate("el => el.outerHTML")
+        htmls.append(html)
+
+    return htmls
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def process_table(table: Locator) -> pd.DataFrame:
+async def process_table(html: str) -> pd.DataFrame:
     """
     Processes selenium table object into a pandas dataframe
-    :param table: The selenium table object to be processed
+    :param html: The outer HTML of the selenium table object to be processed
     :return: A post-processed pandas dataframe of the original table object
     """
-    # Get the html
-    html: str = await table.evaluate("el => el.outerHTML")
 
     # Load into pandas
     df: pd.DataFrame = pd.read_html(StringIO(str(html)))[0]
@@ -206,7 +209,7 @@ async def run(
 
     # Get data for account and credit cards
     await wait_for_credit_details(page)
-    tables: List[Locator] = await get_detail_tables(page)
+    tables: List[str] = await get_detail_tables(page)
 
     # Process tables
     return_tables: List = list()
