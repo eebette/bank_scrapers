@@ -106,7 +106,9 @@ async def wait_for_redirect(page: Page) -> None:
     Wait for the page to redirect to the next stage of the login process
     :param page: The browser application
     """
-    target_text: re.Pattern = re.compile(r"(We need to verify it's you|Welcome back,)")
+    target_text: re.Pattern = re.compile(
+        r"(We need to verify it's you|Welcome back,|How would you like to receive your one-time code)"
+    )
     await expect(page.get_by_text(target_text)).to_be_visible(timeout=TIMEOUT)
 
 
@@ -117,9 +119,10 @@ async def is_mfa_redirect(page: Page) -> bool:
     :param page: The browser application
     :return: True if MFA is being enforced
     """
-    return await page.get_by_text("We need to verify it's you").is_visible(
-        timeout=TIMEOUT
+    target_text: re.Pattern = re.compile(
+        r"(We need to verify it's you|How would you like to receive your one-time code)"
     )
+    return await page.get_by_text(target_text).is_visible(timeout=TIMEOUT)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -134,13 +137,13 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     # Select the mobile app MFA option
     log.info(f"Finding contact options elements...")
     contact_options: List[Locator] = await page.locator(
-        "lgn-auth-selection button"
+        "lgn-phone-method-selection button"
     ).all()
 
     contact_options_text: List[str] = []
     for contact_option in contact_options:
         contact_options_text.append(
-            await contact_option.get_by_text("Verify with").text_content()
+            await contact_option.locator(".card-content").text_content() or str()
         )
 
     # Prompt user input for MFA option
@@ -155,64 +158,46 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     option_index: int = int(option) - 1
     log.debug(f"Contact option: {option_index}")
 
-    mfa_option_text: str = await contact_options[option_index].text_content()
-
     # Click based on user input
     log.info(f"Clicking element for user selected contact option...")
     await contact_options[option_index].click()
 
     # Prompt user for MFA
-    if "app" in mfa_option_text:
-        async with page.expect_navigation(
-            url=re.compile(r"dashboard.web.vanguard.com"),
-            wait_until="load",
-            timeout=TIMEOUT,
-        ):
-            print("Waiting for MFA...")
-            await contact_options[option_index].click()
+    log.info(f"Finding input box element for OTP...")
+    otp_input: Locator = page.locator("input[id='CODE']")
+
+    if mfa_auth is None:
+        log.info(f"No automation info provided. Prompting user for OTP.")
+        otp_code: str = input("Enter OTP Code: ")
     else:
-        log.info(f"Finding element for send SMS...")
-        sms_button: Locator = page.locator("lgn-phone-now-selection button").or_(
-            page.get_by_text("Text")
+        log.info(
+            f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
+        )
+        otp_code: str = search_files_for_int(
+            mfa_auth["otp_code_location"],
+            "Vanguard",
+            6,
+            10,
+            OTP_TIMEOUT,
+            delay=60,
+            reverse=True,
         )
 
-        log.info(f"Clicking element for send SMS...")
-        await sms_button.click()
+    log.info(f"Sending info to OTP input box element...")
+    await otp_input.press_sequentially(otp_code, delay=100)
 
-        log.info(f"Finding input box element for OTP...")
-        otp_input: Locator = page.locator("input[id='CODE']")
-        if mfa_auth is None:
-            log.info(f"No automation info provided. Prompting user for OTP.")
-            otp_code: str = input("Enter OTP Code: ")
-        else:
-            log.info(
-                f"OTP file location found in automation info: {mfa_auth["otp_code_location"]}"
-            )
-            otp_code: str = search_files_for_int(
-                mfa_auth["otp_code_location"],
-                "Vanguard",
-                6,
-                10,
-                OTP_TIMEOUT,
-                delay=60,
-                reverse=True,
-            )
+    log.info(f"Finding submit button element...")
+    submit_button: Locator = page.locator("button[type='submit']")
 
-        log.info(f"Sending info to OTP input box element...")
-        await otp_input.press_sequentially(otp_code, delay=100)
-
-        log.info(f"Finding submit button element...")
-        submit_button: Locator = page.locator("button[type='submit']")
-
-        log.info(f"Clicking submit button element...")
-        async with page.expect_navigation(
-            url=re.compile(
-                r"(dashboard.web.vanguard.com|challenges.web.vanguard.com/holiday)"
-            ),
-            wait_until="load",
-            timeout=TIMEOUT,
-        ):
-            await submit_button.click()
+    log.info(f"Clicking submit button element...")
+    async with page.expect_navigation(
+        url=re.compile(
+            r"(dashboard.web.vanguard.com|challenges.web.vanguard.com/holiday)"
+        ),
+        wait_until="load",
+        timeout=TIMEOUT,
+    ):
+        await submit_button.click()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -256,7 +241,9 @@ async def get_account_types(page: Page) -> pd.DataFrame:
 
     account_labels: List[str] = list()
     for account_label_element in account_label_elements:
-        account_label_text_content: str = await account_label_element.text_content()
+        account_label_text_content: str = (
+            await account_label_element.text_content() or str()
+        )
         account_labels.append(account_label_text_content.strip())
 
     accounts: Dict[str, str] = dict()
