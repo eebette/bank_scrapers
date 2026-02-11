@@ -36,7 +36,6 @@ from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
 
-
 # Institution info
 INSTITUTION: str = "UHFCU"
 SYMBOL: str = "USD"

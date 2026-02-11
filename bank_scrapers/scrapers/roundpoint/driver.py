@@ -55,7 +55,7 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
-        page: Page, username: str, password: str, homepage: str = HOMEPAGE
+    page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
     Opens and signs on to an account
@@ -198,7 +198,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
-            url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
+        url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
     ):
         await submit_button.click()
 
@@ -332,11 +332,11 @@ async def scrape_loan_data(page: Page) -> List[pd.DataFrame]:
 
 
 async def run(
-        playwright: Playwright,
-        username: str,
-        password: str,
-        prometheus: bool = False,
-        mfa_auth: MfaAuth = None,
+    playwright: Playwright,
+    username: str,
+    password: str,
+    prometheus: bool = False,
+    mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
@@ -399,10 +399,10 @@ async def run(
 
 
 async def get_accounts_info(
-        username: str,
-        password: str,
-        prometheus: bool = False,
-        mfa_auth: MfaAuth = None,
+    username: str,
+    password: str,
+    prometheus: bool = False,
+    mfa_auth: MfaAuth = None,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes

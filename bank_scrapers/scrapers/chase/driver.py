@@ -467,12 +467,17 @@ async def get_detail_tables(page: Page) -> List[Locator]:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def parse_accounts_summary(table: Locator) -> pd.DataFrame:
+async def parse_accounts_summary(page: Page, table: Locator) -> pd.DataFrame:
     """
     Takes a table as a web element from the Chase accounts overview page and turns it into a pandas df
+    :param page: The browser application
     :param table: The table as a web element
     :return: A pandas dataframe of the table
     """
+
+    # Verify page is loaded
+    await page.wait_for_load_state("domcontentloaded")
+
     # Transpose vertical headers labels
     dt_list: List[Locator] = await table.locator("xpath=.//dt").all()
     dt: List[str] = list()
@@ -564,7 +569,7 @@ async def run(
     tables: List[Locator] = await get_detail_tables(page)
     return_tables: List = list()
     for t in tables:
-        parsed_table: pd.DataFrame = await parse_accounts_summary(t)
+        parsed_table: pd.DataFrame = await parse_accounts_summary(page, t)
         parsed_table["account"]: pd.DataFrame = account_number
         parsed_table["account_type"]: pd.DataFrame = "credit"
         parsed_table["symbol"]: pd.DataFrame = SYMBOL
