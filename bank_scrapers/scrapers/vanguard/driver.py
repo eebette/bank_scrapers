@@ -137,7 +137,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     # Select the mobile app MFA option
     log.info(f"Finding contact options elements...")
     contact_options: List[Locator] = await page.locator(
-        "lgn-phone-method-selection button"
+        "lgn-phone-method-selection .selection-cards button"
     ).all()
 
     contact_options_text: List[str] = []
