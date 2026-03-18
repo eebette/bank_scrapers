@@ -160,11 +160,18 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Click based on user input
     log.info(f"Clicking element for user selected contact option...")
-    await contact_options[option_index].click()
+    async with page.expect_response(
+            lambda r: "proxy-mfa/api/v2/auth/assert" in r.url and r.request.method == "POST"
+    ) as resp_info:
+        await contact_options[option_index].click()
+
+    resp = await resp_info.value
+    assert resp.ok, f"MFA assert request failed: {resp.status}"
 
     # Prompt user for MFA
     log.info(f"Finding input box element for OTP...")
     otp_input: Locator = page.locator("input[id='CODE']")
+    await otp_input.wait_for(state="visible", timeout=5000)
 
     if mfa_auth is None:
         log.info(f"No automation info provided. Prompting user for OTP.")
