@@ -244,18 +244,20 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
     :return: A pandas dataframe of the downloaded data
     """
     log.info(f"Opening file: {full_path}")
-    df: pd.DataFrame = pd.read_csv(f"{full_path}", on_bad_lines="skip")
+    df: pd.DataFrame = pd.read_csv(
+        f"{full_path}", on_bad_lines="skip", index_col=False
+    )
 
     log.info("Parsing data...")
     df: pd.DataFrame = df[df["Account Name"].notna()]
     df: pd.DataFrame = df[df["Current Value"].notna()]
 
     df["Quantity"]: pd.DataFrame = df["Quantity"].fillna(df["Current Value"])
-    df["Quantity"]: pd.DataFrame = df["Quantity"].astype(str).str.replace("$", "")
+    df["Quantity"]: pd.DataFrame = df["Quantity"].astype(str).str.replace("$", "", regex=False)
     df["Quantity"]: pd.DataFrame = pd.to_numeric(df["Quantity"])
 
     df["Last Price"]: pd.DataFrame = df["Last Price"].fillna(1.0)
-    df["Last Price"]: pd.DataFrame = df["Last Price"].astype(str).str.replace("$", "")
+    df["Last Price"]: pd.DataFrame = df["Last Price"].astype(str).str.replace("$", "", regex=False)
     df["Last Price"]: pd.DataFrame = pd.to_numeric(df["Last Price"])
 
     df["Symbol"]: pd.DataFrame = df["Symbol"].fillna(df["Description"])
