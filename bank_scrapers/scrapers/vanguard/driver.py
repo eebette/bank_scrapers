@@ -71,6 +71,8 @@ async def logon(
     # Logon Page
     log.info(f"Accessing: {homepage}")
     await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
+    await page.wait_for_timeout(randint(5000, 10000))
+    await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
     # Enter User
     log.info(f"Finding username element...")
@@ -88,7 +90,7 @@ async def logon(
 
     log.info(f"Sending info to password element...")
     sleep(randint(1, 5))
-    await password_input.type(password, delay=randint(100, 500))
+    await password_input.press_sequentially(password, delay=randint(100, 500))
 
     # Submit credentials
     log.info(f"Finding submit button element...")
@@ -97,7 +99,11 @@ async def logon(
     log.info(f"Clicking submit button element...")
 
     sleep(uniform(1, 3))
-    await submit_button.click()
+    async with page.expect_response(
+        lambda r: "usernamepassword/login" in r.url and r.request.method == "POST",
+        timeout=TIMEOUT,
+    ) as resp_info:
+        await submit_button.click()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -161,7 +167,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     # Click based on user input
     log.info(f"Clicking element for user selected contact option...")
     async with page.expect_response(
-            lambda r: "proxy-mfa/api/v2/auth/assert" in r.url and r.request.method == "POST"
+        lambda r: "proxy-mfa/api/v2/auth/assert" in r.url and r.request.method == "POST"
     ) as resp_info:
         await contact_options[option_index].click()
 
