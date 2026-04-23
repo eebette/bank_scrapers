@@ -20,15 +20,14 @@ from random import randint, uniform
 
 # Non-Standard Imports
 import pandas as pd
-from patchright.async_api import (
-    async_playwright,
-    Playwright,
+from playwright.async_api import (
     Page,
     Locator,
     expect,
     BrowserContext,
     Download,
 )
+from camoufox.async_api import AsyncCamoufox
 from pyvirtualdisplay import Display
 
 # Local Imports
@@ -405,7 +404,6 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
 
 
 async def run(
-    playwright: Playwright,
     username: str,
     password: str,
     prometheus: bool = False,
@@ -413,78 +411,72 @@ async def run(
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
-    :param playwright: The playwright object for running this script
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     :return: A list of pandas dataframes of accounts info tables
     """
-    # Instantiate browser
-    browser: BrowserContext = await playwright.chromium.launch_persistent_context(
-        user_data_dir=str(),
-        channel="chrome",
-        headless=False,
-        no_viewport=True,
-    )
-    page: Page = await browser.new_page()
+    async with AsyncCamoufox(headless=False, humanize=True) as browser:
+        context: BrowserContext = await browser.new_context()
+        page: Page = await context.new_page()
 
-    # Navigate to the logon page and submit credentials
-    await logon(page, username, password)
+        # Navigate to the logon page and submit credentials
+        await logon(page, username, password)
 
-    # Wait for landing page or MFA
-    await wait_for_redirect(page)
+        # Wait for landing page or MFA
+        await wait_for_redirect(page)
 
-    # Handle MFA if prompted
-    if await is_mfa_redirect(page):
-        await handle_mfa_redirect(page, mfa_auth)
+        # Handle MFA if prompted
+        if await is_mfa_redirect(page):
+            await handle_mfa_redirect(page, mfa_auth)
 
-    # Handle holiday closures notice
-    if await is_holiday_redirect(page):
-        await navigate_to_dashboard(page)
+        # Handle holiday closures notice
+        if await is_holiday_redirect(page):
+            await navigate_to_dashboard(page)
 
-    # Get the account types while on the dashboard screen
-    accounts_df: pd.DataFrame = await get_account_types(page)
+        # Get the account types while on the dashboard screen
+        accounts_df: pd.DataFrame = await get_account_types(page)
 
-    with TemporaryDirectory() as tmp:
-        log.info(f"Created temporary directory: {tmp}")
+        with TemporaryDirectory() as tmp:
+            log.info(f"Created temporary directory: {tmp}")
 
-        # Navigate the site and download the accounts data
-        await seek_accounts_data(page, tmp)
-        file_name: str = os.listdir(tmp)[0]
+            # Navigate the site and download the accounts data
+            await seek_accounts_data(page, tmp)
+            file_name: str = os.listdir(tmp)[0]
 
-        # Process tables
-        accounts_data: pd.DataFrame = parse_accounts_summary(f"{tmp}/{file_name}")
+            # Process tables
+            accounts_data: pd.DataFrame = parse_accounts_summary(f"{tmp}/{file_name}")
 
-        return_tables: List[pd.DataFrame] = [pd.merge(accounts_df, accounts_data)]
+            return_tables: List[pd.DataFrame] = [pd.merge(accounts_df, accounts_data)]
 
-    # Convert to Prometheus exposition if flag is set
-    if prometheus:
-        balances: List[PrometheusMetric] = convert_to_prometheus(
-            return_tables,
-            INSTITUTION,
-            "Account Number",
-            "Symbol",
-            "Shares",
-            "account_type",
-        )
+        # Convert to Prometheus exposition if flag is set
+        if prometheus:
+            balances: List[PrometheusMetric] = convert_to_prometheus(
+                return_tables,
+                INSTITUTION,
+                "Account Number",
+                "Symbol",
+                "Shares",
+                "account_type",
+            )
 
-        asset_values: List[PrometheusMetric] = convert_to_prometheus(
-            return_tables,
-            INSTITUTION,
-            "Account Number",
-            "Symbol",
-            "Share Price",
-            "account_type",
-        )
+            asset_values: List[PrometheusMetric] = convert_to_prometheus(
+                return_tables,
+                INSTITUTION,
+                "Account Number",
+                "Symbol",
+                "Share Price",
+                "account_type",
+            )
 
-        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
-            balances,
-            asset_values,
-        )
+            return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+                balances,
+                asset_values,
+            )
 
-    # Return list of pandas df
-    return return_tables
+        # Return list of pandas df
+        return return_tables
 
 
 async def get_accounts_info(
@@ -503,5 +495,4 @@ async def get_accounts_info(
     """
     # Instantiate the virtual display
     with Display(visible=False, size=(1280, 720)):
-        async with async_playwright() as playwright:
-            return await run(playwright, username, password, prometheus, mfa_auth)
+        return await run(username, password, prometheus, mfa_auth)
