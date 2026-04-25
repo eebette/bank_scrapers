@@ -42,14 +42,6 @@ def screenshot_on_timeout(save_path: str):
                         await driver.screenshot(path=save_path)
                     except Exception as cap_err:
                         log.warning(f"Page screenshot failed: {cap_err}")
-                    # MHTML capture only works on Chromium-based drivers; skip on Firefox
-                    try:
-                        client = await driver.context.new_cdp_session(driver)
-                        mhtml = (await client.send("Page.captureSnapshot"))["data"]
-                        with open(save_path.replace(".png", ".html"), "w+", encoding="utf-8") as f:
-                            f.write(mhtml)
-                    except Exception:
-                        pass
                 raise
 
         return _screenshot_on_timeout
