@@ -1,45 +1,37 @@
 """
 CLI Program for managing a Prometheus Push Gateway exporter using the bank_scrapers library and a locally managed
-Bitwarden REST server
+Bitwarden REST server. On per-bank scrape failure, posts a message and the most recent screenshot to a Matrix room
+via a webhook-router endpoint backed by a matrix-webhook bot (e.g. @bank-bot).
 """
 
 # Standard imports
-import asyncio
-import subprocess
-from typing import List, Dict, Tuple, Union
-import os
-import traceback
-import shutil
-from inspect import signature
-import time
-from datetime import datetime
-import json
-from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
-from email.mime.multipart import MIMEMultipart
-import smtplib
-import ssl
 import argparse
+import asyncio
+import json
+import os
+import shutil
+import subprocess
+import time
+import traceback
+from inspect import signature
+from typing import Dict, List, Tuple, Union
+from urllib.parse import quote
 
 # Non-standard imports
-import pandas as pd
 import requests
-from prometheus_client import Gauge, CollectorRegistry, push_to_gateway
+from aiohttp import web
+from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 from patchright.async_api import (
-    TimeoutError as PlaywrightTimeoutError,
     Error as PlaywrightError,
+    TimeoutError as PlaywrightTimeoutError,
 )
 from web3 import exceptions as web3_exceptions
 
 # Local imports
-from bank_scrapers.get_accounts_info import get_accounts_info
-from bank_scrapers.common.log import log
 from bank_scrapers import ROOT_DIR
+from bank_scrapers.common.log import log
+from bank_scrapers.get_accounts_info import get_accounts_info
 
-# Important directories
-JAIL_FILE: str = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "bank_exporter", "jail"
-)
 SCREENSHOTS_DIR: str = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "bank_exporter", "screenshots"
 )
@@ -184,35 +176,6 @@ async def collect_metrics(
     )
 
 
-def update_test_status(file_location: str, bank_name: str, passed: bool) -> None:
-    """
-    Updates the test status of a scrape in a given JSON file
-    :param file_location: The file location for the JSON file containing the test data
-    :param bank_name: The name of the bank for which to update the test
-    :param passed: boolean value for if the test is passed (True) or failed (False)
-    """
-    # Create the JSON file if it doesn't exist
-    if not os.path.exists(file_location):
-        os.mknod(file_location)
-
-    # Instantiate the tests dict as empty if the file is empty, otherwise load the file JSON
-    if os.stat(file_location).st_size == 0:
-        tests_dict: Dict = dict()
-    else:
-        with open(file_location, "r") as tests:
-            tests_dict: Dict = json.load(tests)
-
-    # Set the most recent test date and passed/failed status
-    tests_dict[bank_name] = {
-        "test_date": datetime.today().strftime("%Y-%m-%d"),
-        "status": "passed" if passed else "failed",
-    }
-
-    # Write the JSON back to the file
-    with open(file_location, "wt") as tests:
-        json.dump(tests_dict, tests)
-
-
 def get_credentials(
     get_credentials_script: str,
     bank: Dict,
@@ -259,17 +222,94 @@ def get_registry() -> Tuple[CollectorRegistry, Gauge, Gauge]:
     return registry, current_balances, current_values
 
 
+def latest_screenshot_for(bank_name: str) -> Union[str, None]:
+    """
+    Returns the absolute path to the most recent screenshot in the bank_scrapers errors dir, preferring files whose
+    name contains the bank name (case-insensitive, spaces normalized to underscores). Returns None if the errors
+    dir is missing or empty.
+    """
+    errors_dir: str = f"{ROOT_DIR}/errors"
+    try:
+        files: List[str] = sorted(os.listdir(errors_dir), reverse=True)
+    except FileNotFoundError:
+        return None
+
+    needle: str = bank_name.lower().replace(" ", "_")
+    for f in files:
+        if not f.lower().endswith(".png"):
+            continue
+        if needle in f.lower().replace(" ", "_"):
+            return os.path.join(errors_dir, f)
+
+    for f in files:
+        if f.lower().endswith(".png"):
+            return os.path.join(errors_dir, f)
+    return None
+
+
+def post_failure(
+    webhook_url: str,
+    api_key: str,
+    bank_name: str,
+    error: BaseException,
+    screenshot_url: Union[str, None],
+) -> None:
+    """
+    Posts a Markdown failure message to the webhook-router endpoint. The matrix-webhook fork fetches any http(s)
+    image link in the body and emits a captioned m.image event.
+    """
+    err_msg: str = f"`{type(error).__name__}: {error}`"
+    if screenshot_url:
+        body: str = (
+            f"**Bank scraper FAIL** — `{bank_name}`\n\n"
+            f"{err_msg}\n\n"
+            f"![screenshot]({screenshot_url})"
+        )
+    else:
+        body: str = (
+            f"**Bank scraper FAIL** — `{bank_name}`\n\n"
+            f"{err_msg}\n\n"
+            f"_(no screenshot captured)_"
+        )
+
+    try:
+        r: requests.Response = requests.post(
+            webhook_url, json={"body": body, "key": api_key}, timeout=60
+        )
+        r.raise_for_status()
+    except Exception as exc:
+        print(f"Failed to post failure to {webhook_url}: {exc}")
+
+
+async def serve_screenshots(port: int) -> web.AppRunner:
+    """
+    Starts an aiohttp file server that serves SCREENSHOTS_DIR over HTTP on 0.0.0.0:port. Other containers on the
+    same docker network can fetch the screenshots; matrix-webhook-bank uses this URL to upload them to Synapse.
+    """
+    os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+    app: web.Application = web.Application()
+    app.router.add_static("/", SCREENSHOTS_DIR, show_index=False)
+    runner: web.AppRunner = web.AppRunner(app)
+    await runner.setup()
+    site: web.TCPSite = web.TCPSite(runner, host="0.0.0.0", port=port)
+    await site.start()
+    return runner
+
+
 async def get_bank_metrics(args: argparse.Namespace) -> None:
     """
-    CLI function for getting the metrics for all banks in the config file and update tests and jail. On timeout, will
-    move a scraper into the jail file and move the generated screenshot to a local folder
-    :param args: The argparse args
+    CLI function for getting the metrics for all banks in the config file. Pushes successful runs to Prometheus
+    Pushgateway. On failure, copies the most recent screenshot to the served screenshots dir and posts the
+    failure (with screenshot URL) to the Matrix Alerts channel via the webhook-router.
     """
     # Args
     banks_file: str = args.config_file[0]
-    tests_file: str = args.tests_file[0]
     get_credentials_script: str = args.get_credentials_script[0]
     prometheus_endpoint: str = args.prometheus_endpoint[0]
+    webhook_url: str = args.webhook_url[0]
+    api_key: str = args.api_key[0]
+    screenshot_host: str = args.screenshot_host[0]
+    screenshot_port: int = int(args.screenshot_port[0])
     banks_arg: List = args.banks
 
     # Set log level
@@ -283,23 +323,18 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
     with open(banks_file) as file:
         banks: Dict = json.load(file)
 
+    # Start the screenshot file server (kept alive for the duration of the run so matrix-webhook-bank can fetch
+    # the screenshot synchronously while handling each webhook POST)
+    runner: web.AppRunner = await serve_screenshots(screenshot_port)
+    print(f"Serving screenshots on 0.0.0.0:{screenshot_port}...")
+
     try:
-        with open(JAIL_FILE, "w+") as file:
-            jail: List = list(line.rstrip() for line in file)
-    except FileNotFoundError:
-        jail: List = list()
+        for bank in banks["banks"]:
+            bank_name: str = bank["name"]
 
-    # Loop through banks file
-    for bank in banks["banks"]:
+            if not any([bank_name in banks_arg, "all" in banks_arg]):
+                continue
 
-        # Banks name
-        bank_name: str = bank["name"]
-        if bank_name in jail:
-            print(
-                f"{bank_name} was found in the jail file. Re-enable if you wish to scrape this bank."
-            )
-
-        elif any([bank_name in banks_arg, "all" in banks_arg]):
             # Login credentials
             if "ignore_login" not in bank:
                 username, password = get_credentials(get_credentials_script, bank)
@@ -324,10 +359,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                     current_values,
                 )
 
-                # Update the test badge
-                update_test_status(tests_file, bank_name, True)
-
-            # On timeout error....
+            # Scraper crash: copy screenshot, post failure with image link
             except (
                 PlaywrightError,
                 PlaywrightTimeoutError,
@@ -339,187 +371,31 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                 print(
                     "Timeout error probably means that the website did something unexpected."
                 )
-
-                # Update the jail file
-                with open(JAIL_FILE, "a") as file:
-                    file.write(f"{bank_name}\n")
-
-                # Update the test badge
-                update_test_status(tests_file, bank_name, False)
-
-                # Copy the most recent screenshot to the mounted directory
-                error_files: List[str] = sorted(
-                    os.listdir(f"{ROOT_DIR}/errors"), reverse=True
-                )
-                if error_files:
-                    shutil.copy(
-                        f"{ROOT_DIR}/errors/{error_files[0]}",
-                        SCREENSHOTS_DIR,
+                src: Union[str, None] = latest_screenshot_for(bank_name)
+                shot_url: Union[str, None] = None
+                if src:
+                    filename: str = os.path.basename(src)
+                    shutil.copy(src, os.path.join(SCREENSHOTS_DIR, filename))
+                    shot_url = (
+                        f"http://{screenshot_host}:{screenshot_port}/{quote(filename)}"
                     )
+                post_failure(webhook_url, api_key, bank_name, e, shot_url)
 
-            # On requests error....
-            except (requests.exceptions.HTTPError, web3_exceptions.Web3RPCError) as e:
+            # web3/HTTP error: no useful screenshot, post text only
+            except (
+                requests.exceptions.HTTPError,
+                web3_exceptions.Web3RPCError,
+            ) as e:
                 print(e)
                 print(
                     "Requests error means that the the web3 server didn't return an OK response."
                 )
-
-                # Update the test badge
-                update_test_status(tests_file, bank_name, False)
+                post_failure(webhook_url, api_key, bank_name, e, None)
 
             # Print status and proceed loop
             print(f"Completed in {round(time.time() - start_time, 1)} seconds...")
-
-
-async def send_report(args: argparse.Namespace) -> None:
-    """
-    CLI function for sending a report based on the current test and jail status each scraper. Tries to find and attach
-    the most recent screenshot for each scraper in failed/jail status
-    :param args: The argparse args
-    """
-    # Args
-    address: str = args.address[0]
-    port: int = args.port[0]
-    username: str = args.username[0]
-    password: str = args.password[0]
-    from_address: str = args.from_address[0]
-    to_address: str = args.to_address[0]
-    tests_file: str = args.tests_file[0]
-
-    # Create an SSL context
-    context: ssl.SSLContext = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
-
-    # Initiate the message
-    msg: MIMEMultipart = MIMEMultipart()
-    msg["Subject"] = "Scrapers Report"
-    msg["From"] = from_address
-
-    # Open the tests file
-    with open(tests_file, "r") as tests:
-        tests_dict: Dict = json.load(tests)
-
-    # Filter for user args
-    if args.include[0] == "success":
-        tests_dict: Dict = dict(
-            kv for kv in tests_dict.items() if kv[1]["status"] == "passed"
-        )
-    elif args.include[0] == "fail":
-        tests_dict: Dict = dict(
-            kv for kv in tests_dict.items() if kv[1]["status"] == "failed"
-        )
-
-    # If there are any items or if user specifies to send empty report
-    if len(list(tests_dict.items())) > 0 or args.if_none[0] == "send_empty":
-
-        # Turn tests dict into HTML
-        tests_html: str = pd.DataFrame(data=tests_dict).T.to_html()
-
-        # Center-align the cells
-        tests_html: str = tests_html.replace("<tr>", '<tr align="center">')
-
-        # Style
-        tests_html: str = tests_html.replace("passed", "✅")
-        tests_html: str = tests_html.replace("failed", "⛔")
-
-        # Format the text and attach it to the message
-        tests_part: MIMEText = MIMEText(tests_html, "html")
-        msg.attach(tests_part)
-
-        # Prepare the erred/jailed scraped if user doesn't specify success only
-        if args.include[0] != "success":
-
-            # Get the jail list
-            try:
-                with open(JAIL_FILE, "r") as file:
-                    jail: List = list(line.rstrip().lower() for line in file)
-            except FileNotFoundError:
-                jail: List = list()
-
-            # Turn the jail list into HTML
-            jail_html: str = pd.DataFrame(
-                data=jail, columns=["Disabled Scrapers"]
-            ).to_html(index=False)
-
-            # Format the text and attach it to the message
-            jail_part: MIMEText = MIMEText(jail_html, "html")
-            msg.attach(jail_part)
-
-            # Get the list of erred tests
-            errors: List[str] = list(
-                k[0] for k in tests_dict.items() if k[1]["status"] == "failed"
-            )
-
-            # Find the most recent screenshot (if exists) for these tests and attach to message
-            for scraper in set(jail + errors):
-                attached_png: bool = False
-                attached_html: bool = False
-                for file in sorted(os.listdir(SCREENSHOTS_DIR), reverse=True):
-                    filename: str = os.fsdecode(file)
-                    if (
-                        any([filename.endswith(".png"), filename.endswith(".html")])
-                        and scraper.lower() in filename.replace(" ", "_").lower()
-                    ):
-                        full_filepath: str = os.path.join(SCREENSHOTS_DIR, filename)
-
-                        if filename.endswith(".png"):
-                            with open(full_filepath, "rb") as f:
-                                part = MIMEImage(f.read())
-
-                        if filename.endswith(".html"):
-                            with open(full_filepath) as f:
-                                part = MIMEText(f.read(), "html")
-
-                        print(f"Attaching {filename}")
-                        part["Content-Disposition"] = (
-                            f'attachment; filename="{filename}"'
-                        )
-                        msg.attach(part)
-
-                        if filename.endswith(".png"):
-                            attached_png = True
-                        elif filename.endswith(".html"):
-                            attached_html = True
-
-                        # Only attach most recent
-                        if all([attached_png, attached_html]):
-                            break
-
-        # Instantiate server and send the message
-        with smtplib.SMTP(address, port) as server:
-            server.starttls(context=context)
-            server.login(username, password)
-            server.sendmail(from_address, to_address, msg.as_string())
-
-
-async def enable(args: argparse.Namespace) -> None:
-    """
-    CLI function for removing scrapers from the jail file
-    :param args: The argparse args
-    """
-    # Truncate the file if user indicates 'all'
-    if "all" in args.scrapers:
-        open(JAIL_FILE, "w+").close()
-        print("All scrapes enabled.")
-
-    # Otherwise
-    else:
-        # Create a list from the jail file
-        with open(JAIL_FILE, "r") as file:
-            jail: List = list(line.rstrip().lower() for line in file)
-
-        # Remove the provided scrapers
-        for scraper in args.scrapers:
-            try:
-                jail.remove(scraper.lower())
-                print(f"{scraper.upper()} enabled.")
-            except ValueError:
-                print(f"{scraper.upper()} isn't disabled.")
-
-        # Rewrite the jail file
-        with open(JAIL_FILE, "w+") as file:
-            file.write("\n".join(jail))
+    finally:
+        await runner.cleanup()
 
 
 def main() -> None:
@@ -548,13 +424,6 @@ def main() -> None:
         required=True,
     )
     scrape_parser_required_args.add_argument(
-        "--tests_file",
-        "-t",
-        help="The tests.json file to document the run results",
-        nargs=1,
-        required=True,
-    )
-    scrape_parser_required_args.add_argument(
         "--get_credentials_script",
         "-s",
         help="The local shell script which gets the credentials for a bank from the password manager",
@@ -568,6 +437,35 @@ def main() -> None:
         nargs=1,
         required=True,
     )
+    scrape_parser_required_args.add_argument(
+        "--webhook_url",
+        "-w",
+        help="The webhook-router URL that fronts the matrix-webhook bot (posts go to the Alerts channel)",
+        nargs=1,
+        required=True,
+    )
+    scrape_parser_required_args.add_argument(
+        "--api_key",
+        "-k",
+        help="The shared API key required by the matrix-webhook bot",
+        nargs=1,
+        required=True,
+    )
+    scrape_parser_required_args.add_argument(
+        "--screenshot_host",
+        help=(
+            "The hostname matrix-webhook-bank uses to fetch screenshots from this container — typically the "
+            "container_name or a network alias on the shared docker network"
+        ),
+        nargs=1,
+        required=True,
+    )
+    scrape_parser.add_argument(
+        "--screenshot_port",
+        help="The port the screenshot file server binds to inside the container (default: 8090)",
+        nargs=1,
+        default=["8090"],
+    )
     scrape_parser.add_argument(
         "--banks",
         "-b",
@@ -576,89 +474,6 @@ def main() -> None:
         nargs="*",
     )
     scrape_parser.set_defaults(func=get_bank_metrics)
-
-    # Generate at send a report
-    report_parser: argparse.ArgumentParser = sub_parser.add_parser("report")
-    report_parser_required_args = report_parser.add_argument_group(
-        "required named arguments"
-    )
-    report_parser_required_args.add_argument(
-        "--address",
-        "-a",
-        help="The web address of the SMTP server to send the email",
-        nargs=1,
-        required=True,
-    )
-    report_parser_required_args.add_argument(
-        "--port",
-        "-p",
-        help="The port on the web address for the SMTP server",
-        nargs=1,
-        required=True,
-    )
-    report_parser_required_args.add_argument(
-        "--username",
-        "-u",
-        help="The login username to use for authenticating with the SMTP server",
-        nargs=1,
-        required=True,
-    )
-    report_parser_required_args.add_argument(
-        "--password",
-        "-pp",
-        help="The password to use for authenticating with the SMTP server",
-        nargs=1,
-        required=True,
-    )
-    report_parser_required_args.add_argument(
-        "--from_address",
-        "-f",
-        help="The address from which to send the report email",
-        nargs=1,
-        required=True,
-    )
-    report_parser_required_args.add_argument(
-        "--to_address",
-        "-t",
-        help="The address to which to send the report email",
-        nargs=1,
-        required=True,
-    )
-    report_parser_required_args.add_argument(
-        "--tests_file",
-        "-tf",
-        help="The tests.json file to document the run results",
-        nargs=1,
-        required=True,
-    )
-    report_parser.add_argument(
-        "--include",
-        "-i",
-        default="all",
-        choices={"all", "fail", "success"},
-        help="Select which run statuses to include in the report ('all', 'fail', success')",
-        nargs=1,
-    )
-    report_parser.add_argument(
-        "--if_none",
-        "-n",
-        default="stop_send",
-        choices={"send_empty", "stop_send"},
-        help="Select what to do if there are no runs in the selecting inclusion",
-        nargs=1,
-    )
-    report_parser.set_defaults(func=send_report)
-
-    # Enable a bank scraper if it's disabled
-    enable_parser: argparse.ArgumentParser = sub_parser.add_parser("enable")
-    enable_parser.add_argument(
-        "--scrapers",
-        "-s",
-        default="all",
-        help="Clear the status and re-enable a bank to be scraped",
-        nargs="*",
-    )
-    enable_parser.set_defaults(func=enable)
 
     # Parse the args
     args: argparse.Namespace = parser.parse_args()
