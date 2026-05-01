@@ -247,30 +247,53 @@ def latest_screenshot_for(bank_name: str) -> Union[str, None]:
     return None
 
 
+def html_companion_for(screenshot_path: str) -> Union[str, None]:
+    """
+    Returns the .html dump that accompanies a screenshot, written by the
+    screenshot_on_timeout decorator. Returns None if no companion exists.
+    """
+    if not screenshot_path.endswith(".png"):
+        return None
+    candidate: str = screenshot_path[:-4] + ".html"
+    return candidate if os.path.exists(candidate) else None
+
+
 def post_failure(
     webhook_url: str,
     api_key: str,
     bank_name: str,
     error: BaseException,
     screenshot_url: Union[str, None],
+    html_path_on_server: Union[str, None] = None,
+    traceback_text: Union[str, None] = None,
 ) -> None:
     """
     Posts a Markdown failure message to the webhook-router endpoint. The matrix-webhook fork fetches any http(s)
-    image link in the body and emits a captioned m.image event.
+    image link in the body and emits a captioned m.image event. Includes the Python traceback (truncated) and a
+    pointer to the page-HTML dump on the server so a future debug agent can cross-reference without re-running.
     """
     err_msg: str = f"`{type(error).__name__}: {error}`"
+
+    parts: List[str] = [f"**Bank scraper FAIL** — `{bank_name}`", err_msg]
+
+    if traceback_text:
+        # Last ~1500 chars: most recent frames are usually the most useful and
+        # this keeps the Matrix message compact.
+        tail: str = traceback_text[-1500:]
+        parts.append(f"```\n{tail}\n```")
+
     if screenshot_url:
-        body: str = (
-            f"**Bank scraper FAIL** — `{bank_name}`\n\n"
-            f"{err_msg}\n\n"
-            f"![screenshot]({screenshot_url})"
-        )
+        parts.append(f"![screenshot]({screenshot_url})")
     else:
-        body: str = (
-            f"**Bank scraper FAIL** — `{bank_name}`\n\n"
-            f"{err_msg}\n\n"
-            f"_(no screenshot captured)_"
+        parts.append("_(no screenshot captured)_")
+
+    if html_path_on_server:
+        parts.append(
+            f"Page HTML: `{html_path_on_server}` "
+            f"(host path `/etc/docker/bank-exporter/screenshots/{html_path_on_server}`)"
         )
+
+    body: str = "\n\n".join(parts)
 
     try:
         r: requests.Response = requests.post(
@@ -359,7 +382,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                     current_values,
                 )
 
-            # Scraper crash: copy screenshot, post failure with image link
+            # Scraper crash: copy screenshot + html, post failure with image link + traceback
             except (
                 PlaywrightError,
                 PlaywrightTimeoutError,
@@ -367,30 +390,50 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                 KeyError,
                 TimeoutError,
             ) as e:
-                print(e)
+                tb_text: str = traceback.format_exc()
+                print(tb_text)
                 print(
                     "Timeout error probably means that the website did something unexpected."
                 )
                 src: Union[str, None] = latest_screenshot_for(bank_name)
                 shot_url: Union[str, None] = None
+                html_path_on_server: Union[str, None] = None
                 if src:
                     filename: str = os.path.basename(src)
                     shutil.copy(src, os.path.join(SCREENSHOTS_DIR, filename))
                     shot_url = (
                         f"http://{screenshot_host}:{screenshot_port}/{quote(filename)}"
                     )
-                post_failure(webhook_url, api_key, bank_name, e, shot_url)
+                    html_src: Union[str, None] = html_companion_for(src)
+                    if html_src:
+                        html_filename: str = os.path.basename(html_src)
+                        shutil.copy(
+                            html_src, os.path.join(SCREENSHOTS_DIR, html_filename)
+                        )
+                        html_path_on_server = html_filename
+                post_failure(
+                    webhook_url,
+                    api_key,
+                    bank_name,
+                    e,
+                    shot_url,
+                    html_path_on_server,
+                    tb_text,
+                )
 
             # web3/HTTP error: no useful screenshot, post text only
             except (
                 requests.exceptions.HTTPError,
                 web3_exceptions.Web3RPCError,
             ) as e:
-                print(e)
+                tb_text: str = traceback.format_exc()
+                print(tb_text)
                 print(
                     "Requests error means that the the web3 server didn't return an OK response."
                 )
-                post_failure(webhook_url, api_key, bank_name, e, None)
+                post_failure(
+                    webhook_url, api_key, bank_name, e, None, None, tb_text
+                )
 
             # Print status and proceed loop
             print(f"Completed in {round(time.time() - start_time, 1)} seconds...")

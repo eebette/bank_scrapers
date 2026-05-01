@@ -42,6 +42,16 @@ def screenshot_on_timeout(save_path: str):
                         await driver.screenshot(path=save_path)
                     except Exception as cap_err:
                         log.warning(f"Page screenshot failed: {cap_err}")
+                    html_path: str = (
+                        save_path.rsplit(".", 1)[0] if "." in os.path.basename(save_path) else save_path
+                    ) + ".html"
+                    log.warning(f"Saving page HTML to: {html_path}")
+                    try:
+                        content: str = await driver.content()
+                        with open(html_path, "w", encoding="utf-8") as f:
+                            f.write(content)
+                    except Exception as cap_err:
+                        log.warning(f"Page HTML dump failed: {cap_err}")
                 raise
 
         return _screenshot_on_timeout

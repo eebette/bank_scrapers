@@ -260,6 +260,27 @@ async def handle_contact_information_prompt(page: Page) -> None:
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_update_income_prompt(page: Page) -> bool:
+    """
+    Checks for Chase's "Update Income" interstitial modal that occasionally
+    appears on the dashboard after login.
+    :param page: The browser application
+    :return: True if the prompt is shown
+    """
+    return await page.get_by_text("Confirm or update your income info").is_visible()
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_update_income_prompt(page: Page) -> None:
+    """
+    Dismiss the Update Income prompt by clicking its Cancel button.
+    """
+    log.info("Handling Update Income prompt...")
+    cancel_button: Locator = page.locator("button[data-testid='cancel-btn']")
+    await cancel_button.click(force=True)
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def handle_mfa_redirect_alternate(
     page: Page, password: str, mfa_auth: ChaseMfaAuth = None
 ) -> None:
@@ -558,6 +579,10 @@ async def run(
     # Handle contact information prompt
     if await is_contact_information_prompt(page):
         await handle_contact_information_prompt(page)
+
+    # Handle Update Income interstitial
+    if await is_update_income_prompt(page):
+        await handle_update_income_prompt(page)
 
     # Navigate the site and download the accounts data
     await seek_accounts_data(page)

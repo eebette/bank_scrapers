@@ -124,46 +124,49 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     """
     log.info(f"Redirected to multi-factor authentication page.")
 
-    # Identify MFA options
-    log.info(f"Finding contact options elements...")
-    contact_options: List[Locator] = (
-        await page.get_by_text("Security Checks")
-        .locator("..")
-        .locator(":enabled")
-        .all()
-    )
-
-    # Prompt user input for MFA option
-    if mfa_auth is None:
-        for i, l in enumerate(contact_options):
-            log.info(f"No automation info provided. Prompting user for contact option.")
-            print(f"{i + 1}: {(await l.text_content()).replace('\n','')}")
-        option: str = input("Please select one: ")
-    else:
-        log.info(f"Contact option found in automation info.")
-        option: str = str(mfa_auth["otp_contact_option"])
-    option_index: int = int(option) - 1
-    log.debug(f"Contact option: {option_index}")
-
-    # Click based on user input
-    log.info(f"Clicking element for user selected contact option...")
-    await contact_options[option_index].click()
-
-    # Click submit once it becomes clickable
-    log.info(f"Finding submit button element and waiting for it to be clickable...")
-    next_button: Locator = page.get_by_text("Get Code")
-
-    log.info(f"Clicking submit button element...")
-    await next_button.click()
-
-    # Prompt user for OTP code and enter onto the page
-    log.info(f"Finding input box element for OTP...")
     otp_input: Locator = (
         page.get_by_text("Security Checks").locator("..").locator("input")
     )
 
+    # UHFCU now skips the contact-method picker when there's only one option:
+    # it sends the SMS automatically and lands directly on the OTP-entry view.
+    # Old flow still applies if the picker is shown.
+    try:
+        await otp_input.wait_for(state="visible", timeout=3000)
+        log.info("OTP input visible immediately; skipping contact-method picker")
+    except Exception:
+        log.info("OTP input not visible; driving contact-method picker first")
+
+        log.info("Finding contact options elements...")
+        contact_options: List[Locator] = (
+            await page.get_by_text("Security Checks")
+            .locator("..")
+            .locator(":enabled")
+            .all()
+        )
+
+        if mfa_auth is None:
+            for i, l in enumerate(contact_options):
+                log.info("No automation info provided. Prompting user for contact option.")
+                print(f"{i + 1}: {(await l.text_content()).replace('\n','')}")
+            option: str = input("Please select one: ")
+        else:
+            log.info("Contact option found in automation info.")
+            option: str = str(mfa_auth["otp_contact_option"])
+        option_index: int = int(option) - 1
+        log.debug(f"Contact option: {option_index}")
+
+        log.info("Clicking element for user selected contact option...")
+        await contact_options[option_index].click()
+
+        log.info("Clicking 'Get Code' button...")
+        await page.get_by_text("Get Code").click()
+
+        log.info("Waiting for OTP input to appear...")
+        await otp_input.wait_for(state="visible", timeout=TIMEOUT)
+
     if mfa_auth is None:
-        log.info(f"No automation info provided. Prompting user for OTP.")
+        log.info("No automation info provided. Prompting user for OTP.")
         otp_code: str = input("Enter OTP Code: ")
     else:
         log.info(
@@ -178,14 +181,15 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
             reverse=True,
         )
 
-    log.info(f"Sending info to OTP input box element...")
+    log.info("Sending info to OTP input box element...")
+    # UHFCU's Angular form keeps the OTP input readonly until focused as an
+    # anti-autofill hack. Click the field so its onfocus handler removes the
+    # attribute, then fill — Playwright refuses to fill readonly fields.
+    await otp_input.click()
     await otp_input.fill(otp_code)
 
-    # Click submit once it becomes clickable
-    log.info(f"Finding submit button element...")
+    log.info("Clicking Continue submit button...")
     submit_button: Locator = page.locator("button").get_by_text("Continue")
-
-    log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
         url=re.compile(r"/dashboard"), wait_until="load", timeout=TIMEOUT
     ):

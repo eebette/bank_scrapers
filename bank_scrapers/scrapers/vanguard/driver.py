@@ -10,7 +10,7 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Union
 from datetime import datetime
 import re
 import os
@@ -20,14 +20,15 @@ from random import randint, uniform
 
 # Non-Standard Imports
 import pandas as pd
-from playwright.async_api import (
+from patchright.async_api import (
+    async_playwright,
+    Playwright,
     Page,
     Locator,
     expect,
     BrowserContext,
     Download,
 )
-from camoufox.async_api import AsyncCamoufox
 from pyvirtualdisplay import Display
 
 # Local Imports
@@ -42,8 +43,12 @@ from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
 INSTITUTION: str = "Vanguard"
 SYMBOL: str = "USD"
 
-# Logon page
-HOMEPAGE: str = "https://logon.vanguard.com/logon"
+# Vanguard URLs. We start at the investor homepage and click through to the
+# logon page, mirroring how a real user reaches the form. This gives Akamai's
+# sensor JS a multi-page session with referrer + click + scroll history before
+# we ever touch credentials.
+HOMEPAGE: str = "https://investor.vanguard.com/"
+LOGON_PAGE: str = "https://logon.vanguard.com/logon"
 DASHBOARD_PAGE: str = (
     "https://personal1.vanguard.com/ofu-open-fin-exchange-webapp/ofx-welcome"
 )
@@ -54,6 +59,53 @@ OTP_TIMEOUT: int = 1200 * 1000
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
+
+# Vanguard's login pages run an init burst (Tarsus collectors, ThreatMetrix
+# fingerprint, Akamai sensor JS) for ~5s after navigation, then enter steady-state
+# polling that never stops on its own. networkidle is misleading here; we wait a
+# generous fixed window. Acting before the init burst clears is itself a bot signal.
+SETTLE_WAIT_MIN_MS: int = 12000
+SETTLE_WAIT_MAX_MS: int = 18000
+
+
+async def settle_after_navigation(page: Page, label: str) -> None:
+    delay_ms: int = randint(SETTLE_WAIT_MIN_MS, SETTLE_WAIT_MAX_MS)
+    log.info(f"[settle/{label}] sleeping {delay_ms}ms for init burst to clear")
+    await page.wait_for_timeout(delay_ms)
+
+
+async def human_move_to(page: Page, locator: Locator) -> None:
+    """
+    Move the mouse along a curved path into the locator's bounding box, generating
+    mousemove events Akamai's sensor JS can score as human.
+    """
+    box = await locator.bounding_box()
+    if box is None:
+        return
+    tx: float = box["x"] + box["width"] * uniform(0.3, 0.7)
+    ty: float = box["y"] + box["height"] * uniform(0.3, 0.7)
+    wx: float = tx + uniform(-80, 80)
+    wy: float = ty + uniform(-80, 80)
+    await page.mouse.move(wx, wy, steps=randint(15, 30))
+    await page.wait_for_timeout(randint(40, 140))
+    await page.mouse.move(tx, ty, steps=randint(10, 20))
+    await page.wait_for_timeout(randint(60, 200))
+
+
+async def warm_up_session(page: Page) -> None:
+    """
+    Generate idle mouse and scroll activity so Akamai's sensor JS has a stream of
+    real-looking events to score before any input begins.
+    """
+    for _ in range(randint(2, 4)):
+        await page.mouse.move(
+            uniform(100, 1100), uniform(100, 600), steps=randint(10, 25)
+        )
+        await page.wait_for_timeout(randint(200, 600))
+    await page.mouse.wheel(0, randint(80, 250))
+    await page.wait_for_timeout(randint(300, 700))
+    await page.mouse.wheel(0, -randint(40, 200))
+    await page.wait_for_timeout(randint(200, 500))
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -67,41 +119,66 @@ async def logon(
     :param password: Your password for logging in
     :param homepage: The logon url to initially navigate
     """
-    # Logon Page
+    # Land on the investor homepage like a real user would, then click through
+    # to the logon page. Going straight to the logon URL is a bot signal on its
+    # own; the multi-page chain with referrer + click + scroll accumulates
+    # behavioral signal Akamai/TMX score as human.
     log.info(f"Accessing: {homepage}")
     await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
-    await page.wait_for_timeout(randint(5000, 10000))
-    await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
+
+    log.info("Waiting for Log in button to render...")
+    logon_button: Locator = page.locator("a#logonButton")
+    await expect(logon_button).to_be_visible(timeout=TIMEOUT)
+
+    await settle_after_navigation(page, "homepage")
+
+    log.info("Warming up session with idle mouse/scroll activity...")
+    await warm_up_session(page)
+
+    log.info("Clicking Log in link to navigate to logon page...")
+    await human_move_to(page, logon_button)
+    async with page.expect_navigation(
+        url=re.compile(r"logon\.vanguard\.com"),
+        wait_until="load",
+        timeout=TIMEOUT,
+    ):
+        await logon_button.click(timeout=TIMEOUT)
+
+    await settle_after_navigation(page, "logon_page")
 
     # Enter User
     log.info(f"Finding username element...")
     username_input: Locator = page.locator("input[id='USER']")
+    await expect(username_input).to_be_visible(timeout=TIMEOUT)
+    await human_move_to(page, username_input)
+    await username_input.click()
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
-    sleep(randint(1, 5))
+    sleep(randint(1, 3))
     await username_input.press_sequentially(username, delay=randint(100, 500))
-    await username_input.press("Tab")
 
     # Enter Password
     log.info(f"Finding password element...")
     password_input: Locator = page.locator("input[id='PASSWORD-blocked']")
+    await human_move_to(page, password_input)
+    await password_input.click()
 
     log.info(f"Sending info to password element...")
-    sleep(randint(1, 5))
+    sleep(randint(1, 3))
     await password_input.press_sequentially(password, delay=randint(100, 500))
 
     # Submit credentials
     log.info(f"Finding submit button element...")
     submit_button: Locator = page.locator("button[id='username-password-submit-btn-1']")
+    await human_move_to(page, submit_button)
 
     log.info(f"Clicking submit button element...")
-
     sleep(uniform(1, 3))
     async with page.expect_response(
         lambda r: "usernamepassword/login" in r.url and r.request.method == "POST",
         timeout=TIMEOUT,
-    ) as resp_info:
+    ):
         await submit_button.click()
 
 
@@ -139,11 +216,29 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     """
     log.info(f"Redirected to multi-factor authentication page.")
 
-    # Select the mobile app MFA option
-    log.info(f"Finding contact options elements...")
-    contact_options: List[Locator] = await page.locator(
+    # New intermediate "Choose how you want to authenticate" picker page that
+    # offers "Verify with the app" (mobile-approve push, can't automate) vs
+    # "Verify with a code" (SMS/voice OTP, the path we drive). Always pick the
+    # code path. If the picker isn't shown, this is a no-op and we fall through
+    # to the contact-options page directly.
+    code_tile: Locator = page.locator("button.otp-tile").first
+    try:
+        await code_tile.wait_for(state="visible", timeout=15000)
+        log.info("Auth-method picker shown; choosing 'Verify with a code'...")
+        await human_move_to(page, code_tile)
+        await code_tile.click()
+    except Exception:
+        log.info("Auth-method picker not present; proceeding to contact options")
+
+    # Wait for the contact-options page to render (either the picker click is
+    # transitioning to it, or we landed directly on it). Without this explicit
+    # wait, .all() returns [] when called mid-render and we IndexError below.
+    contact_locator: Locator = page.locator(
         "lgn-phone-method-selection .selection-cards button"
-    ).all()
+    )
+    log.info(f"Finding contact options elements...")
+    await contact_locator.first.wait_for(state="visible", timeout=TIMEOUT)
+    contact_options: List[Locator] = await contact_locator.all()
 
     contact_options_text: List[str] = []
     for contact_option in contact_options:
@@ -372,6 +467,10 @@ async def seek_accounts_data(page: Page, tmp: str) -> None:
     log.info(f"Accessing: {DASHBOARD_PAGE}")
     await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
 
+    # The OFX page is JS-heavy too — without a settle wait the locator below
+    # races the page render and times out (saw this in cronicle job jmol20ygm0e).
+    await settle_after_navigation(page, "ofx_page")
+
     download_format_dropdown: Locator = page.locator(
         "span[id='OfxDownloadForm:downloadOption']"
     )
@@ -404,6 +503,7 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
 
 
 async def run(
+    playwright: Playwright,
     username: str,
     password: str,
     prometheus: bool = False,
@@ -411,72 +511,87 @@ async def run(
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
+    :param playwright: The playwright object for running this script
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :param mfa_auth: A typed dict containing an int representation of the MFA contact opt. and a dir containing the OTP
     :return: A list of pandas dataframes of accounts info tables
     """
-    async with AsyncCamoufox(headless=False, humanize=True) as browser:
-        context: BrowserContext = await browser.new_context()
-        page: Page = await context.new_page()
+    browser: BrowserContext = await playwright.chromium.launch_persistent_context(
+        user_data_dir=str(),
+        channel="chrome",
+        headless=False,
+        no_viewport=True,
+    )
+    page: Page = await browser.new_page()
 
-        # Navigate to the logon page and submit credentials
-        await logon(page, username, password)
+    # Navigate to the logon page and submit credentials
+    await logon(page, username, password)
 
-        # Wait for landing page or MFA
-        await wait_for_redirect(page)
+    # The credential POST kicks off a redirect chain (login.vanguard.com →
+    # personal1.vanguard.com/usa/login → personal1.vanguard.com/security/challenge-me/…)
+    # plus a Tarsus/ThreatMetrix init burst on the new origin. Let it clear
+    # before we start expecting the MFA-verify text — wait_for_redirect's 60s
+    # timeout has been seen to lose this race in the cron environment.
+    await settle_after_navigation(page, "post_login")
 
-        # Handle MFA if prompted
-        if await is_mfa_redirect(page):
-            await handle_mfa_redirect(page, mfa_auth)
+    # Wait for landing page or MFA
+    await wait_for_redirect(page)
 
-        # Handle holiday closures notice
-        if await is_holiday_redirect(page):
-            await navigate_to_dashboard(page)
+    # Handle MFA if prompted
+    if await is_mfa_redirect(page):
+        await handle_mfa_redirect(page, mfa_auth)
 
-        # Get the account types while on the dashboard screen
-        accounts_df: pd.DataFrame = await get_account_types(page)
+    # Handle holiday closures notice
+    if await is_holiday_redirect(page):
+        await navigate_to_dashboard(page)
 
-        with TemporaryDirectory() as tmp:
-            log.info(f"Created temporary directory: {tmp}")
+    # Get the account types while on the dashboard screen
+    accounts_df: pd.DataFrame = await get_account_types(page)
 
-            # Navigate the site and download the accounts data
-            await seek_accounts_data(page, tmp)
-            file_name: str = os.listdir(tmp)[0]
+    with TemporaryDirectory() as tmp:
+        log.info(f"Created temporary directory: {tmp}")
 
-            # Process tables
-            accounts_data: pd.DataFrame = parse_accounts_summary(f"{tmp}/{file_name}")
+        # Navigate the site and download the accounts data
+        await seek_accounts_data(page, tmp)
+        file_name: str = os.listdir(tmp)[0]
 
-            return_tables: List[pd.DataFrame] = [pd.merge(accounts_df, accounts_data)]
+        # Process tables
+        accounts_data: pd.DataFrame = parse_accounts_summary(f"{tmp}/{file_name}")
 
-        # Convert to Prometheus exposition if flag is set
-        if prometheus:
-            balances: List[PrometheusMetric] = convert_to_prometheus(
-                return_tables,
-                INSTITUTION,
-                "Account Number",
-                "Symbol",
-                "Shares",
-                "account_type",
-            )
+        return_tables: List[pd.DataFrame] = [pd.merge(accounts_df, accounts_data)]
 
-            asset_values: List[PrometheusMetric] = convert_to_prometheus(
-                return_tables,
-                INSTITUTION,
-                "Account Number",
-                "Symbol",
-                "Share Price",
-                "account_type",
-            )
+    log.info("Closing page instance...")
+    await page.close()
 
-            return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
-                balances,
-                asset_values,
-            )
+    # Convert to Prometheus exposition if flag is set
+    if prometheus:
+        balances: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account Number",
+            "Symbol",
+            "Shares",
+            "account_type",
+        )
 
-        # Return list of pandas df
-        return return_tables
+        asset_values: List[PrometheusMetric] = convert_to_prometheus(
+            return_tables,
+            INSTITUTION,
+            "Account Number",
+            "Symbol",
+            "Share Price",
+            "account_type",
+        )
+
+        return_tables: Tuple[List[PrometheusMetric], List[PrometheusMetric]] = (
+            balances,
+            asset_values,
+        )
+
+    # Return list of pandas df
+    return return_tables
 
 
 async def get_accounts_info(
@@ -495,4 +610,5 @@ async def get_accounts_info(
     """
     # Instantiate the virtual display
     with Display(visible=False, size=(1280, 720)):
-        return await run(username, password, prometheus, mfa_auth)
+        async with async_playwright() as playwright:
+            return await run(playwright, username, password, prometheus, mfa_auth)
