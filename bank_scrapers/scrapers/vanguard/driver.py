@@ -299,7 +299,9 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
         url=re.compile(
-            r"(dashboard.web.vanguard.com|challenges.web.vanguard.com/holiday)"
+            r"(dashboard\.web\.vanguard\.com"
+            r"|www\.vanguard\.com/en/investor/portfolio/dashboard"
+            r"|challenges\.web\.vanguard\.com/holiday)"
         ),
         wait_until="load",
         timeout=TIMEOUT,
@@ -328,7 +330,9 @@ async def navigate_to_dashboard(page: Page) -> None:
     :param page: The browser application
     """
     log.info("Navigating to dashboard page...")
-    await page.goto("https://dashboard.web.vanguard.com/", timeout=TIMEOUT)
+    await page.goto(
+        "https://www.vanguard.com/en/investor/portfolio/dashboard/", timeout=TIMEOUT
+    )
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
