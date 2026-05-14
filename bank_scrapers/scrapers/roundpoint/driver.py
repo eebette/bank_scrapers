@@ -106,7 +106,7 @@ async def wait_for_redirect(page: Page) -> None:
     Wait for the page to redirect to the next stage of the login process
     :param page: The browser application
     """
-    target_text: re.Pattern = re.compile(r"(Verify your identity|Dashboard)")
+    target_text: re.Pattern = re.compile(r"(Verify Your Account|Dashboard)")
     await expect(page.get_by_text(target_text)).not_to_have_count(0, timeout=TIMEOUT)
 
 
@@ -117,7 +117,7 @@ async def is_mfa_redirect(page: Page) -> bool:
     :param page: The browser application
     :return: True if MFA is being enforced
     """
-    return await page.get_by_text("Verify your identity").is_visible()
+    return await page.get_by_role("heading", name="Verify Your Account").is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -129,15 +129,15 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     """
     log.info(f"Redirected to multi-factor authentication page.")
 
-    # Identify MFA options
+    # Identify MFA options (Material radio group)
     log.info(f"Finding contact options elements...")
     contact_options: List[Locator] = await page.locator(
-        "bki-one-time-pin-verify input[type='radio']"
+        "mat-radio-group[name='method'] input[type='radio']"
     ).all()
 
     log.info(f"Finding labels for contact options elements...")
     contact_options_text: List[Locator] = await page.locator(
-        "bki-one-time-pin-verify label[class='mdc-label']"
+        "mat-radio-group[name='method'] label"
     ).all()
 
     # Assertions
@@ -162,14 +162,14 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")
-    next_button: Locator = page.locator("bki-one-time-pin-verify button[type='submit']")
+    next_button: Locator = page.locator("button.verify-submit-button")
 
     log.info(f"Clicking submit button element...")
     await next_button.click()
 
     # Prompt user for OTP code and enter onto the page
     log.info(f"Finding input box element for OTP...")
-    otp_input: Locator = page.locator("bki-one-time-pin-verify input[name='otpInput']")
+    otp_input: Locator = page.locator("input[name='otpInput']")
 
     if mfa_auth is None:
         log.info(f"No automation info provided. Prompting user for OTP.")
@@ -192,9 +192,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
 
     # Click submit once it becomes clickable
     log.info(f"Finding submit button element...")
-    submit_button: Locator = page.locator(
-        "bki-one-time-pin-verify button[type='submit']"
-    )
+    submit_button: Locator = page.locator("button.verify-submit-button")
 
     log.info(f"Clicking submit button element...")
     async with page.expect_navigation(
