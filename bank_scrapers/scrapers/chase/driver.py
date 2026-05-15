@@ -424,6 +424,22 @@ async def seek_accounts_data(page: Page) -> None:
     Navigate the website and click download button for the accounts data
     :param page: The Chrome browser application
     """
+    # Update Income modal pops up asynchronously after the dashboard renders, so
+    # checking once before this function isn't enough — give it a window to appear
+    # and dismiss if it does. Without this, the modal intercepts the More-dropdown
+    # click below and the run times out.
+    try:
+        await page.get_by_text("Confirm or update your income info").wait_for(
+            state="visible", timeout=10000
+        )
+        log.info("Update Income modal appeared; dismissing...")
+        await page.locator("button[data-testid='cancel-btn']").click(force=True)
+        await page.get_by_text("Confirm or update your income info").wait_for(
+            state="hidden", timeout=10000
+        )
+    except Exception:
+        pass
+
     # Navigate shadow root
     log.info(f"Finding shadow root for accounts dropdown element...")
     dropdown_shadow_root: Locator = page.locator("mds-button[text='More']")
