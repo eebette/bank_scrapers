@@ -1,5 +1,5 @@
 """
-This file provides the get_accounts_info() function for BECU (https://onlinebanking.becu.org)
+This file provides the get_accounts_info() function for BECU (https://www.becu.org)
 
 Example Usage:
 ```
@@ -14,6 +14,8 @@ from typing import List, Tuple, Union
 from datetime import datetime
 import re
 from io import StringIO
+from time import sleep
+from random import randint, uniform
 
 # Non-Standard Imports
 import pandas as pd
@@ -32,14 +34,21 @@ from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.common.functions import convert_to_prometheus
-from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
+from bank_scrapers.scrapers.common.functions import (
+    screenshot_on_timeout,
+    settle_after_navigation,
+    human_move_to,
+    warm_up_session,
+)
 
 # Institution info
 INSTITUTION: str = "BECU"
 SYMBOL: str = "USD"
 
-# Logon page
-HOMEPAGE: str = "https://onlinebanking.becu.org/BECUBankingWeb/Login.aspx"
+# BECU's login moved to PingOne DaVinci + PingFederate. Start at the marketing
+# homepage and click through to the auth flow so DaVinci's behavioral collector
+# sees a real referrer + click history before credentials are entered.
+HOMEPAGE: str = "https://www.becu.org/"
 
 # Timeout
 TIMEOUT: int = 60 * 1000
@@ -57,37 +66,92 @@ async def logon(
     :param page: The browser application
     :param username: Your username for logging in
     :param password: Your password for logging in
-    :param homepage: The logon url to initially navigate
+    :param homepage: The marketing url to initially navigate
     """
-    # Logon Page
     log.info(f"Accessing: {homepage}")
     await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
-    # Enter User
+    log.info("Waiting for Log In button to render...")
+    login_link: Locator = page.locator('a[title="Log In"]').first
+    await expect(login_link).to_be_visible(timeout=TIMEOUT)
+
+    await settle_after_navigation(page, "homepage")
+
+    log.info("Warming up session with idle mouse/scroll activity...")
+    await warm_up_session(page)
+
+    # The Log In link goes to Login.aspx, which 302s through /oauth/signon to
+    # auth.secure.becu.org where davinci.js renders the form. Wait for the
+    # final hop to settle before interacting.
+    log.info("Clicking Log In link to navigate to auth flow...")
+    await human_move_to(page, login_link)
+    async with page.expect_navigation(
+        url=re.compile(r"auth\.secure\.becu\.org/as/authorization"),
+        wait_until="load",
+        timeout=TIMEOUT,
+    ):
+        await login_link.click(timeout=TIMEOUT)
+
+    # davinci.js renders the form client-side and runs its init burst on this
+    # origin; submitting before it settles is a bot signal that lands us on
+    # PingFederate's "Page Expired" instead of the OAuth callback.
+    await settle_after_navigation(page, "auth_page")
+    await warm_up_session(page)
+
+    # Enter User. DaVinci's customHTMLTemplate kept the legacy input IDs.
     log.info(f"Finding username element...")
     log.debug(f"Username: {username}")
     username_input: Locator = page.locator("input[id='ctlSignon_txtUserID']")
+    await expect(username_input).to_be_visible(timeout=TIMEOUT)
+    await human_move_to(page, username_input)
+    await username_input.click()
 
     log.info(f"Sending info to username element...")
-    log.debug(f"Username: {username}")
-    await username_input.press_sequentially(username, delay=100)
+    sleep(randint(1, 3))
+    await username_input.press_sequentially(username, delay=randint(100, 500))
 
     # Enter Password
     log.info(f"Finding password element...")
     password_input: Locator = page.locator("input[id='ctlSignon_txtPassword']")
+    await human_move_to(page, password_input)
+    await password_input.click()
 
     log.info(f"Sending info to password element...")
-    await password_input.press_sequentially(password, delay=100)
+    sleep(randint(1, 3))
+    await password_input.press_sequentially(password, delay=randint(100, 500))
 
-    # Submit
+    # Submit. davinci.js intercepts the click and POSTs the form params to
+    # /davinci/connections/.../capabilities/customHTMLTemplate, then on success
+    # POSTs the returned JWT to PingFederate's /resume/as/authorization.ping
+    # which 302s through /oauth/callback to /Accounts/Summary.aspx. There is no
+    # DOM navigation between click and the davinci XHR, so wait on the response
+    # first, then the final navigation.
     log.info(f"Finding submit button element...")
     submit_button: Locator = page.locator("#ctlSignon_btnLogin")
+    await human_move_to(page, submit_button)
 
     log.info(f"Clicking submit button element...")
-    async with page.expect_navigation(
-        url=re.compile(r"/(Invitation|Accounts)/"), wait_until="load", timeout=TIMEOUT
-    ):
+    sleep(uniform(1, 3))
+    async with page.expect_response(
+        lambda r: "/davinci/connections/" in r.url
+        and "customHTMLTemplate" in r.url
+        and r.request.method == "POST",
+        timeout=TIMEOUT,
+    ) as resp_info:
         await submit_button.click()
+
+    resp = await resp_info.value
+    assert resp.ok, f"DaVinci login request rejected: HTTP {resp.status}"
+
+    log.info("Waiting for post-auth navigation to land on banking app...")
+    await page.wait_for_url(
+        re.compile(
+            r"onlinebanking\.becu\.org/BECUBankingWeb/"
+            r"(Accounts|Invitation|oauth/callback)"
+        ),
+        wait_until="load",
+        timeout=TIMEOUT,
+    )
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")

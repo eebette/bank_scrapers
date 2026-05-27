@@ -12,6 +12,7 @@ for t in tables:
 # Standard Library Imports
 from typing import List, Tuple, Dict, Union
 from datetime import datetime
+import asyncio
 import re
 from time import sleep
 
@@ -70,21 +71,26 @@ async def logon(
     log.info(f"Switching to iframe...")
     iframe: FrameLocator = page.frame_locator("#logonbox")
 
-    # Username
+    # Username. Both ID variants are scoped to the same iframe — using
+    # `.or_()` here triggers a patchright bug (`rootElements.getProperty is
+    # not a function` in `_customFindElementsByParsed`) where the second
+    # locator loses its frame scope. A single CSS comma selector inside the
+    # iframe sidesteps the bug; only one of these IDs is in the DOM at a
+    # time depending on which login variant Chase serves.
     log.info(f"Finding username element...")
-    username_input: Locator = iframe.locator("#userId-input").or_(
-        iframe.locator("#userId-input-field-input")
-    )
+    username_input: Locator = iframe.locator(
+        "#userId-input, #userId-input-field-input"
+    ).first
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
     await username_input.press_sequentially(username, delay=100)
 
-    # Password
+    # Password — same patchright `.or_()` workaround as username.
     log.info(f"Finding password element...")
-    password_input: Locator = iframe.locator("#password-input").or_(
-        iframe.locator("#password-input-field-input")
-    )
+    password_input: Locator = iframe.locator(
+        "#password-input, #password-input-field-input"
+    ).first
 
     log.info(f"Sending info to password element...")
     await password_input.press_sequentially(password, delay=100)
@@ -424,32 +430,44 @@ async def seek_accounts_data(page: Page) -> None:
     Navigate the website and click download button for the accounts data
     :param page: The Chrome browser application
     """
-    # Update Income modal pops up asynchronously after the dashboard renders, so
-    # checking once before this function isn't enough — give it a window to appear
-    # and dismiss if it does. Without this, the modal intercepts the More-dropdown
-    # click below and the run times out.
-    try:
-        await page.get_by_text("Confirm or update your income info").wait_for(
-            state="visible", timeout=10000
-        )
-        log.info("Update Income modal appeared; dismissing...")
-        await page.locator("button[data-testid='cancel-btn']").click(force=True)
-        await page.get_by_text("Confirm or update your income info").wait_for(
-            state="hidden", timeout=10000
-        )
-    except Exception:
-        pass
-
-    # Navigate shadow root
-    log.info(f"Finding shadow root for accounts dropdown element...")
+    # Chase mounts the Update Income interstitial asynchronously after the
+    # dashboard renders, replacing the dashboard React tree (so the dropdown
+    # disappears mid-click). The interstitial has only Cancel and Confirm
+    # buttons (no Skip/X), is role="main" (not dialog, so Escape doesn't fire
+    # any close handler), and is wrapped in a React focus-lock that swallows
+    # synthesized clicks on Cancel — so a clean re-goto is the least-detectable
+    # bypass. We race the click against the interstitial: if the interstitial
+    # wins, re-navigate and retry the click once.
+    interstitial: Locator = page.locator("form[data-testid='update-income']")
     dropdown_shadow_root: Locator = page.locator("mds-button[text='More']")
-
-    # Open accounts dropdown
-    log.info(f"Finding accounts dropdown element...")
     dropdown: Locator = dropdown_shadow_root.locator("button")
 
     log.info(f"Clicking accounts dropdown element...")
-    await dropdown.click()
+    for attempt in range(2):
+        click_task = asyncio.create_task(dropdown.click())
+        interstitial_task = asyncio.create_task(
+            interstitial.wait_for(state="visible", timeout=TIMEOUT)
+        )
+        done, pending = await asyncio.wait(
+            [click_task, interstitial_task], return_when=asyncio.FIRST_COMPLETED
+        )
+        for t in pending:
+            t.cancel()
+
+        if click_task in done:
+            click_task.result()
+            break
+
+        if interstitial_task in done and interstitial_task.exception() is None:
+            log.info(
+                "Update Income interstitial appeared during click; re-navigating to dashboard..."
+            )
+            await page.goto(HOMEPAGE, timeout=TIMEOUT, wait_until="load")
+            continue
+
+        raise asyncio.TimeoutError(
+            "Neither dropdown click nor Update Income interstitial detection completed"
+        )
 
     # Navigate another shadow root
     log.info(f"Finding shadow root for account details element...")

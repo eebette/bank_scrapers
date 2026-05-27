@@ -36,7 +36,12 @@ from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
-from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
+from bank_scrapers.scrapers.common.functions import (
+    screenshot_on_timeout,
+    settle_after_navigation,
+    human_move_to,
+    warm_up_session,
+)
 from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
 
 # Institution info
@@ -59,53 +64,6 @@ OTP_TIMEOUT: int = 1200 * 1000
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
-
-# Vanguard's login pages run an init burst (Tarsus collectors, ThreatMetrix
-# fingerprint, Akamai sensor JS) for ~5s after navigation, then enter steady-state
-# polling that never stops on its own. networkidle is misleading here; we wait a
-# generous fixed window. Acting before the init burst clears is itself a bot signal.
-SETTLE_WAIT_MIN_MS: int = 12000
-SETTLE_WAIT_MAX_MS: int = 18000
-
-
-async def settle_after_navigation(page: Page, label: str) -> None:
-    delay_ms: int = randint(SETTLE_WAIT_MIN_MS, SETTLE_WAIT_MAX_MS)
-    log.info(f"[settle/{label}] sleeping {delay_ms}ms for init burst to clear")
-    await page.wait_for_timeout(delay_ms)
-
-
-async def human_move_to(page: Page, locator: Locator) -> None:
-    """
-    Move the mouse along a curved path into the locator's bounding box, generating
-    mousemove events Akamai's sensor JS can score as human.
-    """
-    box = await locator.bounding_box()
-    if box is None:
-        return
-    tx: float = box["x"] + box["width"] * uniform(0.3, 0.7)
-    ty: float = box["y"] + box["height"] * uniform(0.3, 0.7)
-    wx: float = tx + uniform(-80, 80)
-    wy: float = ty + uniform(-80, 80)
-    await page.mouse.move(wx, wy, steps=randint(15, 30))
-    await page.wait_for_timeout(randint(40, 140))
-    await page.mouse.move(tx, ty, steps=randint(10, 20))
-    await page.wait_for_timeout(randint(60, 200))
-
-
-async def warm_up_session(page: Page) -> None:
-    """
-    Generate idle mouse and scroll activity so Akamai's sensor JS has a stream of
-    real-looking events to score before any input begins.
-    """
-    for _ in range(randint(2, 4)):
-        await page.mouse.move(
-            uniform(100, 1100), uniform(100, 600), steps=randint(10, 25)
-        )
-        await page.wait_for_timeout(randint(200, 600))
-    await page.mouse.wheel(0, randint(80, 250))
-    await page.wait_for_timeout(randint(300, 700))
-    await page.mouse.wheel(0, -randint(40, 200))
-    await page.wait_for_timeout(randint(200, 500))
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")

@@ -268,9 +268,10 @@ def post_failure(
     traceback_text: Union[str, None] = None,
 ) -> None:
     """
-    Posts a Markdown failure message to the webhook-router endpoint. The matrix-webhook fork fetches any http(s)
-    image link in the body and emits a captioned m.image event. Includes the Python traceback (truncated) and a
-    pointer to the page-HTML dump on the server so a future debug agent can cross-reference without re-running.
+    Posts a Markdown failure message to the webhook-router endpoint. The matrix-webhook fork accepts a top-level
+    `image_url` field — when present, the message is sent as a captioned m.image with `body` as the caption.
+    Includes the Python traceback (truncated) and a pointer to the page-HTML dump on the server so a future debug
+    agent can cross-reference without re-running.
     """
     err_msg: str = f"`{type(error).__name__}: {error}`"
 
@@ -282,9 +283,7 @@ def post_failure(
         tail: str = traceback_text[-1500:]
         parts.append(f"```\n{tail}\n```")
 
-    if screenshot_url:
-        parts.append(f"![screenshot]({screenshot_url})")
-    else:
+    if not screenshot_url:
         parts.append("_(no screenshot captured)_")
 
     if html_path_on_server:
@@ -295,10 +294,12 @@ def post_failure(
 
     body: str = "\n\n".join(parts)
 
+    payload: dict = {"body": body, "key": api_key}
+    if screenshot_url:
+        payload["image_url"] = screenshot_url
+
     try:
-        r: requests.Response = requests.post(
-            webhook_url, json={"body": body, "key": api_key}, timeout=60
-        )
+        r: requests.Response = requests.post(webhook_url, json=payload, timeout=60)
         r.raise_for_status()
     except Exception as exc:
         print(f"Failed to post failure to {webhook_url}: {exc}")

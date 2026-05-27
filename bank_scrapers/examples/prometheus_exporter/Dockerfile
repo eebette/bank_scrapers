@@ -3,7 +3,7 @@ FROM python:3.12
 COPY bank_exporter.py /
 COPY requirements.txt /
 
-RUN curl -fsSL https://get.docker.com | sh
+RUN curl -fsSL https://get.docker.com | sh && docker --version
 
 RUN pip install -r /requirements.txt
 
