@@ -39,12 +39,9 @@ INSTITUTION: str = "RoundPoint Mortgage"
 SYMBOL: str = "USD"
 
 # Logon page
-HOMEPAGE: str = (
-    "https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/login"
-)
-DASHBOARD_PAGE: str = (
-    "https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/dashboard"
-)
+BASE_URL: str = "https://ccmportal.youarehome.com/crosscountry"
+HOMEPAGE: str = f"{BASE_URL}/#/login"
+DASHBOARD_PAGE: str = f"{BASE_URL}/#/dashboard"
 
 # Timeout
 TIMEOUT: int = 60 * 1000
@@ -55,6 +52,7 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
+
     page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
@@ -242,11 +240,9 @@ async def get_loan_number(page: Page) -> str:
     :return: The full loan number as a string
     """
     # Navigate to the My Loan page
-    log.info(
-        f"Accessing: https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/my-loan"
-    )
+    log.info(f"Accessing: {BASE_URL}/#/my-loan")
     await page.goto(
-        "https://loansphereservicingdigital.bkiconnect.com/servicinghome/#/my-loan",
+        f"{BASE_URL}/#/my-loan",
         timeout=TIMEOUT,
         wait_until="load",
     )

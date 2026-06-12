@@ -265,6 +265,13 @@ async def handle_contact_information_prompt(page: Page) -> None:
     await ask_me_later_button.click(force=True)
 
 
+# The Update Income interstitial is a role="main" full-page takeover
+# (not a dialog) that Chase mounts asynchronously after the dashboard
+# renders. Match on its form testid rather than body text — the copy
+# changes but the testid is stable.
+UPDATE_INCOME_SELECTOR: str = "form[data-testid='update-income']"
+
+
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def is_update_income_prompt(page: Page) -> bool:
     """
@@ -273,17 +280,38 @@ async def is_update_income_prompt(page: Page) -> bool:
     :param page: The browser application
     :return: True if the prompt is shown
     """
-    return await page.get_by_text("Confirm or update your income info").is_visible()
+    return await page.locator(UPDATE_INCOME_SELECTOR).is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def handle_update_income_prompt(page: Page) -> None:
+async def handle_update_income_prompt(page: Page) -> bool:
     """
-    Dismiss the Update Income prompt by clicking its Cancel button.
+    Dismiss the Update Income interstitial if it is present.
+
+    The interstitial replaces the dashboard React tree, so leaving it up
+    detaches whatever element we're trying to click next. We click its
+    Cancel button (a normal, enabled button despite the focus-lock wrapper)
+    and wait for the interstitial to unmount; if Cancel doesn't take, we fall
+    back to a clean re-navigation to the dashboard.
+
+    :param page: The browser application
+    :return: True if an interstitial was found and dismissed, else False
     """
-    log.info("Handling Update Income prompt...")
-    cancel_button: Locator = page.locator("button[data-testid='cancel-btn']")
-    await cancel_button.click(force=True)
+    interstitial: Locator = page.locator(UPDATE_INCOME_SELECTOR)
+    if not await interstitial.is_visible():
+        return False
+
+    log.info("Update Income interstitial present; clicking Cancel to dismiss...")
+    try:
+        cancel_button: Locator = page.locator("button[data-testid='cancel-btn']")
+        await cancel_button.click(force=True, timeout=TIMEOUT)
+        await interstitial.wait_for(state="hidden", timeout=TIMEOUT)
+    except PlaywrightTimeoutError:
+        log.info(
+            "Cancel did not dismiss the interstitial; re-navigating to dashboard..."
+        )
+        await page.goto(HOMEPAGE, timeout=TIMEOUT, wait_until="load")
+    return True
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -424,65 +452,79 @@ async def handle_mfa_redirect_alternate(
         await submit_button.click()
 
 
+async def click_through_interstitial(page: Page, target: Locator) -> bool:
+    """
+    Click `target` while watching for the Update Income interstitial.
+
+    Chase can mount the interstitial at any point during navigation; when it
+    does it replaces the dashboard React tree and detaches `target`, leaving
+    the click to spin on "element was detached from the DOM, retrying" until it
+    times out. We race the click against the interstitial becoming visible: if
+    the interstitial wins, we abandon the (doomed) click, dismiss it, and tell
+    the caller to retry; otherwise the click stands.
+
+    :param page: The browser application
+    :param target: The element to click
+    :return: True if the click landed, False if the interstitial interrupted
+        (and was dismissed) and the caller should retry
+    """
+    interstitial: Locator = page.locator(UPDATE_INCOME_SELECTOR)
+    click_task = asyncio.create_task(target.click(timeout=TIMEOUT))
+    interstitial_task = asyncio.create_task(
+        interstitial.wait_for(state="visible", timeout=TIMEOUT)
+    )
+    done, pending = await asyncio.wait(
+        [click_task, interstitial_task], return_when=asyncio.FIRST_COMPLETED
+    )
+    for t in pending:
+        t.cancel()
+
+    # The interstitial appeared (and possibly detached the element mid-click):
+    # dismiss it and ask the caller to retry the navigation from the top.
+    if interstitial_task in done and interstitial_task.exception() is None:
+        log.info("Update Income interstitial appeared during navigation; dismissing...")
+        await handle_update_income_prompt(page)
+        return False
+
+    # The click finished first — surface any error it raised.
+    click_task.result()
+    return True
+
+
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def seek_accounts_data(page: Page) -> None:
     """
     Navigate the website and click download button for the accounts data
     :param page: The Chrome browser application
     """
-    # Chase mounts the Update Income interstitial asynchronously after the
-    # dashboard renders, replacing the dashboard React tree (so the dropdown
-    # disappears mid-click). The interstitial has only Cancel and Confirm
-    # buttons (no Skip/X), is role="main" (not dialog, so Escape doesn't fire
-    # any close handler), and is wrapped in a React focus-lock that swallows
-    # synthesized clicks on Cancel — so a clean re-goto is the least-detectable
-    # bypass. We race the click against the interstitial: if the interstitial
-    # wins, re-navigate and retry the click once.
-    interstitial: Locator = page.locator("form[data-testid='update-income']")
+    # The Update Income interstitial can appear before OR mid-navigation,
+    # detaching whichever element we're clicking. Guard every click against it
+    # and retry the whole "More" -> "Account details" sequence; dismissing the
+    # interstitial closes the dropdown, so a partial retry is not enough.
     dropdown_shadow_root: Locator = page.locator("mds-button[text='More']")
     dropdown: Locator = dropdown_shadow_root.locator("button")
+    account_details_button: Locator = dropdown_shadow_root.locator(
+        "mds-menu-button-overlay"
+    ).locator("button[aria-label='Account details']")
 
-    log.info(f"Clicking accounts dropdown element...")
-    for attempt in range(2):
-        click_task = asyncio.create_task(dropdown.click())
-        interstitial_task = asyncio.create_task(
-            interstitial.wait_for(state="visible", timeout=TIMEOUT)
-        )
-        done, pending = await asyncio.wait(
-            [click_task, interstitial_task], return_when=asyncio.FIRST_COMPLETED
-        )
-        for t in pending:
-            t.cancel()
+    for attempt in range(3):
+        # Clear any interstitial already sitting on the dashboard first.
+        await handle_update_income_prompt(page)
 
-        if click_task in done:
-            click_task.result()
-            break
-
-        if interstitial_task in done and interstitial_task.exception() is None:
-            log.info(
-                "Update Income interstitial appeared during click; re-navigating to dashboard..."
-            )
-            await page.goto(HOMEPAGE, timeout=TIMEOUT, wait_until="load")
+        log.info("Clicking accounts dropdown element...")
+        if not await click_through_interstitial(page, dropdown):
             continue
 
-        raise asyncio.TimeoutError(
-            "Neither dropdown click nor Update Income interstitial detection completed"
-        )
+        log.info("Clicking button for account details element...")
+        if not await click_through_interstitial(page, account_details_button):
+            continue
 
-    # Navigate another shadow root
-    log.info(f"Finding shadow root for account details element...")
-    account_details_shadow_root: Locator = dropdown_shadow_root.locator(
-        "mds-menu-button-overlay"
+        return
+
+    raise PlaywrightTimeoutError(
+        "Could not reach account details: the Update Income interstitial kept "
+        "interrupting navigation after 3 attempts."
     )
-
-    # Wait for the account details button to be clickable and go to it
-    log.info(f"Finding button for account details element...")
-    account_details_button: Locator = account_details_shadow_root.locator(
-        "button[aria-label='Account details']"
-    )
-
-    log.info(f"Clicking button for account details element...")
-    await account_details_button.click()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
