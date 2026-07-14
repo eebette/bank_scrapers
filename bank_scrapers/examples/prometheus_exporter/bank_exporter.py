@@ -224,9 +224,9 @@ def get_registry() -> Tuple[CollectorRegistry, Gauge, Gauge]:
 
 def latest_screenshot_for(bank_name: str) -> Union[str, None]:
     """
-    Returns the absolute path to the most recent screenshot in the bank_scrapers errors dir, preferring files whose
-    name contains the bank name (case-insensitive, spaces normalized to underscores). Returns None if the errors
-    dir is missing or empty.
+    Returns the absolute path to the most recent screenshot in the bank_scrapers errors dir whose name contains
+    the bank name (case-insensitive, spaces normalized to underscores). Returns None if no screenshot matches —
+    a screenshot from another bank's failure in the same run must not be attached to this bank's alert.
     """
     errors_dir: str = f"{ROOT_DIR}/errors"
     try:
@@ -241,9 +241,6 @@ def latest_screenshot_for(bank_name: str) -> Union[str, None]:
         if needle in f.lower().replace(" ", "_"):
             return os.path.join(errors_dir, f)
 
-    for f in files:
-        if f.lower().endswith(".png"):
-            return os.path.join(errors_dir, f)
     return None
 
 

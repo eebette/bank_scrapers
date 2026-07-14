@@ -244,9 +244,21 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
     :return: A pandas dataframe of the downloaded data
     """
     log.info(f"Opening file: {full_path}")
+    # The export's data rows carry a trailing comma (one more field than the header names), which pandas treats
+    # as a bad line with index_col=False; truncate those rows to the header width instead of dropping them
+    with open(full_path, encoding="utf-8-sig") as file:
+        header_length: int = len(file.readline().split(","))
     df: pd.DataFrame = pd.read_csv(
-        f"{full_path}", on_bad_lines="skip", index_col=False
+        f"{full_path}",
+        encoding="utf-8-sig",
+        index_col=False,
+        engine="python",
+        on_bad_lines=lambda line: line[:header_length],
     )
+
+    # Fidelity renamed the export's columns from title case ("Account Name") to sentence case ("Account name");
+    # normalize to title case so both formats parse
+    df.columns = df.columns.str.title()
 
     log.info("Parsing data...")
     df: pd.DataFrame = df[df["Account Name"].notna()]
