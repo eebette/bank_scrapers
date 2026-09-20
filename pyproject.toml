@@ -20,7 +20,6 @@ dependencies = [
     "yfinance>=0.2.65",
     "web3>=7.0.0b6",
     "PyVirtualDisplay>=3.0",
-    "pybadges>=3.0.1",
     "prometheus_client>=0.20.0",
     "CurrencyConverter>=0.17.23",
     "patchright==1.56.0",
@@ -28,6 +27,9 @@ dependencies = [
     "embit>=0.8.0",
     "requests>=2.31.0"
 ]
+
+[project.optional-dependencies]
+docs = ["anybadge>=1.16.0"]
 
 [project.urls]
 homepage = "https://github.com/eebette/bank_scrapers/tree/master"
