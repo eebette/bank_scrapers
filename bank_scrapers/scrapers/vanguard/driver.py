@@ -10,8 +10,9 @@ for t in tables:
 """
 
 # Standard Library Imports
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 from datetime import datetime
+import asyncio
 import re
 import os
 from tempfile import TemporaryDirectory
@@ -57,6 +58,21 @@ LOGON_PAGE: str = "https://logon.vanguard.com/logon"
 DASHBOARD_PAGE: str = (
     "https://personal1.vanguard.com/ofu-open-fin-exchange-webapp/ofx-welcome"
 )
+
+# Market-holiday closure notice. Vanguard bounces the post-MFA redirect here
+# on exchange holidays; the host has moved from challenges.web.vanguard.com to
+# a path under www.vanguard.com, so match either.
+HOLIDAY_URL_PATTERN: re.Pattern = re.compile(
+    r"(challenges\.web\.vanguard\.com/holiday"
+    r"|vanguard\.com/en/investor/portfolio/challenges/holiday)"
+)
+
+# Vanguard answers the credential POST with a generic outage page now and then
+# (seen 3x in Sept 2026, each time the next scheduled run was fine). It lands
+# before MFA, so no OTP is burned by retrying the logon with a fresh session.
+TECH_DIFFICULTIES_MARKER: str = "experiencing technical difficulties"
+TECH_DIFFICULTIES_ATTEMPTS: int = 2
+TECH_DIFFICULTIES_BACKOFF: int = 120
 
 # Timeout
 TIMEOUT: int = 60 * 1000
@@ -149,7 +165,30 @@ async def wait_for_redirect(page: Page) -> None:
     target_text: re.Pattern = re.compile(
         r"(We need to verify it's you|Welcome back,|How would you like to receive your one-time code)"
     )
-    await expect(page.get_by_text(target_text)).to_be_visible(timeout=TIMEOUT)
+    try:
+        await expect(page.get_by_text(target_text)).to_be_visible(timeout=TIMEOUT)
+    except AssertionError:
+        # Vanguard serves its own outage interstitial on this hop; surface that rather
+        # than a locator timeout that reads like a selector break.
+        if await is_technical_difficulties(page):
+            raise AssertionError(
+                "Vanguard returned its 'We're experiencing technical difficulties' page "
+                "after logon; the site is unavailable, not the selectors."
+            )
+        raise
+
+
+async def is_technical_difficulties(page: Page) -> bool:
+    """
+    Checks whether the page currently shows Vanguard's generic outage notice
+    :param page: The browser application
+    :return: True if the outage page is displayed
+    """
+    try:
+        content: str = await page.content()
+    except Exception:
+        return False
+    return TECH_DIFFICULTIES_MARKER in content
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -259,7 +298,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
         url=re.compile(
             r"(dashboard\.web\.vanguard\.com"
             r"|www\.vanguard\.com/en/investor/portfolio/dashboard"
-            r"|challenges\.web\.vanguard\.com/holiday)"
+            r"|" + HOLIDAY_URL_PATTERN.pattern + r")"
         ),
         wait_until="load",
         timeout=TIMEOUT,
@@ -274,7 +313,7 @@ async def is_holiday_redirect(page: Page) -> bool:
     :param page: The browser application
     :return: True if the site is redirecting to a holiday closure notice
     """
-    if "challenges.web.vanguard.com/holiday" in page.url:
+    if HOLIDAY_URL_PATTERN.search(page.url):
         log.info("Redirected to holiday closure notice...")
         return True
     else:
@@ -488,18 +527,35 @@ async def run(
     )
     page: Page = await browser.new_page()
 
-    # Navigate to the logon page and submit credentials
-    await logon(page, username, password)
+    for attempt in range(TECH_DIFFICULTIES_ATTEMPTS):
+        # Navigate to the logon page and submit credentials
+        await logon(page, username, password)
 
-    # The credential POST kicks off a redirect chain (login.vanguard.com →
-    # personal1.vanguard.com/usa/login → personal1.vanguard.com/security/challenge-me/…)
-    # plus a Tarsus/ThreatMetrix init burst on the new origin. Let it clear
-    # before we start expecting the MFA-verify text — wait_for_redirect's 60s
-    # timeout has been seen to lose this race in the cron environment.
-    await settle_after_navigation(page, "post_login")
+        # The credential POST kicks off a redirect chain (login.vanguard.com →
+        # personal1.vanguard.com/usa/login → personal1.vanguard.com/security/challenge-me/…)
+        # plus a Tarsus/ThreatMetrix init burst on the new origin. Let it clear
+        # before we start expecting the MFA-verify text — wait_for_redirect's 60s
+        # timeout has been seen to lose this race in the cron environment.
+        await settle_after_navigation(page, "post_login")
 
-    # Wait for landing page or MFA
-    await wait_for_redirect(page)
+        # Wait for landing page or MFA
+        try:
+            await wait_for_redirect(page)
+            break
+        except AssertionError:
+            outage: bool = await is_technical_difficulties(page)
+            if not outage or attempt == TECH_DIFFICULTIES_ATTEMPTS - 1:
+                raise
+
+            backoff: int = TECH_DIFFICULTIES_BACKOFF * (attempt + 1)
+            log.warning(
+                f"Vanguard served its outage page after logon; retrying in {backoff}s "
+                f"with a fresh session (attempt {attempt + 2}/{TECH_DIFFICULTIES_ATTEMPTS})..."
+            )
+            await page.close()
+            await browser.clear_cookies()
+            await asyncio.sleep(backoff)
+            page = await browser.new_page()
 
     # Handle MFA if prompted
     if await is_mfa_redirect(page):
