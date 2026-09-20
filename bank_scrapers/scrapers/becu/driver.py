@@ -12,6 +12,7 @@ for t in tables:
 # Standard Library Imports
 from typing import List, Tuple, Union
 from datetime import datetime
+import asyncio
 import re
 from io import StringIO
 from time import sleep
@@ -26,6 +27,8 @@ from patchright.async_api import (
     Locator,
     expect,
     BrowserContext,
+    Error as PlaywrightError,
+    TimeoutError as PlaywrightTimeoutError,
 )
 from pyvirtualdisplay import Display
 
@@ -56,6 +59,26 @@ TIMEOUT: int = 60 * 1000
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
+# DaVinci accepts the credentials but PingFederate intermittently rejects the resume hop
+# with "Page Expired" instead of 302ing to the banking app — its risk scoring rather than
+# a credential problem. It clears on a fresh session, so retry rather than fail the scrape.
+PAGE_EXPIRED_MARKER: str = "Page Expired"
+PAGE_EXPIRED_ATTEMPTS: int = 3
+PAGE_EXPIRED_BACKOFF: int = 45
+
+
+async def is_page_expired(page: Page) -> bool:
+    """
+    Checks whether the page currently shows PingFederate's "Page Expired" interstitial
+    :param page: The browser application
+    :return: True if the auth flow was rejected
+    """
+    try:
+        content: str = await page.content()
+    except PlaywrightError:
+        return False
+    return PAGE_EXPIRED_MARKER in content
+
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
@@ -71,8 +94,12 @@ async def logon(
     log.info(f"Accessing: {homepage}")
     await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
+    # BECU relabeled the header link from "Log In" to "Member Login"; match on the
+    # Login.aspx href instead, which has survived both renames.
     log.info("Waiting for Log In button to render...")
-    login_link: Locator = page.locator('a[title="Log In"]').first
+    login_link: Locator = page.locator(
+        'a[href*="BECUBankingWeb/Login.aspx"]'
+    ).first
     await expect(login_link).to_be_visible(timeout=TIMEOUT)
 
     await settle_after_navigation(page, "homepage")
@@ -265,7 +292,24 @@ async def run(
     page: Page = await browser.new_page()
 
     # Logon to the site
-    await logon(page, username, password)
+    for attempt in range(PAGE_EXPIRED_ATTEMPTS):
+        try:
+            await logon(page, username, password)
+            break
+        except (PlaywrightTimeoutError, AssertionError):
+            expired: bool = await is_page_expired(page)
+            if not expired or attempt == PAGE_EXPIRED_ATTEMPTS - 1:
+                raise
+
+            backoff: int = PAGE_EXPIRED_BACKOFF * (attempt + 1)
+            log.warning(
+                f"PingFederate returned Page Expired; retrying in {backoff}s with a fresh "
+                f"session (attempt {attempt + 2}/{PAGE_EXPIRED_ATTEMPTS})..."
+            )
+            await page.close()
+            await browser.clear_cookies()
+            await asyncio.sleep(backoff)
+            page = await browser.new_page()
 
     # Handle marketing page if presented
     if await is_marketing_redirect(page):

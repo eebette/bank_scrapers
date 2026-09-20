@@ -12,6 +12,7 @@ for t in tables:
 # Standard Library Imports
 from typing import List, Tuple, Union
 from datetime import datetime
+import asyncio
 import re
 from io import StringIO
 
@@ -23,6 +24,8 @@ from patchright.async_api import (
     Page,
     Locator,
     BrowserContext,
+    Error as PlaywrightError,
+    TimeoutError as PlaywrightTimeoutError,
 )
 from pyvirtualdisplay import Display
 
@@ -46,6 +49,27 @@ TIMEOUT: int = 60 * 1000
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
+
+# Akamai in front of smbctb.co.jp serves an "Access Denied" interstitial instead of the
+# real page when it dislikes the caller. It fires on the login page and on the post-login
+# online.smbctb.co.jp hop, and clears on its own after a pause, so a denied attempt is
+# retried with a fresh (cookie-less) session rather than failing the whole scrape.
+ACCESS_DENIED_MARKERS: Tuple[str, ...] = ("Access Denied", "errors.edgesuite.net")
+ACCESS_DENIED_ATTEMPTS: int = 3
+ACCESS_DENIED_BACKOFF: int = 60
+
+
+async def is_access_denied(page: Page) -> bool:
+    """
+    Checks whether the page currently shows Akamai's Access Denied interstitial
+    :param page: The browser application
+    :return: True if the edge denied the request
+    """
+    try:
+        content: str = await page.content()
+    except PlaywrightError:
+        return False
+    return any(marker in content for marker in ACCESS_DENIED_MARKERS)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -184,11 +208,29 @@ async def run(
     )
     page: Page = await browser.new_page()
 
-    # Navigate to the logon page and submit credentials
-    await logon(page, username, password)
+    for attempt in range(ACCESS_DENIED_ATTEMPTS):
+        try:
+            # Navigate to the logon page and submit credentials
+            await logon(page, username, password)
 
-    # Navigate the site and download the accounts data
-    accounts_data: List[Locator] = await seek_accounts_data(page)
+            # Navigate the site and download the accounts data
+            accounts_data: List[Locator] = await seek_accounts_data(page)
+            break
+        except (PlaywrightTimeoutError, AssertionError):
+            denied: bool = await is_access_denied(page)
+            if not denied or attempt == ACCESS_DENIED_ATTEMPTS - 1:
+                raise
+
+            backoff: int = ACCESS_DENIED_BACKOFF * (attempt + 1)
+            log.warning(
+                f"Akamai denied the request; retrying in {backoff}s with a fresh session "
+                f"(attempt {attempt + 2}/{ACCESS_DENIED_ATTEMPTS})..."
+            )
+            await page.close()
+            await browser.clear_cookies()
+            await asyncio.sleep(backoff)
+            page = await browser.new_page()
+
     accounts_data_df: pd.DataFrame = await parse_accounts_summary(accounts_data)
 
     # Process tables

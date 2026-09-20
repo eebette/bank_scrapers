@@ -116,9 +116,7 @@ async def seek_accounts_data(page: Page) -> Tuple[str, str]:
     zestimate: str = await zestimate_element.text_content()
 
     log.info(f"Finding address element...")
-    address_element: Locator = page.locator(
-        "//div[contains(@class, 'AddressWrapper')]//h1"
-    )
+    address_element: Locator = page.locator("div[data-testid='fs-chip-container'] h1")
     address: str = await address_element.text_content()
 
     return address, zestimate

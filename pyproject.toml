@@ -24,7 +24,9 @@ dependencies = [
     "prometheus_client>=0.20.0",
     "CurrencyConverter>=0.17.23",
     "patchright==1.56.0",
-    "cloverlabs-camoufox>=0.5.5"
+    "cloverlabs-camoufox>=0.5.5",
+    "embit>=0.8.0",
+    "requests>=2.31.0"
 ]
 
 [project.urls]

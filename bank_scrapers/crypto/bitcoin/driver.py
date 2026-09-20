@@ -1,6 +1,9 @@
 """
 This file provides the get_accounts_info() function for a Bitcoin zpub address
 
+Balances are computed locally by deriving the wallet's BIP-84 addresses from the zpub and summing their UTXO
+balances via the mempool.space REST API. No browser or third-party wallet-explorer site is involved.
+
 Example Usage:
 ```
 tables = get_accounts_info(zpub="{zpub}")
@@ -10,63 +13,72 @@ for t in tables:
 """
 
 # Standard Library Imports
+from time import sleep
 from typing import List, Tuple, Union
-from datetime import datetime
-import pandas as pd
 
 # Non-Standard Imports
-from patchright.async_api import (
-    async_playwright,
-    Playwright,
-    Page,
-    Locator,
-    expect,
-    BrowserContext,
-)
-from pyvirtualdisplay import Display
+import pandas as pd
+import requests
+from embit import bip32, script
+from embit.bip32 import HDKey
+from embit.networks import NETWORKS
 
 # Local Imports
-from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.common.functions import convert_to_prometheus, get_usd_rate_crypto
-from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 
 # Institution info
 INSTITUTION: str = "BITCOIN"
 SYMBOL: str = "BTC"
 
-# Logon page
-HOMEPAGE: str = "https://www.walletexplorer.com/pub"
+# Balance API
+API_URL: str = "https://mempool.space/api/address"
 
-# Timeout
-TIMEOUT: int = 180 * 1000
+# BIP-44 gap limit: stop scanning a chain after this many consecutive unused addresses
+GAP_LIMIT: int = 20
 
-# Error screenshot config
-ERROR_DIR: str = f"{ROOT_DIR}/errors"
+# Timeout (seconds, per API request)
+TIMEOUT: int = 30
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def get_account_balance(page: Page) -> float:
+def get_account_balance(zpub: str) -> float:
     """
-    Gets the account/wallet balance from the webpage
-    :param page: The browser application
-    :return: A float containing the account/wallet balance
+    Gets the wallet balance by deriving the zpub's BIP-84 receive/change addresses and summing their balances
+    :param zpub: The wallet's zpub address
+    :return: A float containing the account/wallet balance in BTC
     """
-    log.info(f"Getting account balance from page...")
+    log.info(f"Deriving addresses and querying balances via {API_URL}...")
+    hd: HDKey = bip32.HDKey.from_string(zpub)
 
-    log.info("Waiting for account balance to be visible...")
-    table_locator: Locator = page.locator("table[class='txs']")
-    await expect(table_locator).to_be_visible(timeout=TIMEOUT)
+    balance_sats: int = 0
+    for chain in (0, 1):
+        gap: int = 0
+        index: int = 0
+        while gap < GAP_LIMIT:
+            address: str = script.p2wpkh(hd.derive([chain, index])).address(
+                NETWORKS["main"]
+            )
+            response: requests.Response = requests.get(
+                f"{API_URL}/{address}", timeout=TIMEOUT
+            )
+            response.raise_for_status()
+            stats: dict = response.json()
 
-    row_locator: Locator = table_locator.locator("tr").nth(1)
-    await expect(row_locator).to_be_visible(timeout=TIMEOUT)
+            chain_stats: dict = stats["chain_stats"]
+            mempool_stats: dict = stats["mempool_stats"]
+            balance_sats += (
+                chain_stats["funded_txo_sum"] - chain_stats["spent_txo_sum"]
+            ) + (mempool_stats["funded_txo_sum"] - mempool_stats["spent_txo_sum"])
 
-    amount_locator: Locator = row_locator.locator(".amount").nth(1)
-    await expect(amount_locator).to_be_visible(timeout=TIMEOUT)
+            used: bool = chain_stats["tx_count"] + mempool_stats["tx_count"] > 0
+            gap = 0 if used else gap + 1
+            index += 1
+            sleep(0.2)
 
-    amount: str = await amount_locator.text_content()
-    return float(amount)
+    balance: float = balance_sats / 1e8
+    log.info(f"Wallet balance resolved from {index} derived addresses.")
+    return balance
 
 
 def parse_accounts_summary(zpub: str, balance: float) -> pd.DataFrame:
@@ -91,35 +103,18 @@ def parse_accounts_summary(zpub: str, balance: float) -> pd.DataFrame:
     return df
 
 
-async def run(
-    playwright: Playwright, zpub: str, prometheus: bool = False
+async def get_accounts_info(
+    zpub: str,
+    prometheus: bool = False,
 ) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
     """
     Gets the accounts info for a given user/pass as a list of pandas dataframes
-    :param playwright: The playwright object for running this script
     :param zpub: Your wallet's zpub address
     :param prometheus: True/False value for exporting as Prometheus-friendly exposition
     :return: A list of pandas dataframes of accounts info tables
     """
-    # Instantiate browser
-    browser: BrowserContext = await playwright.chromium.launch_persistent_context(
-        user_data_dir=str(),
-        channel="chrome",
-        headless=False,
-        no_viewport=True,
-    )
-    page: Page = await browser.new_page()
-
-    # Access the site with the given zpub as a search parameter
-    log.info(f"Accessing {HOMEPAGE}/{zpub}?show_txs")
-    screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")(
-        await page.goto(
-            f"{HOMEPAGE}/{zpub}?show_txs", timeout=TIMEOUT, wait_until="load"
-        )
-    )
-
     # Get the account balance
-    account_balance: float = await get_account_balance(page)
+    account_balance: float = get_account_balance(zpub)
 
     return_tables: List[pd.DataFrame] = [parse_accounts_summary(zpub, account_balance)]
 
@@ -149,19 +144,3 @@ async def run(
         )
 
     return return_tables
-
-
-async def get_accounts_info(
-    zpub: str,
-    prometheus: bool = False,
-) -> Union[List[pd.DataFrame], Tuple[List[PrometheusMetric], List[PrometheusMetric]]]:
-    """
-    Gets the accounts info for a given user/pass as a list of pandas dataframes
-    :param zpub: Your wallet's zpub address
-    :param prometheus: True/False value for exporting as Prometheus-friendly exposition
-    :return: A list of pandas dataframes of accounts info tables
-    """
-    # Instantiate the virtual display
-    with Display(visible=False, size=(1280, 720)):
-        async with async_playwright() as playwright:
-            return await run(playwright, zpub, prometheus)

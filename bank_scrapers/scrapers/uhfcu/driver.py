@@ -247,78 +247,6 @@ async def parse_accounts_summary(table: Locator) -> pd.DataFrame:
     return df
 
 
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def navigate_to_credit_accounts_data(
-    context: BrowserContext, page: Page, table: Locator
-) -> Page:
-    """
-    Navigate the website to get to the credit accounts details subpage
-    :param context: The Chrome browser application's context
-    :param page: The Chrome browser page
-    :param table: The table on the dashboard which is being navigated for info
-    :return: A Page at the credit card info page
-    """
-    # Click into the credit card table
-    log.info(f"Clicking into the credit card table...")
-    await table.click()
-
-    # Navigate to the Manage Cards button on the page and click it
-    log.info(f"Finding the Manage Cards button element...")
-    manage_cards_button: Locator = page.locator("app-manage-cards button")
-
-    # Wait for the new window or tab
-    async with context.expect_page() as credit_card_page:
-        log.info(f"Clicking the Manage Cards button element...")
-        await manage_cards_button.click()
-
-    return await credit_card_page.value
-
-
-@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
-async def parse_credit_card_info(page: Page) -> pd.DataFrame:
-    """
-    Parses the info on the credit card accounts screen into a pandas df
-    :param page: The Chrome browser application
-    :return: A pandas dataframe of the credit card accounts data on the page
-    """
-    # Identify the account info rows on the screen
-    log.info(f"Finding the credit card details table...")
-    await expect(
-        page.locator("div[id='CurrentBalance'] div.module.module-condensed")
-    ).to_be_visible(timeout=TIMEOUT)
-    data_table: Locator = page.locator(
-        "div[id='CurrentBalance'] div.module.module-condensed"
-    )
-
-    # Pull each row as a newline separated kv pair
-    data: List[Locator] = await data_table.locator(".text-underlined.grid").all()
-
-    # Split the kv pairs and enter into a dict
-    data_dict: Dict = dict()
-    for d in data:
-        text_content: str = await d.text_content()
-        value: str = await d.locator("span.always-right").text_content()
-
-        label: str = re.sub(r"(\s*)" + re.escape(value), "", text_content)
-        label: str = re.sub(r"Go to(.*)$", "", label)
-
-        data_dict[label.strip()] = [value.strip()]
-
-    # Make a df from the dict
-    df: pd.DataFrame = pd.DataFrame(data=data_dict)
-
-    account_details: Locator = page.get_by_text("Account Details").locator("..")
-    await account_details.click()
-
-    account_number: str = await page.locator(
-        "p[id='AccountNumber'] span"
-    ).text_content()
-
-    df["Account Desc"]: pd.DataFrame = account_number
-
-    return df
-
-
 def post_process_tables(
     deposit_table: pd.DataFrame, credit_table: pd.DataFrame
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -328,9 +256,9 @@ def post_process_tables(
     :param credit_table: The Pandas dataframe parsed from the credit accounts data
     :return: A tuple containing the cleaned up dataframes for both deposit and credit accounts
     """
-    for table in [deposit_table, credit_table]:
+    for table, account_type in [(deposit_table, "deposit"), (credit_table, "credit")]:
         table["symbol"]: pd.DataFrame = SYMBOL
-        table["account_type"]: pd.DataFrame = "deposit"
+        table["account_type"]: pd.DataFrame = account_type
         table["usd_value"]: pd.DataFrame = 1.0
 
         for col in ["Current Balance", "Pending Balance", "Available"]:
@@ -340,13 +268,11 @@ def post_process_tables(
                 )
                 table[col]: pd.DataFrame = pd.to_numeric(table[col])
 
-    deposit_table["Account Desc"]: pd.DataFrame = deposit_table["Account Desc"].replace(
-        to_replace=r".* - ", value="", regex=True
-    )
-
-    credit_table["Account Desc"]: pd.DataFrame = credit_table["Account Desc"].replace(
-        to_replace=r"[^0-9]+", value="", regex=True
-    )
+        # Both deposit and credit tiles render the description as
+        # "<Account Holder> - XXX <account>"; keep only the masked account
+        table["Account Desc"]: pd.DataFrame = table["Account Desc"].replace(
+            to_replace=r".* - ", value="", regex=True
+        )
 
     return deposit_table, credit_table
 
@@ -391,13 +317,11 @@ async def run(
     deposit_tables: List = list()
     credit_tables: List = list()
     for t in tables:
-        if "Share Account" in await t.text_content():
+        tile_text: str = await t.text_content()
+        if "Share Account" in tile_text:
             deposit_tables.append(await parse_accounts_summary(t))
-        elif "Loan Account" in await t.text_content():
-            credit_card_page: Page = await navigate_to_credit_accounts_data(
-                browser, page, t
-            )
-            credit_tables.append(await parse_credit_card_info(credit_card_page))
+        elif "Loan Account" in tile_text:
+            credit_tables.append(await parse_accounts_summary(t))
 
     deposit_table: pd.DataFrame = pd.concat(deposit_tables)
     credit_table: pd.DataFrame = pd.concat(credit_tables)
