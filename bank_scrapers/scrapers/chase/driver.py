@@ -314,6 +314,65 @@ async def handle_update_income_prompt(page: Page) -> bool:
     return True
 
 
+# Chase also raises MDS dialog modals over the dashboard after it renders —
+# most often the "confirm your contact information" prompt (class
+# `mds-dialog--cmb`, listing the account's email/phone). Unlike the Update
+# Income interstitial the React tree stays intact, but the modal backdrop
+# intercepts pointer events, so any click underneath it spins until timeout.
+DIALOG_MODAL_SELECTOR: str = "mds-dialog-modal:visible"
+DIALOG_DISMISS_PATTERN: re.Pattern = re.compile(
+    r"^\s*(Ask me later|Not now|Not right now|Maybe later|Remind me later|"
+    r"No thanks|Skip|Stay signed in|Close|Dismiss)\s*$",
+    re.IGNORECASE,
+)
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_dialog_modal(page: Page) -> bool:
+    """
+    Checks whether an MDS dialog modal is currently open over the page
+    :param page: The browser application
+    :return: True if a modal is visible
+    """
+    return await page.locator(DIALOG_MODAL_SELECTOR).count() > 0
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_dialog_modal(page: Page) -> bool:
+    """
+    Dismiss any open MDS dialog modal (e.g. the contact information prompt).
+
+    Tries the modal's own "later"/"close" style button first, then Escape, and
+    falls back to re-navigating to the dashboard if the modal will not close.
+
+    :param page: The browser application
+    :return: True if a modal was found and dismissed, else False
+    """
+    modal: Locator = page.locator(DIALOG_MODAL_SELECTOR).first
+    if await modal.count() == 0:
+        return False
+
+    log.info("Dialog modal present; dismissing...")
+    try:
+        dismiss_button: Locator = modal.get_by_role(
+            "button", name=DIALOG_DISMISS_PATTERN
+        ).first
+        if await dismiss_button.count() == 0:
+            dismiss_button = modal.get_by_text(DIALOG_DISMISS_PATTERN).first
+
+        if await dismiss_button.count() > 0:
+            log.info("Clicking modal dismiss button...")
+            await dismiss_button.click(force=True, timeout=TIMEOUT)
+        else:
+            log.info("No dismiss button found in modal; pressing Escape...")
+            await page.keyboard.press("Escape")
+        await modal.wait_for(state="hidden", timeout=TIMEOUT)
+    except PlaywrightTimeoutError:
+        log.info("Modal did not close; re-navigating to dashboard...")
+        await page.goto(HOMEPAGE, timeout=TIMEOUT, wait_until="load")
+    return True
+
+
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def handle_mfa_redirect_alternate(
     page: Page, password: str, mfa_auth: ChaseMfaAuth = None
@@ -454,27 +513,34 @@ async def handle_mfa_redirect_alternate(
 
 async def click_through_interstitial(page: Page, target: Locator) -> bool:
     """
-    Click `target` while watching for the Update Income interstitial.
+    Click `target` while watching for the Update Income interstitial and for
+    MDS dialog modals.
 
     Chase can mount the interstitial at any point during navigation; when it
     does it replaces the dashboard React tree and detaches `target`, leaving
     the click to spin on "element was detached from the DOM, retrying" until it
-    times out. We race the click against the interstitial becoming visible: if
-    the interstitial wins, we abandon the (doomed) click, dismiss it, and tell
-    the caller to retry; otherwise the click stands.
+    times out. Dialog modals (e.g. the contact information prompt) leave the
+    tree intact but their backdrop intercepts pointer events, so the click
+    spins on "<mds-dialog-modal> intercepts pointer events" instead. We race
+    the click against either overlay becoming visible: if an overlay wins, we
+    abandon the (doomed) click, dismiss it, and tell the caller to retry;
+    otherwise the click stands.
 
     :param page: The browser application
     :param target: The element to click
-    :return: True if the click landed, False if the interstitial interrupted
-        (and was dismissed) and the caller should retry
+    :return: True if the click landed, False if an overlay interrupted (and
+        was dismissed) and the caller should retry
     """
     interstitial: Locator = page.locator(UPDATE_INCOME_SELECTOR)
+    modal: Locator = page.locator(DIALOG_MODAL_SELECTOR).first
     click_task = asyncio.create_task(target.click(timeout=TIMEOUT))
     interstitial_task = asyncio.create_task(
         interstitial.wait_for(state="visible", timeout=TIMEOUT)
     )
+    modal_task = asyncio.create_task(modal.wait_for(state="visible", timeout=TIMEOUT))
     done, pending = await asyncio.wait(
-        [click_task, interstitial_task], return_when=asyncio.FIRST_COMPLETED
+        [click_task, interstitial_task, modal_task],
+        return_when=asyncio.FIRST_COMPLETED,
     )
     for t in pending:
         t.cancel()
@@ -484,6 +550,12 @@ async def click_through_interstitial(page: Page, target: Locator) -> bool:
     if interstitial_task in done and interstitial_task.exception() is None:
         log.info("Update Income interstitial appeared during navigation; dismissing...")
         await handle_update_income_prompt(page)
+        return False
+
+    # A dialog modal opened over the target: dismiss it and retry likewise.
+    if modal_task in done and modal_task.exception() is None:
+        log.info("Dialog modal appeared during navigation; dismissing...")
+        await handle_dialog_modal(page)
         return False
 
     # The click finished first — surface any error it raised.
@@ -497,10 +569,11 @@ async def seek_accounts_data(page: Page) -> None:
     Navigate the website and click download button for the accounts data
     :param page: The Chrome browser application
     """
-    # The Update Income interstitial can appear before OR mid-navigation,
-    # detaching whichever element we're clicking. Guard every click against it
-    # and retry the whole "More" -> "Account details" sequence; dismissing the
-    # interstitial closes the dropdown, so a partial retry is not enough.
+    # The Update Income interstitial (and any dialog modal) can appear before
+    # OR mid-navigation, detaching or covering whichever element we're
+    # clicking. Guard every click against them and retry the whole "More" ->
+    # "Account details" sequence; dismissing an overlay closes the dropdown,
+    # so a partial retry is not enough.
     dropdown_shadow_root: Locator = page.locator("mds-button[text='More']")
     dropdown: Locator = dropdown_shadow_root.locator("button")
     account_details_button: Locator = dropdown_shadow_root.locator(
@@ -508,8 +581,9 @@ async def seek_accounts_data(page: Page) -> None:
     ).locator("button[aria-label='Account details']")
 
     for attempt in range(3):
-        # Clear any interstitial already sitting on the dashboard first.
+        # Clear any interstitial or modal already sitting on the dashboard first.
         await handle_update_income_prompt(page)
+        await handle_dialog_modal(page)
 
         log.info("Clicking accounts dropdown element...")
         if not await click_through_interstitial(page, dropdown):
@@ -527,6 +601,20 @@ async def seek_accounts_data(page: Page) -> None:
     )
 
 
+# Account details page (2026-09 redesign). The old `h2.accountdetails` /
+# `dl.details-bar` markup is gone; the page is now a title heading plus a
+# stack of sections, each a heading span followed by label/value "tiles".
+# Match on BEM classes and testids — the hashed utility classes rotate.
+ACCOUNT_TITLE_SELECTOR: str = "[data-testid='account-details-header-title']"
+DETAILS_SECTION_SELECTOR: str = (
+    "div.account-details__content > div"
+    ":has([data-testid='details-section-title-text'])"
+)
+DETAILS_SECTION_TITLE_SELECTOR: str = "[data-testid='details-section-title-text']"
+DETAILS_TILE_SELECTOR: str = "div.account-details__tileItem"
+DETAILS_LABEL_SELECTOR: str = "[data-testid='details-label-wrapper']"
+
+
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def get_account_number(page: Page) -> str:
     """
@@ -535,14 +623,18 @@ async def get_account_number(page: Page) -> str:
     :return: A string containing the account number
     """
     log.info(f"Finding account number element...")
-    account_number_xpath: str = (
-        "//h2[contains(@class, 'accountdetails')]/span[contains(@class, 'mask-number')]"
+    account_number_element: Locator = page.locator(ACCOUNT_TITLE_SELECTOR)
+    account_number_text: str = await account_number_element.text_content(
+        timeout=TIMEOUT
     )
-    account_number_element: Locator = page.locator(f"xpath={account_number_xpath}")
-    account_number_text: str = await account_number_element.text_content()
 
+    # The heading reads e.g. "Sapphire Preferred (...2891)"; take the masked
+    # number in parentheses so digits in the card name can't leak in.
     log.debug(f"Account number (raw): {account_number_text}")
-    account_number: str = re.sub("[^0-9]", "", account_number_text)
+    masked: re.Match = re.search(r"\(\.*\s*(\d+)\)", account_number_text)
+    account_number: str = (
+        masked.group(1) if masked else re.sub("[^0-9]", "", account_number_text)
+    )
 
     return account_number
 
@@ -550,15 +642,17 @@ async def get_account_number(page: Page) -> str:
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def get_detail_tables(page: Page) -> List[Locator]:
     """
-    Gets the web elements for the tables containing the account details for each account
+    Gets the web elements for the sections containing the account details
+    (Account Information, Recent payment activity, ...) on the details page
     :param page: The browser application
-    :return: A list containing the web elements for the tables
+    :return: A list containing the web elements for the sections
     """
     log.info(f"Finding account details elements...")
 
-    tables: List[Locator] = await page.locator(
-        "xpath=//dl[contains(@class, 'details-bar')]"
-    ).all()
+    sections: Locator = page.locator(DETAILS_SECTION_SELECTOR)
+    await sections.first.wait_for(state="visible", timeout=TIMEOUT)
+
+    tables: List[Locator] = await sections.all()
 
     return tables
 
@@ -566,34 +660,49 @@ async def get_detail_tables(page: Page) -> List[Locator]:
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def parse_accounts_summary(page: Page, table: Locator) -> pd.DataFrame:
     """
-    Takes a table as a web element from the Chase accounts overview page and turns it into a pandas df
+    Takes a details section as a web element from the Chase account details page and turns it into a pandas df
     :param page: The browser application
-    :param table: The table as a web element
-    :return: A pandas dataframe of the table
+    :param table: The section as a web element
+    :return: A pandas dataframe of the section's label/value tiles
     """
 
     # Verify page is loaded
     await page.wait_for_load_state("domcontentloaded")
 
-    # Transpose vertical headers labels
-    dt_list: List[Locator] = await table.locator("xpath=.//dt").all()
-    dt: List[str] = list()
-    for d in dt_list:
-        text_content: str = await d.text_content()
-        if len(text_content) == 0:
-            # Skip blank link rows
-            if len(await d.locator("*").all()) > 0:
-                dt.append(await d.locator(".link__text").text_content())
-        else:
-            dt.append(text_content)
+    section_title: str = await table.locator(
+        DETAILS_SECTION_TITLE_SELECTOR
+    ).first.text_content(timeout=TIMEOUT)
+    log.debug(f"Parsing details section: {section_title.strip()}")
 
-    # Data
-    dd: List[str] = await table.locator("xpath=.//dd").all_inner_texts()
-
-    # "zip" the data as a dict
+    # Each tile is a label wrapper div followed by a value div
     tbl: Dict = {}
-    for i in range(len(dt)):
-        tbl[dt[i]] = [dd[i]]
+    tiles: List[Locator] = await table.locator(DETAILS_TILE_SELECTOR).all()
+    for tile in tiles:
+        label_wrapper: Locator = tile.locator(DETAILS_LABEL_SELECTOR)
+        if await label_wrapper.count() == 0:
+            # Link-only rows ("Go to Ultimate Rewards", ...) carry no label
+            continue
+
+        # Tooltip-backed labels ("Available credit", "Total credit limit", ...)
+        # render inside an <mds-definition-link> web component whose text lives
+        # in shadow DOM; the label is exposed on its definition-text attribute.
+        definition_link: Locator = label_wrapper.locator("mds-definition-link")
+        if await definition_link.count() > 0:
+            label: str = await definition_link.first.get_attribute("definition-text")
+        else:
+            label: str = await label_wrapper.text_content()
+        label: str = (label or "").strip()
+        if len(label) == 0:
+            continue
+
+        value_element: Locator = tile.locator(
+            f"xpath=./div[not(@data-testid='details-label-wrapper')]"
+        )
+        if await value_element.count() == 0:
+            continue
+        value: str = await value_element.first.text_content()
+
+        tbl[label] = [(value or "").strip()]
 
     # Make a df from the dict
     df: pd.DataFrame = pd.DataFrame(data=tbl)
