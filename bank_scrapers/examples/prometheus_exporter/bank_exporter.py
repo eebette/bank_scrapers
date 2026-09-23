@@ -255,6 +255,35 @@ def html_companion_for(screenshot_path: str) -> Union[str, None]:
     return candidate if os.path.exists(candidate) else None
 
 
+# Matrix caps events at 64 KiB and the traceback lands in both ``body`` and
+# the HTML ``formatted_body``, so keep the raw text well under half of that.
+TRACEBACK_MAX_BYTES: int = 24_000
+
+
+def cap_text(text: str, limit: int = TRACEBACK_MAX_BYTES) -> str:
+    """
+    Bounds ``text`` to ``limit`` UTF-8 bytes by keeping its head and tail. Content-agnostic: no assumptions about
+    what the text contains.
+    """
+    data: bytes = text.encode("utf-8")
+    if len(data) <= limit:
+        return text
+    half: int = limit // 2
+    head: str = data[:half].decode("utf-8", errors="ignore")
+    tail: str = data[-half:].decode("utf-8", errors="ignore")
+    return f"{head}\n… [{len(data) - 2 * half} bytes truncated] …\n{tail}"
+
+
+def error_headline(error: BaseException, limit: int = 300) -> str:
+    """
+    One-line summary of any exception: class name plus the first non-blank line of its message, if any. Backticks
+    are stripped so the result can sit inside inline code.
+    """
+    first: str = next((l.strip() for l in str(error).splitlines() if l.strip()), "")
+    first = first.replace("`", "'")[:limit]
+    return f"{type(error).__name__}: {first}" if first else type(error).__name__
+
+
 def post_failure(
     webhook_url: str,
     api_key: str,
@@ -265,41 +294,57 @@ def post_failure(
     traceback_text: Union[str, None] = None,
 ) -> None:
     """
-    Posts a Markdown failure message to the webhook-router endpoint. The matrix-webhook fork accepts a top-level
-    `image_url` field — when present, the message is sent as a captioned m.image with `body` as the caption.
-    Includes the Python traceback (truncated) and a pointer to the page-HTML dump on the server so a future debug
-    agent can cross-reference without re-running.
+    Posts a failure to the webhook-router endpoint as two messages: a one-line headline (with the screenshot as a
+    captioned m.image when available) in the room timeline, and the raw traceback plus page-HTML pointer as a reply
+    in the thread rooted at the headline.
+
+    The matrix-webhook fork returns the headline's ``event_id``; passing it back as ``thread_root`` threads the
+    second message. If no event ID comes back (older bot, router not relaying the response), the details go out as
+    a plain follow-up message instead, so nothing is lost.
     """
-    err_msg: str = f"`{type(error).__name__}: {error}`"
+    headline: str = f"**Bank scraper FAIL** — `{bank_name}`: `{error_headline(error)}`"
 
-    parts: List[str] = [f"**Bank scraper FAIL** — `{bank_name}`", err_msg]
+    root: dict = {"body": headline, "key": api_key}
+    if screenshot_url:
+        root["image_url"] = screenshot_url
 
+    thread_root: Union[str, None] = None
+    try:
+        r: requests.Response = requests.post(webhook_url, json=root, timeout=60)
+        r.raise_for_status()
+        try:
+            thread_root = r.json().get("event_id") or None
+        except ValueError:
+            thread_root = None
+    except Exception as exc:
+        print(f"Failed to post failure headline to {webhook_url}: {exc}")
+
+    parts: List[str] = []
     if traceback_text:
-        # Last ~1500 chars: most recent frames are usually the most useful and
-        # this keeps the Matrix message compact.
-        tail: str = traceback_text[-1500:]
-        parts.append(f"```\n{tail}\n```")
-
+        parts.append(f"```\n{cap_text(traceback_text)}\n```")
     if not screenshot_url:
         parts.append("_(no screenshot captured)_")
-
     if html_path_on_server:
         parts.append(
             f"Page HTML: `{html_path_on_server}` "
             f"(host path `/etc/docker/bank-exporter/screenshots/{html_path_on_server}`)"
         )
+    if not parts:
+        return
 
-    body: str = "\n\n".join(parts)
-
-    payload: dict = {"body": body, "key": api_key}
-    if screenshot_url:
-        payload["image_url"] = screenshot_url
+    details: dict = {"body": "\n\n".join(parts), "key": api_key}
+    if thread_root:
+        details["thread_root"] = thread_root
+    else:
+        print(
+            "No event_id returned for the headline; posting details as a plain message."
+        )
 
     try:
-        r: requests.Response = requests.post(webhook_url, json=payload, timeout=60)
+        r = requests.post(webhook_url, json=details, timeout=60)
         r.raise_for_status()
     except Exception as exc:
-        print(f"Failed to post failure to {webhook_url}: {exc}")
+        print(f"Failed to post failure details to {webhook_url}: {exc}")
 
 
 async def serve_screenshots(port: int) -> web.AppRunner:
@@ -429,9 +474,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                 print(
                     "Requests error means that the the web3 server didn't return an OK response."
                 )
-                post_failure(
-                    webhook_url, api_key, bank_name, e, None, None, tb_text
-                )
+                post_failure(webhook_url, api_key, bank_name, e, None, None, tb_text)
 
             # Print status and proceed loop
             print(f"Completed in {round(time.time() - start_time, 1)} seconds...")
