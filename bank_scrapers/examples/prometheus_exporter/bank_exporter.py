@@ -259,6 +259,9 @@ def html_companion_for(screenshot_path: str) -> Union[str, None]:
 # the HTML ``formatted_body``, so keep the raw text well under half of that.
 TRACEBACK_MAX_BYTES: int = 24_000
 
+# The router relays the bot's reply, which for the headline includes fetching and uploading the screenshot.
+WEBHOOK_TIMEOUT: int = 120
+
 
 def cap_text(text: str, limit: int = TRACEBACK_MAX_BYTES) -> str:
     """
@@ -284,7 +287,7 @@ def error_headline(error: BaseException, limit: int = 300) -> str:
     return f"{type(error).__name__}: {first}" if first else type(error).__name__
 
 
-def post_failure(
+async def post_failure(
     webhook_url: str,
     api_key: str,
     bank_name: str,
@@ -301,6 +304,10 @@ def post_failure(
     The matrix-webhook fork returns the headline's ``event_id``; passing it back as ``thread_root`` threads the
     second message. If no event ID comes back (older bot, router not relaying the response), the details go out as
     a plain follow-up message instead, so nothing is lost.
+
+    The HTTP calls run in a worker thread: the router only answers once the bot has fetched the screenshot from
+    this process's own aiohttp file server, so blocking the event loop here would deadlock until the request timed
+    out.
     """
     headline: str = f"**Bank scraper FAIL** — `{bank_name}`: `{error_headline(error)}`"
 
@@ -310,7 +317,9 @@ def post_failure(
 
     thread_root: Union[str, None] = None
     try:
-        r: requests.Response = requests.post(webhook_url, json=root, timeout=60)
+        r: requests.Response = await asyncio.to_thread(
+            requests.post, webhook_url, json=root, timeout=WEBHOOK_TIMEOUT
+        )
         r.raise_for_status()
         try:
             thread_root = r.json().get("event_id") or None
@@ -341,7 +350,9 @@ def post_failure(
         )
 
     try:
-        r = requests.post(webhook_url, json=details, timeout=60)
+        r = await asyncio.to_thread(
+            requests.post, webhook_url, json=details, timeout=WEBHOOK_TIMEOUT
+        )
         r.raise_for_status()
     except Exception as exc:
         print(f"Failed to post failure details to {webhook_url}: {exc}")
@@ -454,7 +465,7 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                             html_src, os.path.join(SCREENSHOTS_DIR, html_filename)
                         )
                         html_path_on_server = html_filename
-                post_failure(
+                await post_failure(
                     webhook_url,
                     api_key,
                     bank_name,
@@ -474,7 +485,9 @@ async def get_bank_metrics(args: argparse.Namespace) -> None:
                 print(
                     "Requests error means that the the web3 server didn't return an OK response."
                 )
-                post_failure(webhook_url, api_key, bank_name, e, None, None, tb_text)
+                await post_failure(
+                    webhook_url, api_key, bank_name, e, None, None, tb_text
+                )
 
             # Print status and proceed loop
             print(f"Completed in {round(time.time() - start_time, 1)} seconds...")
