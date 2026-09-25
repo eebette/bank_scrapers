@@ -35,13 +35,6 @@ from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
-from bank_scrapers.scrapers.common.browser import (
-    is_persistent,
-    launch_context,
-    relaunch_fresh,
-    session_state,
-    SessionState,
-)
 from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 from bank_scrapers.scrapers.chase.mfa_auth import ChaseMfaAuth
 
@@ -62,15 +55,13 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
     page: Page, username: str, password: str, homepage: str = HOMEPAGE
-) -> bool:
+) -> None:
     """
     Opens and signs on to an account
     :param page: The browser application
     :param username: Your username for logging in
     :param password: Your password for logging in
     :param homepage: The logon url to initially navigate
-    :return: True if Chase answered with an MFA prompt, False if it went straight to the accounts overview (a
-        remembered device on a persistent profile)
     """
     # Logon Page
     log.info(f"Accessing: {homepage}")
@@ -115,30 +106,10 @@ async def logon(
         r"(Let's make sure it's you|We don't recognize this device)"
     )
 
-    # Either the MFA prompt appears in the logon box or Chase lands on the
-    # overview directly; wait for whichever comes first.
-    log.info("Waiting for the MFA prompt or the accounts overview...")
-    mfa_task: asyncio.Task = asyncio.create_task(
-        iframe.get_by_text(target_text).first.wait_for(state="visible", timeout=TIMEOUT)
-    )
-    overview_task: asyncio.Task = asyncio.create_task(
-        page.wait_for_url(re.compile("^.*/overview$"), timeout=TIMEOUT)
-    )
-    done, pending = await asyncio.wait(
-        [mfa_task, overview_task], return_when=asyncio.FIRST_COMPLETED
-    )
-    for task in pending:
-        task.cancel()
-
-    if mfa_task in done and mfa_task.exception() is None:
-        return True
-    if overview_task in done and overview_task.exception() is None:
-        log.info("Signed in without an MFA prompt; on the accounts overview.")
-        return False
-    raise AssertionError(
-        "Neither the MFA prompt nor the accounts overview appeared after submitting "
-        "credentials."
-    )
+    try:
+        await expect(iframe.get_by_text(target_text)).to_be_visible(timeout=TIMEOUT)
+    except PlaywrightTimeoutError:
+        await expect(page).to_have_url(re.compile("^.*/overview$"), timeout=TIMEOUT)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -268,13 +239,6 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
     await submit_button.click(force=True)
 
 
-# Chase's "confirm your contact information" prompt; the copy has read both
-# "look over" and "review".
-CONTACT_INFORMATION_PROMPT_PATTERN: re.Pattern = re.compile(
-    r"Please (look over|review) your primary contact information"
-)
-
-
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def is_contact_information_prompt(page: Page) -> bool:
     """
@@ -282,7 +246,9 @@ async def is_contact_information_prompt(page: Page) -> bool:
     :param page: The browser application
     :return: True if MFA is being enforced
     """
-    return await page.get_by_text(CONTACT_INFORMATION_PROMPT_PATTERN).is_visible()
+    return await page.get_by_text(
+        "Please look over your primary contact information"
+    ).is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -771,53 +737,27 @@ async def run(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate browser
-    browser: BrowserContext = await launch_context(playwright, INSTITUTION)
+    browser: BrowserContext = await playwright.chromium.launch_persistent_context(
+        user_data_dir=str(),
+        channel="chrome",
+        headless=False,
+        no_viewport=True,
+    )
     page: Page = await browser.new_page()
 
-    # With a persistent profile the previous run's session may still be valid:
-    # open the dashboard and only log on when Chase actually shows the logon
-    # box. Anything else is a profile state this driver does not understand,
-    # so start over from an empty profile rather than guess.
-    state: SessionState = "login_form"
-    if is_persistent(INSTITUTION):
-        state = await session_state(
-            page,
-            HOMEPAGE,
-            logged_in=[
-                page.locator("mds-button[text='More']"),
-                page.get_by_text("Sign out", exact=True),
-                page.locator(UPDATE_INCOME_SELECTOR),
-                page.get_by_text(CONTACT_INFORMATION_PROMPT_PATTERN),
-            ],
-            login_form=[page.locator("#logonbox")],
-            timeout=TIMEOUT,
-        )
-        if state == "unknown":
-            log.warning(
-                "Persistent profile landed on an unrecognised page; wiping it and "
-                "starting fresh..."
-            )
-            browser = await relaunch_fresh(playwright, browser, INSTITUTION)
-            page = await browser.new_page()
-            state = "login_form"
+    # Navigate to the logon page and submit credentials
+    await logon(page, username, password)
 
-    if state == "logged_in":
-        log.info("Existing Chase session still valid; skipping logon.")
-    else:
-        # Navigate to the logon page and submit credentials
-        mfa_pending: bool = await logon(page, username, password)
+    if "auth" in page.url:
+        await wait_for_redirect(page)
 
-        if mfa_pending:
-            if "auth" in page.url:
-                await wait_for_redirect(page)
+    # Handle MFA if prompted
+    if await is_mfa_redirect(page):
+        await handle_mfa_redirect(page, mfa_auth)
 
-            # Handle MFA if prompted
-            if await is_mfa_redirect(page):
-                await handle_mfa_redirect(page, mfa_auth)
-
-            # Handle MFA if prompted
-            if await is_mfa_redirect_alternate(page):
-                await handle_mfa_redirect_alternate(page, password, mfa_auth)
+    # Handle MFA if prompted
+    if await is_mfa_redirect_alternate(page):
+        await handle_mfa_redirect_alternate(page, password, mfa_auth)
 
     await page.wait_for_load_state("domcontentloaded")
 

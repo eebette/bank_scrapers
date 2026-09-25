@@ -31,7 +31,6 @@ from bank_scrapers import ROOT_DIR
 from bank_scrapers.common.functions import convert_to_prometheus, search_files_for_int
 from bank_scrapers.common.log import log
 from bank_scrapers.common.types import PrometheusMetric
-from bank_scrapers.scrapers.common.browser import launch_context
 from bank_scrapers.scrapers.common.functions import screenshot_on_timeout
 from bank_scrapers.scrapers.common.mfa_auth import MfaAuth
 
@@ -53,6 +52,7 @@ ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def logon(
+
     page: Page, username: str, password: str, homepage: str = HOMEPAGE
 ) -> None:
     """
@@ -342,7 +342,12 @@ async def run(
     :return: A list of pandas dataframes of accounts info tables
     """
     # Instantiate browser
-    browser: BrowserContext = await launch_context(playwright, INSTITUTION)
+    browser: BrowserContext = await playwright.chromium.launch_persistent_context(
+        user_data_dir=str(),
+        channel="chrome",
+        headless=False,
+        no_viewport=True,
+    )
     page: Page = await browser.new_page()
 
     # Navigate to the logon page and submit credentials
