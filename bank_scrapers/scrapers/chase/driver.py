@@ -239,6 +239,13 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
     await submit_button.click(force=True)
 
 
+# Chase's "confirm your contact information" prompt; the copy has read both
+# "look over" and "review".
+CONTACT_INFORMATION_PROMPT_PATTERN: re.Pattern = re.compile(
+    r"Please (look over|review) your primary contact information"
+)
+
+
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def is_contact_information_prompt(page: Page) -> bool:
     """
@@ -246,9 +253,7 @@ async def is_contact_information_prompt(page: Page) -> bool:
     :param page: The browser application
     :return: True if MFA is being enforced
     """
-    return await page.get_by_text(
-        "Please look over your primary contact information"
-    ).is_visible()
+    return await page.get_by_text(CONTACT_INFORMATION_PROMPT_PATTERN).is_visible()
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
