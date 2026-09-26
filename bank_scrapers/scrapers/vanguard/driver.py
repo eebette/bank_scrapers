@@ -76,11 +76,6 @@ HOLIDAY_URL_PATTERN: re.Pattern = re.compile(
 PASSKEY_PROMOTION_URL_PATTERN: re.Pattern = re.compile(
     r"personal1\.vanguard\.com/security/challenge-me/passkey-promotion"
 )
-PASSKEY_SKIP_PATTERN: re.Pattern = re.compile(
-    r"^\s*(Remind me later|Not now|Not right now|Maybe later|Later|Skip|"
-    r"No thanks|Ask me later)\s*$",
-    re.IGNORECASE,
-)
 
 # Vanguard answers the credential POST with a generic outage page now and then
 # (seen 3x in Sept 2026, each time the next scheduled run was fine). It lands
@@ -364,26 +359,13 @@ async def is_passkey_promotion(page: Page) -> bool:
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def handle_passkey_promotion(page: Page) -> None:
     """
-    Dismiss Vanguard's optional passkey-enrollment interstitial and continue to the
-    dashboard. Tries a skip control first so the nudge stops re-appearing, then
-    navigates to the dashboard regardless: the session is already authenticated and
-    the promotion is not a required step, so leaving the page is a valid dismiss.
+    Dismiss Vanguard's optional passkey-enrollment interstitial by navigating to the
+    dashboard. The session is already authenticated and the promotion is not a
+    required step, so leaving the page is a valid dismiss, and the driver needs to be
+    on the dashboard for get_account_types regardless.
     :param page: The browser application
     """
-    log.info("Passkey-enrollment interstitial present; dismissing...")
-    try:
-        skip: Locator = page.get_by_role("button", name=PASSKEY_SKIP_PATTERN).first
-        if await skip.count() == 0:
-            skip = page.get_by_text(PASSKEY_SKIP_PATTERN).first
-        if await skip.count() > 0:
-            log.info("Clicking passkey-promotion skip control...")
-            await skip.click(timeout=TIMEOUT)
-        else:
-            log.info("No skip control found; navigating to the dashboard instead.")
-    except (
-        Exception
-    ) as exc:  # noqa: BLE001 - dismissal is best-effort; we navigate away regardless
-        log.info(f"Passkey-promotion skip did not take ({exc}); navigating on.")
+    log.info("Passkey-enrollment interstitial present; navigating to the dashboard...")
     await navigate_to_dashboard(page)
 
 
