@@ -67,6 +67,21 @@ HOLIDAY_URL_PATTERN: re.Pattern = re.compile(
     r"|vanguard\.com/en/investor/portfolio/challenges/holiday)"
 )
 
+# Vanguard shows an optional passkey-enrollment interstitial after the OTP on
+# some logins (personal1.vanguard.com/security/challenge-me/passkey-promotion).
+# It is a marketing nudge, not a required challenge; the session is already
+# authenticated, so we dismiss it and continue to the dashboard rather than let
+# handle_mfa_redirect's post-submit navigation time out waiting for a dashboard
+# URL that never arrives.
+PASSKEY_PROMOTION_URL_PATTERN: re.Pattern = re.compile(
+    r"personal1\.vanguard\.com/security/challenge-me/passkey-promotion"
+)
+PASSKEY_SKIP_PATTERN: re.Pattern = re.compile(
+    r"^\s*(Remind me later|Not now|Not right now|Maybe later|Later|Skip|"
+    r"No thanks|Ask me later)\s*$",
+    re.IGNORECASE,
+)
+
 # Vanguard answers the credential POST with a generic outage page now and then
 # (seen 3x in Sept 2026, each time the next scheduled run was fine). It lands
 # before MFA, so no OTP is burned by retrying the logon with a fresh session.
@@ -298,7 +313,11 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
         url=re.compile(
             r"(dashboard\.web\.vanguard\.com"
             r"|www\.vanguard\.com/en/investor/portfolio/dashboard"
-            r"|" + HOLIDAY_URL_PATTERN.pattern + r")"
+            r"|"
+            + PASSKEY_PROMOTION_URL_PATTERN.pattern
+            + r"|"
+            + HOLIDAY_URL_PATTERN.pattern
+            + r")"
         ),
         wait_until="load",
         timeout=TIMEOUT,
@@ -330,6 +349,42 @@ async def navigate_to_dashboard(page: Page) -> None:
     await page.goto(
         "https://www.vanguard.com/en/investor/portfolio/dashboard/", timeout=TIMEOUT
     )
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def is_passkey_promotion(page: Page) -> bool:
+    """
+    Checks whether the page is Vanguard's optional passkey-enrollment interstitial
+    :param page: The browser application
+    :return: True if the passkey-promotion page is shown
+    """
+    return bool(PASSKEY_PROMOTION_URL_PATTERN.search(page.url))
+
+
+@screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
+async def handle_passkey_promotion(page: Page) -> None:
+    """
+    Dismiss Vanguard's optional passkey-enrollment interstitial and continue to the
+    dashboard. Tries a skip control first so the nudge stops re-appearing, then
+    navigates to the dashboard regardless: the session is already authenticated and
+    the promotion is not a required step, so leaving the page is a valid dismiss.
+    :param page: The browser application
+    """
+    log.info("Passkey-enrollment interstitial present; dismissing...")
+    try:
+        skip: Locator = page.get_by_role("button", name=PASSKEY_SKIP_PATTERN).first
+        if await skip.count() == 0:
+            skip = page.get_by_text(PASSKEY_SKIP_PATTERN).first
+        if await skip.count() > 0:
+            log.info("Clicking passkey-promotion skip control...")
+            await skip.click(timeout=TIMEOUT)
+        else:
+            log.info("No skip control found; navigating to the dashboard instead.")
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - dismissal is best-effort; we navigate away regardless
+        log.info(f"Passkey-promotion skip did not take ({exc}); navigating on.")
+    await navigate_to_dashboard(page)
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -564,6 +619,10 @@ async def run(
     # Handle holiday closures notice
     if await is_holiday_redirect(page):
         await navigate_to_dashboard(page)
+
+    # Dismiss the optional passkey-enrollment interstitial if shown
+    if await is_passkey_promotion(page):
+        await handle_passkey_promotion(page)
 
     # Get the account types while on the dashboard screen
     accounts_df: pd.DataFrame = await get_account_types(page)
