@@ -1,8 +1,8 @@
 """
 This file provides the get_accounts_info() function for a Bitcoin zpub address
 
-Balances are computed locally by deriving the wallet's BIP-84 addresses from the zpub and summing their UTXO
-balances via the mempool.space REST API. No browser or third-party wallet-explorer site is involved.
+Balance computed locally: derive BIP-84 addresses from zpub, sum UTXO balances via mempool.space REST API. No
+browser, no third-party wallet-explorer site.
 
 Example Usage:
 ```
@@ -35,7 +35,7 @@ SYMBOL: str = "BTC"
 # Balance API
 API_URL: str = "https://mempool.space/api/address"
 
-# BIP-44 gap limit: stop scanning a chain after this many consecutive unused addresses
+# BIP-44 gap limit: stop scanning chain after this many consecutive unused addresses
 GAP_LIMIT: int = 20
 
 # Timeout (seconds, per API request)

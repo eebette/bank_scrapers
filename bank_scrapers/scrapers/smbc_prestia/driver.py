@@ -50,10 +50,9 @@ TIMEOUT: int = 60 * 1000
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
-# Akamai in front of smbctb.co.jp serves an "Access Denied" interstitial instead of the
-# real page when it dislikes the caller. It fires on the login page and on the post-login
-# online.smbctb.co.jp hop, and clears on its own after a pause, so a denied attempt is
-# retried with a fresh (cookie-less) session rather than failing the whole scrape.
+# Akamai in front of smbctb.co.jp sometimes serves "Access Denied" instead of real
+# page, on login page and post-login online.smbctb.co.jp hop. Clears after pause, so
+# retry with fresh cookie-less session.
 ACCESS_DENIED_MARKERS: Tuple[str, ...] = ("Access Denied", "errors.edgesuite.net")
 ACCESS_DENIED_ATTEMPTS: int = 3
 ACCESS_DENIED_BACKOFF: int = 60

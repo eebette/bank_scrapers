@@ -59,27 +59,21 @@ DASHBOARD_PAGE: str = (
     "https://personal1.vanguard.com/ofu-open-fin-exchange-webapp/ofx-welcome"
 )
 
-# Market-holiday closure notice. Vanguard bounces the post-MFA redirect here
-# on exchange holidays; the host has moved from challenges.web.vanguard.com to
-# a path under www.vanguard.com, so match either.
+# Market-holiday closure notice; post-MFA redirect lands here on exchange holidays.
+# Old host challenges.web.vanguard.com, new path under www.vanguard.com; match both.
 HOLIDAY_URL_PATTERN: re.Pattern = re.compile(
     r"(challenges\.web\.vanguard\.com/holiday"
     r"|vanguard\.com/en/investor/portfolio/challenges/holiday)"
 )
 
-# Vanguard shows an optional passkey-enrollment interstitial after the OTP on
-# some logins (personal1.vanguard.com/security/challenge-me/passkey-promotion).
-# It is a marketing nudge, not a required challenge; the session is already
-# authenticated, so we dismiss it and continue to the dashboard rather than let
-# handle_mfa_redirect's post-submit navigation time out waiting for a dashboard
-# URL that never arrives.
+# Optional passkey-enrollment nudge after OTP on some logins; not required, session
+# already authenticated. handle_mfa_redirect must accept this URL or it times out.
 PASSKEY_PROMOTION_URL_PATTERN: re.Pattern = re.compile(
     r"personal1\.vanguard\.com/security/challenge-me/passkey-promotion"
 )
 
-# Vanguard answers the credential POST with a generic outage page now and then
-# (seen 3x in Sept 2026, each time the next scheduled run was fine). It lands
-# before MFA, so no OTP is burned by retrying the logon with a fresh session.
+# Generic outage page after credential POST now and then (3x in Sept 2026, next run
+# fine each time). Lands before MFA, so retry with fresh session burns no OTP.
 TECH_DIFFICULTIES_MARKER: str = "experiencing technical difficulties"
 TECH_DIFFICULTIES_ATTEMPTS: int = 2
 TECH_DIFFICULTIES_BACKOFF: int = 120
@@ -178,8 +172,7 @@ async def wait_for_redirect(page: Page) -> None:
     try:
         await expect(page.get_by_text(target_text)).to_be_visible(timeout=TIMEOUT)
     except AssertionError:
-        # Vanguard serves its own outage interstitial on this hop; surface that rather
-        # than a locator timeout that reads like a selector break.
+        # Outage page on this hop: raise that, not timeout that reads as selector break.
         if await is_technical_difficulties(page):
             raise AssertionError(
                 "Vanguard returned its 'We're experiencing technical difficulties' page "
@@ -359,10 +352,8 @@ async def is_passkey_promotion(page: Page) -> bool:
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def handle_passkey_promotion(page: Page) -> None:
     """
-    Dismiss Vanguard's optional passkey-enrollment interstitial by navigating to the
-    dashboard. The session is already authenticated and the promotion is not a
-    required step, so leaving the page is a valid dismiss, and the driver needs to be
-    on the dashboard for get_account_types regardless.
+    Dismiss optional passkey-enrollment interstitial by navigating to dashboard.
+    Session already authenticated; get_account_types needs dashboard anyway.
     :param page: The browser application
     """
     log.info("Passkey-enrollment interstitial present; navigating to the dashboard...")
@@ -568,11 +559,9 @@ async def run(
         # Navigate to the logon page and submit credentials
         await logon(page, username, password)
 
-        # The credential POST kicks off a redirect chain (login.vanguard.com →
-        # personal1.vanguard.com/usa/login → personal1.vanguard.com/security/challenge-me/…)
-        # plus a Tarsus/ThreatMetrix init burst on the new origin. Let it clear
-        # before we start expecting the MFA-verify text — wait_for_redirect's 60s
-        # timeout has been seen to lose this race in the cron environment.
+        # Credential POST: redirect chain (login.vanguard.com, personal1 /usa/login,
+        # /security/challenge-me/…) plus Tarsus/ThreatMetrix init burst. Settle first;
+        # wait_for_redirect's 60s timeout lost this race in cron.
         await settle_after_navigation(page, "post_login")
 
         # Wait for landing page or MFA
@@ -602,7 +591,7 @@ async def run(
     if await is_holiday_redirect(page):
         await navigate_to_dashboard(page)
 
-    # Dismiss the optional passkey-enrollment interstitial if shown
+    # Dismiss optional passkey-enrollment interstitial if shown
     if await is_passkey_promotion(page):
         await handle_passkey_promotion(page)
 

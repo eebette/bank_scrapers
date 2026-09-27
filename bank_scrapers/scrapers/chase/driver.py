@@ -239,8 +239,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: ChaseMfaAuth = None) -> None
     await submit_button.click(force=True)
 
 
-# Chase's "confirm your contact information" prompt; the copy has read both
-# "look over" and "review".
+# "Confirm contact information" prompt; copy seen as both "look over" and "review".
 CONTACT_INFORMATION_PROMPT_PATTERN: re.Pattern = re.compile(
     r"Please (look over|review) your primary contact information"
 )
@@ -319,11 +318,9 @@ async def handle_update_income_prompt(page: Page) -> bool:
     return True
 
 
-# Chase also raises MDS dialog modals over the dashboard after it renders —
-# most often the "confirm your contact information" prompt (class
-# `mds-dialog--cmb`, listing the account's email/phone). Unlike the Update
-# Income interstitial the React tree stays intact, but the modal backdrop
-# intercepts pointer events, so any click underneath it spins until timeout.
+# MDS dialog modals over dashboard after render, mostly contact-information prompt
+# (class `mds-dialog--cmb`, lists email/phone). React tree stays intact, unlike Update
+# Income, but backdrop intercepts pointer events; clicks under it spin until timeout.
 DIALOG_MODAL_SELECTOR: str = "mds-dialog-modal:visible"
 DIALOG_DISMISS_PATTERN: re.Pattern = re.compile(
     r"^\s*(Ask me later|Not now|Not right now|Maybe later|Remind me later|"
@@ -345,10 +342,8 @@ async def is_dialog_modal(page: Page) -> bool:
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def handle_dialog_modal(page: Page) -> bool:
     """
-    Dismiss any open MDS dialog modal (e.g. the contact information prompt).
-
-    Tries the modal's own "later"/"close" style button first, then Escape, and
-    falls back to re-navigating to the dashboard if the modal will not close.
+    Dismiss open MDS dialog modal (e.g. contact information prompt): modal's own
+    "later"/"close" button, else Escape, else re-navigate to dashboard.
 
     :param page: The browser application
     :return: True if a modal was found and dismissed, else False
@@ -518,23 +513,17 @@ async def handle_mfa_redirect_alternate(
 
 async def click_through_interstitial(page: Page, target: Locator) -> bool:
     """
-    Click `target` while watching for the Update Income interstitial and for
-    MDS dialog modals.
+    Click `target`, racing it against Update Income interstitial and MDS dialog modals.
 
-    Chase can mount the interstitial at any point during navigation; when it
-    does it replaces the dashboard React tree and detaches `target`, leaving
-    the click to spin on "element was detached from the DOM, retrying" until it
-    times out. Dialog modals (e.g. the contact information prompt) leave the
-    tree intact but their backdrop intercepts pointer events, so the click
-    spins on "<mds-dialog-modal> intercepts pointer events" instead. We race
-    the click against either overlay becoming visible: if an overlay wins, we
-    abandon the (doomed) click, dismiss it, and tell the caller to retry;
-    otherwise the click stands.
+    Interstitial can mount mid-navigation, replace dashboard React tree and detach
+    `target`; click then spins on "element was detached from the DOM, retrying" until
+    timeout. Modal backdrop makes it spin on "<mds-dialog-modal> intercepts pointer
+    events" instead. Overlay wins race: drop click, dismiss overlay, caller retries.
 
     :param page: The browser application
     :param target: The element to click
-    :return: True if the click landed, False if an overlay interrupted (and
-        was dismissed) and the caller should retry
+    :return: True if click landed, False if overlay interrupted (dismissed) and caller
+        should retry
     """
     interstitial: Locator = page.locator(UPDATE_INCOME_SELECTOR)
     modal: Locator = page.locator(DIALOG_MODAL_SELECTOR).first
@@ -557,7 +546,7 @@ async def click_through_interstitial(page: Page, target: Locator) -> bool:
         await handle_update_income_prompt(page)
         return False
 
-    # A dialog modal opened over the target: dismiss it and retry likewise.
+    # Dialog modal opened over target: dismiss, retry likewise.
     if modal_task in done and modal_task.exception() is None:
         log.info("Dialog modal appeared during navigation; dismissing...")
         await handle_dialog_modal(page)
@@ -574,11 +563,9 @@ async def seek_accounts_data(page: Page) -> None:
     Navigate the website and click download button for the accounts data
     :param page: The Chrome browser application
     """
-    # The Update Income interstitial (and any dialog modal) can appear before
-    # OR mid-navigation, detaching or covering whichever element we're
-    # clicking. Guard every click against them and retry the whole "More" ->
-    # "Account details" sequence; dismissing an overlay closes the dropdown,
-    # so a partial retry is not enough.
+    # Update Income interstitial or dialog modal can appear before or mid-navigation,
+    # detaching or covering clicked element. Guard every click; retry whole "More" then
+    # "Account details" sequence, since dismissing overlay closes dropdown.
     dropdown_shadow_root: Locator = page.locator("mds-button[text='More']")
     dropdown: Locator = dropdown_shadow_root.locator("button")
     account_details_button: Locator = dropdown_shadow_root.locator(
@@ -586,7 +573,7 @@ async def seek_accounts_data(page: Page) -> None:
     ).locator("button[aria-label='Account details']")
 
     for attempt in range(3):
-        # Clear any interstitial or modal already sitting on the dashboard first.
+        # Clear interstitial or modal already on dashboard first.
         await handle_update_income_prompt(page)
         await handle_dialog_modal(page)
 
@@ -606,10 +593,9 @@ async def seek_accounts_data(page: Page) -> None:
     )
 
 
-# Account details page (2026-09 redesign). The old `h2.accountdetails` /
-# `dl.details-bar` markup is gone; the page is now a title heading plus a
-# stack of sections, each a heading span followed by label/value "tiles".
-# Match on BEM classes and testids — the hashed utility classes rotate.
+# Account details page, 2026-09 redesign. Old `h2.accountdetails` / `dl.details-bar`
+# markup gone; now title heading plus sections, each heading span plus label/value
+# "tiles". Match BEM classes and testids; hashed utility classes rotate.
 ACCOUNT_TITLE_SELECTOR: str = "[data-testid='account-details-header-title']"
 DETAILS_SECTION_SELECTOR: str = (
     "div.account-details__content > div"
@@ -633,8 +619,8 @@ async def get_account_number(page: Page) -> str:
         timeout=TIMEOUT
     )
 
-    # The heading reads e.g. "Sapphire Preferred (...2891)"; take the masked
-    # number in parentheses so digits in the card name can't leak in.
+    # Heading e.g. "Sapphire Preferred (...2891)"; take masked number in parentheses
+    # so digits in card name can't leak in.
     log.debug(f"Account number (raw): {account_number_text}")
     masked: re.Match = re.search(r"\(\.*\s*(\d+)\)", account_number_text)
     account_number: str = (
@@ -688,9 +674,8 @@ async def parse_accounts_summary(page: Page, table: Locator) -> pd.DataFrame:
             # Link-only rows ("Go to Ultimate Rewards", ...) carry no label
             continue
 
-        # Tooltip-backed labels ("Available credit", "Total credit limit", ...)
-        # render inside an <mds-definition-link> web component whose text lives
-        # in shadow DOM; the label is exposed on its definition-text attribute.
+        # Tooltip labels ("Available credit", "Total credit limit", ...) live in
+        # <mds-definition-link> shadow DOM; read its definition-text attribute instead.
         definition_link: Locator = label_wrapper.locator("mds-definition-link")
         if await definition_link.count() > 0:
             label: str = await definition_link.first.get_attribute("definition-text")

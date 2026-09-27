@@ -255,18 +255,16 @@ def html_companion_for(screenshot_path: str) -> Union[str, None]:
     return candidate if os.path.exists(candidate) else None
 
 
-# Matrix caps events at 64 KiB and the traceback lands in both ``body`` and
-# the HTML ``formatted_body``, so keep the raw text well under half of that.
+# Matrix event cap 64 KiB; traceback goes in both ``body`` and HTML ``formatted_body``. Stay well under half.
 TRACEBACK_MAX_BYTES: int = 24_000
 
-# The router relays the bot's reply, which for the headline includes fetching and uploading the screenshot.
+# Router relays bot reply; for headline that includes screenshot fetch + upload.
 WEBHOOK_TIMEOUT: int = 120
 
 
 def cap_text(text: str, limit: int = TRACEBACK_MAX_BYTES) -> str:
     """
-    Bounds ``text`` to ``limit`` UTF-8 bytes by keeping its head and tail. Content-agnostic: no assumptions about
-    what the text contains.
+    Bound ``text`` to ``limit`` UTF-8 bytes, keep head + tail. Content-agnostic.
     """
     data: bytes = text.encode("utf-8")
     if len(data) <= limit:
@@ -279,8 +277,8 @@ def cap_text(text: str, limit: int = TRACEBACK_MAX_BYTES) -> str:
 
 def error_headline(error: BaseException, limit: int = 300) -> str:
     """
-    One-line summary of any exception: class name plus the first non-blank line of its message, if any. Backticks
-    are stripped so the result can sit inside inline code.
+    One-line exception summary: class name + first non-blank message line. Backticks become ' so result fits in
+    inline code.
     """
     first: str = next((l.strip() for l in str(error).splitlines() if l.strip()), "")
     first = first.replace("`", "'")[:limit]
@@ -297,17 +295,12 @@ async def post_failure(
     traceback_text: Union[str, None] = None,
 ) -> None:
     """
-    Posts a failure to the webhook-router endpoint as two messages: a one-line headline (with the screenshot as a
-    captioned m.image when available) in the room timeline, and the raw traceback plus page-HTML pointer as a reply
-    in the thread rooted at the headline.
+    Post failure to webhook-router as two messages: one-line headline (screenshot as captioned m.image if any), then
+    traceback + page-HTML pointer as thread reply. Thread root = headline ``event_id`` from matrix-webhook fork; no
+    event_id (older bot, router not relaying response) means plain follow-up message.
 
-    The matrix-webhook fork returns the headline's ``event_id``; passing it back as ``thread_root`` threads the
-    second message. If no event ID comes back (older bot, router not relaying the response), the details go out as
-    a plain follow-up message instead, so nothing is lost.
-
-    The HTTP calls run in a worker thread: the router only answers once the bot has fetched the screenshot from
-    this process's own aiohttp file server, so blocking the event loop here would deadlock until the request timed
-    out.
+    HTTP runs in worker thread: router answers only after bot fetches screenshot from this process's aiohttp file
+    server, so blocking event loop deadlocks until timeout.
     """
     headline: str = f"**Bank scraper FAIL** — `{bank_name}`: `{error_headline(error)}`"
 

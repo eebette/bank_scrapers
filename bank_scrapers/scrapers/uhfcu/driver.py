@@ -268,8 +268,7 @@ def post_process_tables(
                 )
                 table[col]: pd.DataFrame = pd.to_numeric(table[col])
 
-        # Both deposit and credit tiles render the description as
-        # "<Account Holder> - XXX <account>"; keep only the masked account
+        # Both tile types read "<Account Holder> - XXX <account>"; keep masked account
         table["Account Desc"]: pd.DataFrame = table["Account Desc"].replace(
             to_replace=r".* - ", value="", regex=True
         )

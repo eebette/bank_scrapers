@@ -1,8 +1,7 @@
 """
-Regenerates the version badge referenced by README.md.
+Regenerate version badge used by README.md.
 
-Run from the repository root so the checked-out package (not an installed copy)
-supplies the version number:
+Run from repository root so checked-out package (not installed copy) supplies version:
 
     python -m bank_scrapers.docs.scripts.version_badge
 """

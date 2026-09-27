@@ -59,9 +59,9 @@ TIMEOUT: int = 60 * 1000
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
 
-# DaVinci accepts the credentials but PingFederate intermittently rejects the resume hop
-# with "Page Expired" instead of 302ing to the banking app — its risk scoring rather than
-# a credential problem. It clears on a fresh session, so retry rather than fail the scrape.
+# DaVinci accepts credentials, but PingFederate sometimes rejects resume hop with
+# "Page Expired" instead of 302 to banking app. Risk scoring, not bad credentials;
+# fresh session clears it, so retry.
 PAGE_EXPIRED_MARKER: str = "Page Expired"
 PAGE_EXPIRED_ATTEMPTS: int = 3
 PAGE_EXPIRED_BACKOFF: int = 45
@@ -94,8 +94,7 @@ async def logon(
     log.info(f"Accessing: {homepage}")
     await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
-    # BECU relabeled the header link from "Log In" to "Member Login"; match on the
-    # Login.aspx href instead, which has survived both renames.
+    # Header link text went "Log In" to "Member Login"; Login.aspx href survived both.
     log.info("Waiting for Log In button to render...")
     login_link: Locator = page.locator(
         'a[href*="BECUBankingWeb/Login.aspx"]'
