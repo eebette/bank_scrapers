@@ -12,7 +12,6 @@ for t in tables:
 # Standard Library Imports
 from typing import List, Tuple, Dict, Union
 from datetime import datetime
-import asyncio
 import re
 from time import sleep
 
@@ -511,50 +510,44 @@ async def handle_mfa_redirect_alternate(
         await submit_button.click()
 
 
+# Per-attempt click timeout. Short so one overlay-blocked click can't eat the whole
+# budget; seek_accounts_data retries. Overlays that intercept the dashboard click:
+# Update Income (div form), contact-info mds-dialog-modal, and the demographicsSpinner
+# loading interstitial (div#interstitial), which has nothing to dismiss and clears
+# itself.
+CLICK_ATTEMPT_TIMEOUT: int = 10 * 1000
+OVERLAY_SETTLE: int = 3 * 1000
+SEEK_ATTEMPTS: int = 5
+
+
 async def click_through_interstitial(page: Page, target: Locator) -> bool:
     """
-    Click `target`, racing it against Update Income interstitial and MDS dialog modals.
+    Click `target` with a short timeout. If an overlay intercepts it, the click
+    times out; dismiss the known overlays (Update Income, dialog modal) and tell the
+    caller to retry the whole sequence. A blocked click with nothing to dismiss is
+    the demographicsSpinner loading interstitial, so wait briefly for it to clear.
 
-    Interstitial can mount mid-navigation, replace dashboard React tree and detach
-    `target`; click then spins on "element was detached from the DOM, retrying" until
-    timeout. Modal backdrop makes it spin on "<mds-dialog-modal> intercepts pointer
-    events" instead. Overlay wins race: drop click, dismiss overlay, caller retries.
+    A single blocked click must not be terminal: previously the click ran for the
+    full TIMEOUT and raised, so seek_accounts_data never got to retry.
 
     :param page: The browser application
     :param target: The element to click
-    :return: True if click landed, False if overlay interrupted (dismissed) and caller
-        should retry
+    :return: True if the click landed, False if blocked (overlays cleared) and the
+        caller should retry
     """
-    interstitial: Locator = page.locator(UPDATE_INCOME_SELECTOR)
-    modal: Locator = page.locator(DIALOG_MODAL_SELECTOR).first
-    click_task = asyncio.create_task(target.click(timeout=TIMEOUT))
-    interstitial_task = asyncio.create_task(
-        interstitial.wait_for(state="visible", timeout=TIMEOUT)
-    )
-    modal_task = asyncio.create_task(modal.wait_for(state="visible", timeout=TIMEOUT))
-    done, pending = await asyncio.wait(
-        [click_task, interstitial_task, modal_task],
-        return_when=asyncio.FIRST_COMPLETED,
-    )
-    for t in pending:
-        t.cancel()
-
-    # The interstitial appeared (and possibly detached the element mid-click):
-    # dismiss it and ask the caller to retry the navigation from the top.
-    if interstitial_task in done and interstitial_task.exception() is None:
-        log.info("Update Income interstitial appeared during navigation; dismissing...")
-        await handle_update_income_prompt(page)
+    try:
+        await target.click(timeout=CLICK_ATTEMPT_TIMEOUT)
+        return True
+    except PlaywrightTimeoutError:
+        dismissed: bool = await handle_update_income_prompt(page)
+        dismissed = await handle_dialog_modal(page) or dismissed
+        if not dismissed:
+            log.info(
+                "Click blocked but no modal to dismiss; waiting for loading overlay "
+                "to clear..."
+            )
+            await page.wait_for_timeout(OVERLAY_SETTLE)
         return False
-
-    # Dialog modal opened over target: dismiss, retry likewise.
-    if modal_task in done and modal_task.exception() is None:
-        log.info("Dialog modal appeared during navigation; dismissing...")
-        await handle_dialog_modal(page)
-        return False
-
-    # The click finished first — surface any error it raised.
-    click_task.result()
-    return True
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -572,7 +565,7 @@ async def seek_accounts_data(page: Page) -> None:
         "mds-menu-button-overlay"
     ).locator("button[aria-label='Account details']")
 
-    for attempt in range(3):
+    for attempt in range(SEEK_ATTEMPTS):
         # Clear interstitial or modal already on dashboard first.
         await handle_update_income_prompt(page)
         await handle_dialog_modal(page)
@@ -588,8 +581,9 @@ async def seek_accounts_data(page: Page) -> None:
         return
 
     raise PlaywrightTimeoutError(
-        "Could not reach account details: the Update Income interstitial kept "
-        "interrupting navigation after 3 attempts."
+        "Could not reach account details: a dashboard overlay (Update Income, "
+        f"contact-info modal or loading spinner) kept intercepting the click after "
+        f"{SEEK_ATTEMPTS} attempts."
     )
 
 
