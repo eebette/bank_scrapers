@@ -560,7 +560,10 @@ async def seek_accounts_data(page: Page) -> None:
     # detaching or covering clicked element. Guard every click; retry whole "More" then
     # "Account details" sequence, since dismissing overlay closes dropdown.
     dropdown_shadow_root: Locator = page.locator("mds-button[text='More']")
-    dropdown: Locator = dropdown_shadow_root.locator("button")
+    # MDS now renders the menu-item buttons in the component's shadow tree even
+    # when collapsed, so a bare `button` matches 10 (trigger + items) and the
+    # strict-mode click fails. Scope to the trigger: only it has aria-haspopup.
+    dropdown: Locator = dropdown_shadow_root.locator("button[aria-haspopup='menu']")
     account_details_button: Locator = dropdown_shadow_root.locator(
         "mds-menu-button-overlay"
     ).locator("button[aria-label='Account details']")
