@@ -257,15 +257,27 @@ async def is_contact_information_prompt(page: Page) -> bool:
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
 async def handle_contact_information_prompt(page: Page) -> None:
     """
-    Checks and determines if the site is asking to confirm primary contact information
+    Dismiss Chase's "review your primary contact information" modal
     :param page: The browser application
-    :return: True if MFA is being enforced
     """
 
-    log.info(f"Handling primary contact information prompt...")
-    ask_me_later_button: Locator = page.get_by_text("Ask me later")
-
-    await ask_me_later_button.click(force=True)
+    log.info("Dismissing primary contact information prompt...")
+    # mds-dialog-modal:visible misses this modal live (custom-element host has no
+    # visible box), so handle_dialog_modal cannot catch it; detect by text (as
+    # is_contact_information_prompt / run() do) and click "Ask me later" by role,
+    # text fallback, then Escape.
+    button: Locator = page.get_by_role("button", name=DIALOG_DISMISS_PATTERN).first
+    if await button.count() == 0:
+        button = page.get_by_text(re.compile(r"Ask me later", re.IGNORECASE)).first
+    try:
+        if await button.count() > 0:
+            await button.click(force=True, timeout=CLICK_ATTEMPT_TIMEOUT)
+            return
+        log.info("No dismiss button resolved; pressing Escape...")
+        await page.keyboard.press("Escape")
+    except PlaywrightTimeoutError:
+        log.info("Dismiss click did not take; pressing Escape...")
+        await page.keyboard.press("Escape")
 
 
 # The Update Income interstitial is a role="main" full-page takeover
@@ -541,10 +553,15 @@ async def click_through_interstitial(page: Page, target: Locator) -> bool:
     except PlaywrightTimeoutError:
         dismissed: bool = await handle_update_income_prompt(page)
         dismissed = await handle_dialog_modal(page) or dismissed
+        # mds-dialog-modal:visible misses the live contact-info modal, so detect it
+        # by text (same check run() uses) and dismiss it.
+        if not dismissed and await is_contact_information_prompt(page):
+            await handle_contact_information_prompt(page)
+            dismissed = True
         if not dismissed:
             log.info(
-                "Click blocked but no modal to dismiss; waiting for loading overlay "
-                "to clear..."
+                "Click blocked but no overlay to dismiss; waiting for loading "
+                "overlay to clear..."
             )
             await page.wait_for_timeout(OVERLAY_SETTLE)
         return False
