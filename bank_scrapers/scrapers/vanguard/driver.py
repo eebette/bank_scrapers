@@ -356,6 +356,23 @@ async def handle_passkey_promotion(page: Page) -> None:
     Session already authenticated; get_account_types needs dashboard anyway.
     :param page: The browser application
     """
+    # Diagnostic: enumerate the page's clickable controls (incl. shadow DOM) so the
+    # real skip control can be identified instead of guessed. Navigating away may be
+    # abandoning the challenge (session then bounces to login); a proper skip click
+    # tests that. Additive only; behavior (navigate away) unchanged.
+    try:
+        controls: List[str] = await page.evaluate(
+            "() => { const o=[]; const w=r=>{ "
+            "r.querySelectorAll('button,a,[role=button]').forEach(e=>o.push("
+            "((e.getAttribute('aria-label')||e.textContent||'').trim()).slice(0,60))); "
+            "r.querySelectorAll('*').forEach(e=>{if(e.shadowRoot)w(e.shadowRoot)}); }; "
+            "w(document); return o.filter(Boolean).slice(0,40); }"
+        )
+        log.info(f"[diag] passkey page url: {page.url}")
+        log.info(f"[diag] passkey page controls: {controls}")
+    except Exception as exc:  # noqa: BLE001 - diagnostic only, never fails the run
+        log.info(f"[diag] passkey control enumeration failed: {exc}")
+
     log.info("Passkey-enrollment interstitial present; navigating to the dashboard...")
     await navigate_to_dashboard(page)
 
