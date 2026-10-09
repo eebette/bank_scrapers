@@ -8,6 +8,7 @@ for t in tables:
     print(t.to_string())
 ```
 """
+
 # Standard Library Imports
 from random import randint
 from time import sleep
@@ -215,6 +216,24 @@ async def seek_accounts_data(page: Page, tmp: str) -> None:
     :param page: The Chrome browser application
     :param tmp: An empty directory to use for processing the downloaded file
     """
+    # Diagnostic: the raw goto below to digital.fidelity.com aborts (ERR_ABORTED)
+    # because it skips the NetBenefits -> brokerage SSO; log the digital.fidelity
+    # links on the current page (incl. shadow DOM) so the real click-through is known.
+    try:
+        links: List[str] = await page.evaluate(
+            "() => { const o=[]; const w=r=>{ "
+            "r.querySelectorAll('a[href]').forEach(a=>{ "
+            "if((a.href||'').includes('digital.fidelity.com')) "
+            "o.push(((a.getAttribute('aria-label')||a.textContent||'').trim().slice(0,45))"
+            "+' -> '+a.href.slice(0,90)); }); "
+            "r.querySelectorAll('*').forEach(e=>{if(e.shadowRoot)w(e.shadowRoot)}); }; "
+            "w(document); return o.slice(0,30); }"
+        )
+        log.info(f"[diag] fidelity url before goto: {page.url}")
+        log.info(f"[diag] digital.fidelity links on page: {links}")
+    except Exception as exc:  # noqa: BLE001 - diagnostic only
+        log.info(f"[diag] fidelity link enumeration failed: {exc}")
+
     # Go to the accounts page
     log.info(f"Accessing: {DASHBOARD_PAGE}")
     await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
@@ -265,11 +284,15 @@ def parse_accounts_summary(full_path: str) -> pd.DataFrame:
     df: pd.DataFrame = df[df["Current Value"].notna()]
 
     df["Quantity"]: pd.DataFrame = df["Quantity"].fillna(df["Current Value"])
-    df["Quantity"]: pd.DataFrame = df["Quantity"].astype(str).str.replace("$", "", regex=False)
+    df["Quantity"]: pd.DataFrame = (
+        df["Quantity"].astype(str).str.replace("$", "", regex=False)
+    )
     df["Quantity"]: pd.DataFrame = pd.to_numeric(df["Quantity"])
 
     df["Last Price"]: pd.DataFrame = df["Last Price"].fillna(1.0)
-    df["Last Price"]: pd.DataFrame = df["Last Price"].astype(str).str.replace("$", "", regex=False)
+    df["Last Price"]: pd.DataFrame = (
+        df["Last Price"].astype(str).str.replace("$", "", regex=False)
+    )
     df["Last Price"]: pd.DataFrame = pd.to_numeric(df["Last Price"])
 
     df["Symbol"]: pd.DataFrame = df["Symbol"].fillna(df["Description"])

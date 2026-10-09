@@ -628,6 +628,25 @@ async def get_account_number(page: Page) -> str:
     :return: A string containing the account number
     """
     log.info(f"Finding account number element...")
+    # Diagnostic: header selector timed out and Chase signed out during the 60s wait
+    # (saved page was the logged-out homepage), so log the account-details page's
+    # heading candidates here, before the wait, to see if the testid was renamed.
+    try:
+        headings: List[str] = await page.evaluate(
+            "() => { const o=[]; const w=r=>{ "
+            "r.querySelectorAll('[data-testid],[role=heading],h1,h2').forEach(e=>{ "
+            "const tid=e.getAttribute('data-testid')||''; "
+            "const tx=(e.textContent||'').trim().slice(0,45); "
+            "if(tid.includes('header')||tid.includes('title')"
+            "||e.getAttribute('role')==='heading'||/^H[12]$/.test(e.tagName)) "
+            "o.push((tid?('testid='+tid):e.tagName)+': '+tx); }); "
+            "r.querySelectorAll('*').forEach(e=>{if(e.shadowRoot)w(e.shadowRoot)}); }; "
+            "w(document); return o.slice(0,25); }"
+        )
+        log.info(f"[diag] chase account-details url: {page.url}")
+        log.info(f"[diag] chase heading candidates: {headings}")
+    except Exception as exc:  # noqa: BLE001 - diagnostic only
+        log.info(f"[diag] chase heading enumeration failed: {exc}")
     account_number_element: Locator = page.locator(ACCOUNT_TITLE_SELECTOR)
     account_number_text: str = await account_number_element.text_content(
         timeout=TIMEOUT
