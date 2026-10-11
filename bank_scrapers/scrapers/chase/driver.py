@@ -44,6 +44,18 @@ SYMBOL: str = "USD"
 # Logon page
 HOMEPAGE: str = "https://secure.chase.com/web/auth/dashboard#/dashboard/index/index"
 
+# Login field selectors. Chase serves two logon variants; only one ID present
+# at a time. Comma selector inside iframe, not `.or_()` (patchright frame-scope
+# bug).
+USERNAME_SELECTOR: str = "#userId-input, #userId-input-field-input"
+PASSWORD_SELECTOR: str = "#password-input, #password-input-field-input"
+
+# Login-form wait + reload-retry. logonbox = module-federation microapp;
+# under burst load sometimes hangs on loading spinner, never mounts form
+# (~1/4 back-to-back loads from exporter host; reload clears it).
+LOGIN_FORM_TIMEOUT: int = 20 * 1000
+LOGIN_FORM_ATTEMPTS: int = 3
+
 # Timeout
 TIMEOUT: int = 60 * 1000
 
@@ -66,30 +78,36 @@ async def logon(
     log.info(f"Accessing: {homepage}")
     await page.goto(homepage, timeout=TIMEOUT, wait_until="load")
 
-    # Navigate the login iframe
+    # Navigate the login iframe. logonbox microapp sometimes hangs on spinner
+    # under burst load and never mounts form; wait for username field and
+    # reload-retry so transient spinner-hang not fail whole run.
     log.info(f"Switching to iframe...")
     iframe: FrameLocator = page.frame_locator("#logonbox")
+    username_input: Locator = iframe.locator(USERNAME_SELECTOR).first
 
-    # Username. Both ID variants are scoped to the same iframe — using
-    # `.or_()` here triggers a patchright bug (`rootElements.getProperty is
-    # not a function` in `_customFindElementsByParsed`) where the second
-    # locator loses its frame scope. A single CSS comma selector inside the
-    # iframe sidesteps the bug; only one of these IDs is in the DOM at a
-    # time depending on which login variant Chase serves.
-    log.info(f"Finding username element...")
-    username_input: Locator = iframe.locator(
-        "#userId-input, #userId-input-field-input"
-    ).first
+    log.info(f"Waiting for login form...")
+    for attempt in range(LOGIN_FORM_ATTEMPTS):
+        try:
+            await username_input.wait_for(state="visible", timeout=LOGIN_FORM_TIMEOUT)
+            break
+        except PlaywrightTimeoutError:
+            if attempt == LOGIN_FORM_ATTEMPTS - 1:
+                raise
+            log.warning(
+                f"Login form not visible after {LOGIN_FORM_TIMEOUT}ms "
+                f"(attempt {attempt + 1}/{LOGIN_FORM_ATTEMPTS}); reloading"
+            )
+            await page.reload(timeout=TIMEOUT, wait_until="load")
+            iframe = page.frame_locator("#logonbox")
+            username_input = iframe.locator(USERNAME_SELECTOR).first
 
     log.info(f"Sending info to username element...")
     log.debug(f"Username: {username}")
     await username_input.press_sequentially(username, delay=100)
 
-    # Password — same patchright `.or_()` workaround as username.
+    # Password — same iframe scope as username.
     log.info(f"Finding password element...")
-    password_input: Locator = iframe.locator(
-        "#password-input, #password-input-field-input"
-    ).first
+    password_input: Locator = iframe.locator(PASSWORD_SELECTOR).first
 
     log.info(f"Sending info to password element...")
     await password_input.press_sequentially(password, delay=100)
