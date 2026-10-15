@@ -14,6 +14,7 @@ from random import randint
 from time import sleep
 from typing import List, Tuple, Union
 from datetime import datetime
+import asyncio
 import re
 import os
 from tempfile import TemporaryDirectory
@@ -28,6 +29,7 @@ from patchright.async_api import (
     expect,
     Download,
     BrowserContext,
+    Error as PlaywrightError,
     TimeoutError as PlaywrightTimeoutError,
 )
 from pyvirtualdisplay import Display
@@ -50,6 +52,11 @@ DASHBOARD_PAGE: str = "https://digital.fidelity.com/ftgw/digital/portfolio/posit
 
 # Timeout
 TIMEOUT: int = 60 * 1000
+
+# Post-OTP SSO session cookie (minted by ecaap /user/session/login); gates retail positions
+SESSION_COOKIE: str = "ATC"
+# Retry positions deep-link on abort from a competing navigation
+POSITIONS_ATTEMPTS: int = 3
 
 # Error screenshot config
 ERROR_DIR: str = f"{ROOT_DIR}/errors"
@@ -202,11 +209,43 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
     log.info(f"Finding submit button element...")
     submit_button: Locator = page.locator("button[id='dom-otp-code-submit-button']")
 
+    # Submit OTP. Fidelity mints retail SSO session (ATC cookie) via ecaap
+    # /user/session/login XHR. Do NOT wait for NetBenefits navstation load: if it
+    # settles, SSO redirect aborts handoff and drops ATC (regression 2026-10-08),
+    # later /positions deep-link 302s to retail sign-in. Wait for post-OTP
+    # session/login, then ATC, so caller hits positions while session fresh.
     log.info(f"Clicking submit button element...")
-    async with page.expect_navigation(
-        url=re.compile(r"workplaceservices"), wait_until="load", timeout=TIMEOUT
-    ):
-        await submit_button.click(force=True)
+    try:
+        async with page.expect_response(
+            lambda r: "ecaap.fidelity.com/user/session/login" in r.url
+            and r.request.method == "POST"
+            and r.status == 200,
+            timeout=TIMEOUT,
+        ):
+            await submit_button.click(force=True)
+    except PlaywrightTimeoutError:
+        log.warning("Post-OTP session/login not observed; falling back to cookie wait")
+
+    log.info(f"Waiting for SSO session cookie '{SESSION_COOKIE}'...")
+    await wait_for_session_cookie(page, SESSION_COOKIE, TIMEOUT)
+
+
+async def wait_for_session_cookie(page: Page, name: str, timeout: int) -> None:
+    """
+    Poll the browser context until cookie `name` is set (post-OTP SSO session mint)
+    :param page: The browser application
+    :param name: Cookie name to await (e.g. ATC)
+    :param timeout: Timeout in ms before raising
+    """
+    step: float = 0.4
+    waited: float = 0.0
+    while waited < timeout / 1000:
+        if any(c["name"] == name for c in await page.context.cookies()):
+            log.info(f"SSO session cookie '{name}' present.")
+            return
+        await asyncio.sleep(step)
+        waited += step
+    raise TimeoutError(f"SSO session cookie '{name}' not set after {timeout / 1000}s")
 
 
 @screenshot_on_timeout(f"{ERROR_DIR}/{datetime.now()}_{INSTITUTION}.png")
@@ -216,32 +255,30 @@ async def seek_accounts_data(page: Page, tmp: str) -> None:
     :param page: The Chrome browser application
     :param tmp: An empty directory to use for processing the downloaded file
     """
-    # Diagnostic: the raw goto below to digital.fidelity.com aborts (ERR_ABORTED)
-    # because it skips the NetBenefits -> brokerage SSO; log the digital.fidelity
-    # links on the current page (incl. shadow DOM) so the real click-through is known.
-    try:
-        links: List[str] = await page.evaluate(
-            "() => { const o=[]; const w=r=>{ "
-            "r.querySelectorAll('a[href]').forEach(a=>{ "
-            "if((a.href||'').includes('digital.fidelity.com')) "
-            "o.push(((a.getAttribute('aria-label')||a.textContent||'').trim().slice(0,45))"
-            "+' -> '+a.href.slice(0,90)); }); "
-            "r.querySelectorAll('*').forEach(e=>{if(e.shadowRoot)w(e.shadowRoot)}); }; "
-            "w(document); return o.slice(0,30); }"
-        )
-        log.info(f"[diag] fidelity url before goto: {page.url}")
-        log.info(f"[diag] digital.fidelity links on page: {links}")
-    except Exception as exc:  # noqa: BLE001 - diagnostic only
-        log.info(f"[diag] fidelity link enumeration failed: {exc}")
-
-    # Go to the accounts page
+    # Deep-link straight to retail positions while post-OTP SSO session (ATC) fresh.
+    # Dwell on NetBenefits navstation bounces through SSO redirect, drops ATC, 302s
+    # /positions to retail sign-in (regression 2026-10-08). wait_until="commit"
+    # tolerates redirect chain; retry occasional abort from competing navigation.
     log.info(f"Accessing: {DASHBOARD_PAGE}")
-    await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT)
+    for attempt in range(POSITIONS_ATTEMPTS):
+        try:
+            await page.goto(DASHBOARD_PAGE, timeout=TIMEOUT, wait_until="commit")
+            break
+        except PlaywrightError as exc:
+            if attempt == POSITIONS_ATTEMPTS - 1:
+                raise
+            log.warning(
+                f"positions goto aborted ({exc}); retry {attempt + 1}/{POSITIONS_ATTEMPTS}"
+            )
+
+    # Wait for the positions grid to render
+    log.info(f"Waiting for positions grid...")
+    kebab_button: Locator = page.locator("#posweb-grid_top-kebab_popover-button button")
+    download_button: Locator = page.locator("#kebabmenuitem-download")
+    await kebab_button.wait_for(state="visible", timeout=TIMEOUT)
 
     # Wait for the kebab button to be clickable
     log.info(f"Finding download button element...")
-    kebab_button: Locator = page.locator("#posweb-grid_top-kebab_popover-button button")
-    download_button: Locator = page.locator("#kebabmenuitem-download")
     while not await download_button.is_visible():
         log.info(f"Clicking kebab button element...")
         await kebab_button.click()
