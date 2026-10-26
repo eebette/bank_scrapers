@@ -178,7 +178,7 @@ async def handle_mfa_redirect(page: Page, mfa_auth: MfaAuth = None) -> None:
         )
         otp_code: str = search_files_for_int(
             mfa_auth["otp_code_location"],
-            "Servicing Digital",
+            "CrossCountry Mortgage",
             6,
             10,
             TIMEOUT,

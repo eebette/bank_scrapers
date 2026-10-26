@@ -298,7 +298,7 @@ def main() -> None:
         help=textwrap.dedent(
             """
         A json file containing the MFA authentication options for this driver. 
-        This proc waits for a file with the OTP code and the word "Servicing Digital" in the dir at `otp_code_location`
+        This proc waits for a file with the OTP code and the words "CrossCountry Mortgage" in the dir at `otp_code_location`
         
         Example:
         {
